@@ -112,4 +112,42 @@ class ProductModelTest {
         assertEquals(domainOffer.price, mappedBack.price)
         assertEquals(domainOffer.store, mappedBack.store)
     }
+
+    @Test
+    fun testFourStoreComparisonIntegrity() {
+        val fourStores = Store.entries.map { store ->
+            StoreOffer(
+                id = "p1_${store.name.lowercase()}",
+                productId = "p1",
+                store = store,
+                productUrl = "https://example.com/${store.name.lowercase()}",
+                price = when (store) {
+                    Store.AMAZON -> 1159.0
+                    Store.FLIPKART -> 1149.0
+                    Store.MEESHO -> 1089.0
+                    Store.MYNTRA -> 1199.0
+                },
+                originalPrice = 1449.0,
+                discountPercentage = 20.0,
+                availability = Availability.IN_STOCK
+            )
+        }
+
+        val product = Product(
+            id = "go24-water-bottle",
+            title = "Go24 Stainless Steel Anime Water Bottle 1 LTR | Thermosteel Flask",
+            imageUrl = "https://images.unsplash.com/photo-1602143407151-7111542de6e8",
+            stores = fourStores
+        )
+
+        assertEquals(4, product.stores.size)
+        assertTrue(product.stores.any { it.store == Store.AMAZON })
+        assertTrue(product.stores.any { it.store == Store.FLIPKART })
+        assertTrue(product.stores.any { it.store == Store.MEESHO })
+        assertTrue(product.stores.any { it.store == Store.MYNTRA })
+        assertEquals(Store.MEESHO, product.lowestOffer?.store)
+        assertEquals(1089.0, product.lowestPrice ?: 0.0, 0.01)
+        assertNotNull(product.imageUrl)
+        assertTrue(product.imageUrl!!.startsWith("http"))
+    }
 }
