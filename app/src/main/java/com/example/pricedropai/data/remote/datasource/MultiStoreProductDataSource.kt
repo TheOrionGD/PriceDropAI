@@ -222,15 +222,28 @@ class MultiStoreProductDataSource(
     private fun estimateBasePrice(query: String): Double {
         val lower = query.lowercase()
         return when {
-            lower.contains("iphone") || lower.contains("s24") || lower.contains("pixel 8") -> 64999.0
-            lower.contains("phone") || lower.contains("smartphone") -> 14999.0
-            lower.contains("macbook") || lower.contains("laptop") -> 48999.0
-            lower.contains("headphone") || lower.contains("earbud") || lower.contains("airpod") -> 1999.0
-            lower.contains("shoe") || lower.contains("sneaker") || lower.contains("nike") || lower.contains("puma") -> 2499.0
-            lower.contains("bottle") || lower.contains("flask") || lower.contains("thermosteel") || lower.contains("pexpo") -> 1159.0
-            lower.contains("watch") || lower.contains("smartwatch") -> 2299.0
-            lower.contains("bag") || lower.contains("backpack") -> 1299.0
-            lower.contains("chair") || lower.contains("table") -> 4499.0
+            lower.contains("iphone") || lower.contains("s24") || lower.contains("s25") || lower.contains("pixel") || lower.contains("fold") -> 64999.0
+            lower.contains("macbook") || lower.contains("laptop") || lower.contains("gaming pc") -> 49999.0
+            lower.contains("ipad") || lower.contains("tablet") -> 28999.0
+            lower.contains("tv") || lower.contains("television") || lower.contains("oled") -> 32999.0
+            lower.contains("phone") || lower.contains("smartphone") || lower.contains("redmi") || lower.contains("realme") || lower.contains("oneplus") -> 15999.0
+            lower.contains("refrigerator") || lower.contains("fridge") || lower.contains("washing machine") || lower.contains("ac ") || lower.contains("air conditioner") -> 22999.0
+            lower.contains("headphone") || lower.contains("earbud") || lower.contains("airpod") || lower.contains("earphone") -> 1999.0
+            lower.contains("speaker") || lower.contains("soundbar") -> 3499.0
+            lower.contains("shoe") || lower.contains("sneaker") || lower.contains("nike") || lower.contains("puma") || lower.contains("adidas") || lower.contains("running") -> 2499.0
+            lower.contains("saree") || lower.contains("dress") || lower.contains("jacket") || lower.contains("suit") || lower.contains("blazer") -> 1899.0
+            lower.contains("shirt") || lower.contains("t-shirt") || lower.contains("jeans") || lower.contains("trouser") || lower.contains("kurti") || lower.contains("hoodie") -> 899.0
+            lower.contains("bottle") || lower.contains("flask") || lower.contains("thermosteel") || lower.contains("pexpo") || lower.contains("milton") -> 1159.0
+            lower.contains("cooker") || lower.contains("induction") || lower.contains("kettle") || lower.contains("air fryer") || lower.contains("mixer") || lower.contains("grinder") -> 2699.0
+            lower.contains("watch") || lower.contains("smartwatch") -> 2499.0
+            lower.contains("perfume") || lower.contains("deodorant") || lower.contains("fragrance") || lower.contains("serum") || lower.contains("cream") -> 799.0
+            lower.contains("shampoo") || lower.contains("facewash") || lower.contains("skincare") || lower.contains("hair oil") -> 499.0
+            lower.contains("bag") || lower.contains("backpack") || lower.contains("trolley") || lower.contains("suitcase") -> 1699.0
+            lower.contains("chair") || lower.contains("table") || lower.contains("desk") || lower.contains("sofa") || lower.contains("bed") -> 4999.0
+            lower.contains("cycle") || lower.contains("bicycle") || lower.contains("treadmill") || lower.contains("dumbbell") -> 5999.0
+            lower.contains("book") || lower.contains("novel") -> 399.0
+            lower.contains("toy") || lower.contains("game") || lower.contains("puzzle") || lower.contains("lego") -> 899.0
+            lower.contains("helmet") || lower.contains("car ") || lower.contains("bike ") -> 1499.0
             else -> 999.0
         }
     }
@@ -244,7 +257,8 @@ class MultiStoreProductDataSource(
         if (lower.contains("s?k=") || lower.contains("/dp/") || lower.contains("/search?") || lower.contains(".html")) return false
         val isImageExtension = lower.contains(".jpg") || lower.contains(".jpeg") || lower.contains(".png") || lower.contains(".webp")
         val isImageHost = lower.contains("media-amazon") || lower.contains("images-amazon") || lower.contains("flixcart") ||
-                lower.contains("meesho") || lower.contains("myntassets") || lower.contains("unsplash") || lower.contains("wikimedia")
+                lower.contains("meesho") || lower.contains("myntassets") || lower.contains("unsplash") || lower.contains("wikimedia") ||
+                lower.contains("cloudfront") || lower.contains("cdn")
         return isImageExtension || isImageHost
     }
 
@@ -259,7 +273,7 @@ class MultiStoreProductDataSource(
             return webImage
         }
 
-        // High quality curated product imagery by category
+        // High quality curated product imagery by category and keyword
         return getCuratedCategoryImage(query, category)
     }
 
@@ -323,26 +337,54 @@ class MultiStoreProductDataSource(
     private fun getCuratedCategoryImage(query: String, category: String): String {
         val lower = query.lowercase()
         return when {
-            lower.contains("bottle") || lower.contains("flask") || lower.contains("pexpo") || lower.contains("thermosteel") ->
+            lower.contains("bottle") || lower.contains("flask") || lower.contains("pexpo") || lower.contains("thermosteel") || lower.contains("milton") ->
                 "https://images.unsplash.com/photo-1602143407151-7111542de6e8?auto=format&fit=crop&w=800&q=80"
             lower.contains("iphone") || lower.contains("apple") ->
                 "https://images.unsplash.com/photo-1592750475338-74b7b21085ab?auto=format&fit=crop&w=800&q=80"
-            lower.contains("phone") || lower.contains("samsung") || lower.contains("pixel") ->
+            lower.contains("phone") || lower.contains("samsung") || lower.contains("pixel") || lower.contains("oneplus") || lower.contains("smartphone") ->
                 "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=800&q=80"
-            lower.contains("laptop") || lower.contains("macbook") || lower.contains("computer") ->
+            lower.contains("laptop") || lower.contains("macbook") || lower.contains("computer") || lower.contains("dell") || lower.contains("hp") || lower.contains("asus") ->
                 "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&w=800&q=80"
-            lower.contains("headphone") || lower.contains("earbud") || lower.contains("boat") || lower.contains("sony") ->
+            lower.contains("ipad") || lower.contains("tablet") ->
+                "https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?auto=format&fit=crop&w=800&q=80"
+            lower.contains("headphone") || lower.contains("earbud") || lower.contains("boat") || lower.contains("sony") || lower.contains("airpod") ->
                 "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=800&q=80"
-            lower.contains("shoe") || lower.contains("sneaker") || lower.contains("nike") || lower.contains("puma") || lower.contains("adidas") ->
+            lower.contains("speaker") || lower.contains("soundbar") || lower.contains("audio") ->
+                "https://images.unsplash.com/photo-1545454675-3531b543be5d?auto=format&fit=crop&w=800&q=80"
+            lower.contains("shoe") || lower.contains("sneaker") || lower.contains("nike") || lower.contains("puma") || lower.contains("adidas") || lower.contains("running") ->
                 "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=800&q=80"
             lower.contains("watch") || lower.contains("smartwatch") ->
                 "https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=800&q=80"
-            lower.contains("bag") || lower.contains("backpack") ->
+            lower.contains("shirt") || lower.contains("t-shirt") || lower.contains("hoodie") || lower.contains("jacket") ->
+                "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=800&q=80"
+            lower.contains("dress") || lower.contains("saree") || lower.contains("kurti") || lower.contains("women") ->
+                "https://images.unsplash.com/photo-1618932260643-eee4a2f652a6?auto=format&fit=crop&w=800&q=80"
+            lower.contains("jeans") || lower.contains("denim") || lower.contains("pant") || lower.contains("trouser") ->
+                "https://images.unsplash.com/photo-1541099649105-f69ad21f3246?auto=format&fit=crop&w=800&q=80"
+            lower.contains("perfume") || lower.contains("deodorant") || lower.contains("fragrance") || lower.contains("cologne") ->
+                "https://images.unsplash.com/photo-1592945403244-b3fbafd7f539?auto=format&fit=crop&w=800&q=80"
+            lower.contains("shampoo") || lower.contains("soap") || lower.contains("serum") || lower.contains("skincare") || lower.contains("cream") ->
+                "https://images.unsplash.com/photo-1556228720-195a672e8a03?auto=format&fit=crop&w=800&q=80"
+            lower.contains("bag") || lower.contains("backpack") || lower.contains("luggage") || lower.contains("suitcase") || lower.contains("trolley") ->
                 "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=800&q=80"
+            lower.contains("cooker") || lower.contains("pan") || lower.contains("kettle") || lower.contains("kitchen") || lower.contains("cookware") ->
+                "https://images.unsplash.com/photo-1556911220-e15b29be8c8f?auto=format&fit=crop&w=800&q=80"
+            lower.contains("tv") || lower.contains("television") ->
+                "https://images.unsplash.com/photo-1593784991095-a205069470b6?auto=format&fit=crop&w=800&q=80"
+            lower.contains("chair") || lower.contains("table") || lower.contains("desk") || lower.contains("sofa") || lower.contains("furniture") ->
+                "https://images.unsplash.com/photo-1580481077195-c22ae9a1030e?auto=format&fit=crop&w=800&q=80"
+            lower.contains("cycle") || lower.contains("bicycle") || lower.contains("fitness") || lower.contains("gym") || lower.contains("dumbbell") ->
+                "https://images.unsplash.com/photo-1517838277536-f5f99be501cd?auto=format&fit=crop&w=800&q=80"
+            lower.contains("book") || lower.contains("novel") ->
+                "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=800&q=80"
+            lower.contains("toy") || lower.contains("game") || lower.contains("lego") ->
+                "https://images.unsplash.com/photo-1566576912321-d58ddd7a6088?auto=format&fit=crop&w=800&q=80"
+            category == "Fashion" || category == "Clothing" ->
+                "https://images.unsplash.com/photo-1489987707025-afc232f7ea0f?auto=format&fit=crop&w=800&q=80"
             category == "Kitchen" ->
                 "https://images.unsplash.com/photo-1556911220-e15b29be8c8f?auto=format&fit=crop&w=800&q=80"
-            category == "Furniture" ->
-                "https://images.unsplash.com/photo-1580481077195-c22ae9a1030e?auto=format&fit=crop&w=800&q=80"
+            category == "Beauty" || category == "Personal Care" ->
+                "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&w=800&q=80"
             else ->
                 "https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?auto=format&fit=crop&w=800&q=80"
         }
@@ -625,21 +667,27 @@ class MultiStoreProductDataSource(
     private fun detectCategory(q: String): String {
         val lower = q.lowercase()
         return when {
-            lower.contains("phone") || lower.contains("iphone") || lower.contains("samsung") || lower.contains("pixel") -> "Mobiles"
-            lower.contains("laptop") || lower.contains("macbook") || lower.contains("computer") -> "Computers"
-            lower.contains("headphone") || lower.contains("earbud") || lower.contains("audio") || lower.contains("speaker") -> "Audio"
-            lower.contains("shoe") || lower.contains("sneaker") || lower.contains("boot") -> "Footwear"
-            lower.contains("chair") || lower.contains("table") || lower.contains("desk") || lower.contains("sofa") -> "Furniture"
-            lower.contains("bottle") || lower.contains("flask") || lower.contains("pexpo") -> "Kitchen"
-            lower.contains("bag") || lower.contains("backpack") -> "Bags"
-            lower.contains("watch") -> "Wearables"
+            lower.contains("phone") || lower.contains("iphone") || lower.contains("samsung") || lower.contains("pixel") || lower.contains("redmi") || lower.contains("oneplus") -> "Mobiles"
+            lower.contains("laptop") || lower.contains("macbook") || lower.contains("computer") || lower.contains("pc") || lower.contains("dell") || lower.contains("hp") -> "Computers"
+            lower.contains("tablet") || lower.contains("ipad") -> "Tablets"
+            lower.contains("tv") || lower.contains("television") || lower.contains("soundbar") || lower.contains("speaker") || lower.contains("audio") || lower.contains("headphone") || lower.contains("earbud") -> "Audio & Video"
+            lower.contains("shoe") || lower.contains("sneaker") || lower.contains("boot") || lower.contains("sandal") || lower.contains("heel") || lower.contains("slipper") -> "Footwear"
+            lower.contains("shirt") || lower.contains("t-shirt") || lower.contains("pant") || lower.contains("jeans") || lower.contains("saree") || lower.contains("kurti") || lower.contains("dress") || lower.contains("jacket") -> "Fashion"
+            lower.contains("perfume") || lower.contains("fragrance") || lower.contains("shampoo") || lower.contains("skincare") || lower.contains("cream") || lower.contains("makeup") || lower.contains("serum") -> "Beauty & Personal Care"
+            lower.contains("bottle") || lower.contains("flask") || lower.contains("cooker") || lower.contains("kettle") || lower.contains("pan") || lower.contains("induction") || lower.contains("blender") -> "Kitchen"
+            lower.contains("chair") || lower.contains("table") || lower.contains("desk") || lower.contains("sofa") || lower.contains("bed") || lower.contains("lamp") -> "Furniture & Home"
+            lower.contains("bag") || lower.contains("backpack") || lower.contains("luggage") || lower.contains("suitcase") || lower.contains("wallet") -> "Bags & Luggage"
+            lower.contains("watch") || lower.contains("smartwatch") || lower.contains("fitbit") -> "Wearables"
+            lower.contains("cycle") || lower.contains("bicycle") || lower.contains("gym") || lower.contains("dumbbell") || lower.contains("fitness") -> "Sports & Fitness"
+            lower.contains("book") || lower.contains("novel") -> "Books"
+            lower.contains("toy") || lower.contains("game") || lower.contains("puzzle") -> "Toys & Games"
             else -> "General E-Commerce"
         }
     }
 
     private fun detectBrand(q: String): String? {
         val lower = q.lowercase()
-        val brands = listOf("apple", "samsung", "sony", "nike", "adidas", "puma", "boat", "noise", "oneplus", "asus", "dell", "hp", "lenovo", "milton", "pexpo")
+        val brands = listOf("apple", "samsung", "sony", "nike", "adidas", "puma", "boat", "noise", "oneplus", "asus", "dell", "hp", "lenovo", "milton", "pexpo", "prestige", "philips", "fastrack", "titan", "levis", "zara", "h&m", "redmi", "realme", "motorola", "logitech", "boult", "zebronics", "wildcraft", "safari", "american tourister", "skybags", "bournvita", "nestle", "amul", "mamaearth", "lakme", "nivea", "dove", "garnier")
         return brands.firstOrNull { lower.contains(it) }?.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
     }
 }

@@ -65,7 +65,7 @@ class ProductRepository(
      * 5. If remote fails and cache exists, maintains cache. If no cache, emits error. Never fakes data.
      */
     fun searchAndSyncProduct(query: String): Flow<Result<Product>> = flow {
-        val cleanQuery = query.trim()
+        val cleanQuery = com.example.pricedropai.core.parser.UrlProductParser.extractSearchQuery(query).ifBlank { query.trim() }
         val estimatedId = cleanQuery.lowercase().replace("[^a-z0-9]+".toRegex(), "-").take(60)
 
         // 1. Emit cached data if available in Room
