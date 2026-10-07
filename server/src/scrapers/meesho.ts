@@ -1,49 +1,82 @@
-import * as cheerio from 'cheerio';
 import { RawScrapedItem, Store, Availability } from '../types/index.js';
-import { fetchPageHtml } from '../utils/htmlFetcher.js';
+import { scrapePage } from '../utils/puppeteer.js';
+
+function extractFromHtml(html: string): any[] {
+  const products: any[] = [];
+  // Match each product card: <a href="/.../p/..."> ... </a>
+  const cardRe = /<a\s+href="(\/[^"]*\/p\/[^"]+)"[^>]*>([\s\S]*?)<\/a>/g;
+  let m;
+  while ((m = cardRe.exec(html)) !== null) {
+    const href = m[1];
+    const body = m[2];
+
+    // Title from img alt or <p> text
+    const altMatch = body.match(/<img[^>]*\balt="([^"]*)"/);
+    const pMatch = body.match(/<p[^>]*>([^<]{3,120})<\/p>/);
+    const title = (altMatch ? altMatch[1] : (pMatch ? pMatch[1] : '')).trim();
+    if (!title || title.length < 3) continue;
+
+    // Price from <h5> or <span> with ₹
+    const priceMatch = body.match(/₹\s*([\d,]+)/);
+    if (!priceMatch) continue;
+    const price = parseFloat(priceMatch[1].replace(/,/g, ''));
+    if (isNaN(price) || price <= 10) continue;
+
+    // Image
+    const imgMatch = body.match(/<img[^>]*\bsrc="([^"]+)"/);
+    let imageUrl = imgMatch ? imgMatch[1] : null;
+
+    products.push({
+      title,
+      price,
+      originalPrice: null,
+      imageUrl,
+      landingPageUrl: href,
+    });
+  }
+  return products;
+}
 
 export async function scrapeMeesho(query: string): Promise<RawScrapedItem[]> {
-  try {
-    const encoded = encodeURIComponent(query.trim());
-    const url = `https://www.meesho.com/search?q=${encoded}`;
+  const encoded = encodeURIComponent(query.trim());
+  const url = `https://www.meesho.com/search?q=${encoded}`;
 
-    const html = await fetchPageHtml(url, 'https://www.meesho.com/');
-    if (!html) return [];
+  const html = await scrapePage(url, async (page: any) => {
+    return await page.content();
+  });
 
-    const $ = cheerio.load(html);
-    const results: RawScrapedItem[] = [];
+  if (!html) return [];
 
-    $('a[href*="/p/"]').each((_, el) => {
-      const card = $(el);
-      const relHref = card.attr('href') || '';
-      const fullUrl = relHref.startsWith('http') ? relHref : `https://www.meesho.com${relHref}`;
+  const products = extractFromHtml(html);
+  const results: RawScrapedItem[] = [];
 
-      const title = card.find('p, h5, span').first().text().trim() || query;
-      const priceText = card.find('h5:contains("₹"), span:contains("₹"), p:contains("₹")').first().text().replace(/[^0-9]/g, '');
-      const price = priceText ? parseFloat(priceText) : null;
-      const imgUrl = card.find('img').first().attr('src');
-      const ratingText = card.find('span:contains("★"), span:contains("4.") , span:contains("3.")').first().text().trim();
-      const ratingMatch = ratingText.match(/([0-9.]+)/);
+  for (const p of products) {
+    let productUrl = p.landingPageUrl || '';
+    if (productUrl && !productUrl.startsWith('http')) {
+      productUrl = `https://www.meesho.com${productUrl.startsWith('/') ? '' : '/'}${productUrl}`;
+    }
+    if (!productUrl) productUrl = `https://www.meesho.com/${encoded}`;
 
-      if (price && price > 10) {
-        results.push({
-          store: Store.MEESHO,
-          title: title.length > 5 ? title : query,
-          url: fullUrl,
-          price,
-          originalPrice: null,
-          discountPercentage: null,
-          imageUrl: imgUrl && imgUrl.startsWith('http') ? imgUrl : null,
-          rating: ratingMatch ? parseFloat(ratingMatch[1]) : null,
-          reviewCount: null,
-          availability: Availability.IN_STOCK,
-        });
-      }
+    let imageUrl = p.imageUrl || null;
+    if (imageUrl && !imageUrl.startsWith('http')) {
+      if (imageUrl.startsWith('//')) imageUrl = 'https:' + imageUrl;
+      else if (imageUrl.startsWith('/')) imageUrl = `https://www.meesho.com${imageUrl}`;
+      else imageUrl = `https://www.meesho.com/${imageUrl}`;
+    }
+
+    results.push({
+      store: Store.MEESHO,
+      title: p.title,
+      url: productUrl,
+      price: p.price,
+      originalPrice: p.originalPrice ?? null,
+      discountPercentage: null,
+      imageUrl: imageUrl && imageUrl.startsWith('http') ? imageUrl : null,
+      rating: null,
+      reviewCount: null,
+      availability: Availability.IN_STOCK,
     });
-
-    return results;
-  } catch (err: any) {
-    console.error(`[Meesho Scraper] Error for "${query}":`, err.message);
-    return [];
   }
+
+  return results;
 }

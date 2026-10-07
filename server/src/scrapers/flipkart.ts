@@ -1,59 +1,131 @@
-import * as cheerio from 'cheerio';
 import { RawScrapedItem, Store, Availability } from '../types/index.js';
 import { fetchPageHtml } from '../utils/htmlFetcher.js';
+
+function parseState(html: string): any {
+  const idx = html.indexOf('window.__INITIAL_STATE__');
+  if (idx < 0) throw new Error('INITIAL_STATE not found');
+  const eqIdx = html.indexOf('=', idx);
+  const openBrace = html.indexOf('{', eqIdx);
+  let depth = 0;
+  let closeBrace = -1;
+  let inStr = false;
+  let escape = false;
+  for (let i = openBrace; i < html.length; i++) {
+    const ch = html[i];
+    if (escape) { escape = false; continue; }
+    if (ch === '\\') { escape = true; continue; }
+    if (ch === '"') { inStr = !inStr; continue; }
+    if (inStr) continue;
+    if (ch === '{') depth++;
+    else if (ch === '}') { depth--; if (depth === 0) { closeBrace = i; break; } }
+  }
+  return JSON.parse(html.slice(openBrace, closeBrace + 1));
+}
+
+function parsePrice(text: string | null | undefined): number | null {
+  if (!text) return null;
+  const cleaned = text.replace(/[^0-9.]/g, '');
+  const n = parseFloat(cleaned);
+  return isNaN(n) || n <= 0 ? null : n;
+}
+
+function getFirstPrice(v: any): { price: number | null; originalPrice: number | null } {
+  const prices = v?.pricing?.prices;
+  if (!Array.isArray(prices) || prices.length === 0) return { price: null, originalPrice: null };
+  let selling: number | null = null;
+  let special: number | null = null;
+  for (const p of prices) {
+    const val = parsePrice(String(p.value));
+    if (val === null) continue;
+    if (p.priceType === 'FSP') selling = val;
+    else if (p.priceType === 'SPECIAL_PRICE') special = val;
+    if (!selling) selling = val;
+    if (!special && p.name !== 'Selling Price') special = val;
+  }
+  return {
+    price: special || selling,
+    originalPrice: selling,
+  };
+}
+
+function getImage(v: any): string | null {
+  const images = v?.media?.images;
+  if (!Array.isArray(images) || images.length === 0) return null;
+  const url = images[0].url;
+  if (!url) return null;
+  // Template: http://rukmini1.flixcart.com/image/{@width}/{@height}/xif0q/...
+  let resolved = url
+    .replace(/\{@width\}/g, '500')
+    .replace(/\{@height\}/g, '500')
+    .replace(/\{@quality\}/g, '70');
+  if (resolved.startsWith('//')) resolved = 'https:' + resolved;
+  return resolved.startsWith('http') ? resolved : null;
+}
 
 export async function scrapeFlipkart(query: string): Promise<RawScrapedItem[]> {
   try {
     const encoded = encodeURIComponent(query.trim());
     const url = `https://www.flipkart.com/search?q=${encoded}`;
-
     const html = await fetchPageHtml(url, 'https://www.flipkart.com/');
     if (!html) return [];
 
-    const $ = cheerio.load(html);
+    let state: any;
+    try {
+      state = parseState(html);
+    } catch {
+      return [];
+    }
+
+    const page = state.pageDataV4?.page;
+    if (!page || !page.data) return [];
+
     const results: RawScrapedItem[] = [];
+    const seenIds = new Set<string>();
 
-    $('div[data-id], div.cPHDOP, div._1AtVbE').each((_, el) => {
-      const card = $(el);
+    for (const [slotKey, slotVal] of Object.entries(page.data)) {
+      const slot: any = slotVal;
+      if (!Array.isArray(slot)) continue;
+      for (const w of slot) {
+        if (!w?.widget || w.widget.type !== 'PRODUCT_SUMMARY') continue;
+        const products = w.widget.data?.products;
+        if (!Array.isArray(products)) continue;
+        for (const p of products) {
+          const v = p.productInfo?.value;
+          if (!v) continue;
+          const id = v.id;
+          if (!id || seenIds.has(id)) continue;
+          seenIds.add(id);
 
-      const title = card.find('div.KzDlHZ, div._4rR01T, a.s1Q9rs, a.wjcEIp').first().text().trim();
-      const priceText = card.find('div.Nx9bqj, div._30jeq3, div.hl05eU div._25b18c div').first().text().replace(/[^0-9]/g, '');
-      const originalPriceText = card.find('div.yRaY8j, div._3I9_wc').first().text().replace(/[^0-9]/g, '');
-      const discountText = card.find('div.UkUFwK, div._3Ay6Sb').first().text().replace(/[^0-9]/g, '');
-      const ratingText = card.find('div.XQDdHH, div._3LWZlK').first().text().trim();
-      const reviewCountText = card.find('span.WJhBDe, span._2_R_DZ').first().text().replace(/[^0-9]/g, '');
+          const title = v.titles?.title || v.titles?.newTitle || '';
+          if (!title) continue;
 
-      const relHref = card.find('a.CGtC5Q, a._1fQZEK, a.s1Q9rs, a.VJA3rP, a[href*="/p/"]').first().attr('href');
-      const imgUrl = card.find('img._53qgcR, img.DByuf4, img._396cs4, img[src*="flixcart"]').first().attr('src')
-        || card.find('img').first().attr('src');
+          const { price, originalPrice } = getFirstPrice(v);
+          if (!price || price <= 10) continue;
 
-      const price = priceText ? parseFloat(priceText) : null;
-      const originalPrice = originalPriceText ? parseFloat(originalPriceText) : null;
-      const discountPercentage = discountText ? parseFloat(discountText) : null;
+          const baseUrl = v.baseUrl || '';
+          const fullUrl = baseUrl.startsWith('http')
+            ? baseUrl
+            : `https://www.flipkart.com${baseUrl}`;
 
-      if (title && price && price > 10) {
-        let fullUrl = relHref || '';
-        if (fullUrl && !fullUrl.startsWith('http')) {
-          fullUrl = `https://www.flipkart.com${fullUrl}`;
+          const discountPct = originalPrice && originalPrice > price
+            ? Math.round(((originalPrice - price) / originalPrice) * 100)
+            : null;
+
+          results.push({
+            store: Store.FLIPKART,
+            title,
+            url: fullUrl,
+            price,
+            originalPrice,
+            discountPercentage: discountPct,
+            imageUrl: getImage(v),
+            rating: parsePrice(String(v.ratingsAndReviews?.rating)) ?? null,
+            reviewCount: v.ratingsAndReviews?.reviewCount ?? null,
+            availability: Availability.IN_STOCK,
+          });
         }
-
-        const rating = ratingText ? parseFloat(ratingText) : null;
-        const reviewCount = reviewCountText ? parseInt(reviewCountText, 10) : null;
-
-        results.push({
-          store: Store.FLIPKART,
-          title,
-          url: fullUrl || url,
-          price,
-          originalPrice,
-          discountPercentage,
-          imageUrl: imgUrl && imgUrl.startsWith('http') ? imgUrl : null,
-          rating,
-          reviewCount,
-          availability: Availability.IN_STOCK,
-        });
       }
-    });
+    }
 
     return results;
   } catch (err: any) {
