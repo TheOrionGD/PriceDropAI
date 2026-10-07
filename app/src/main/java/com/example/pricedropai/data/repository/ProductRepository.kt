@@ -9,6 +9,7 @@ import com.example.pricedropai.data.local.entity.SearchHistoryEntity
 import com.example.pricedropai.data.mapper.Mappers
 import com.example.pricedropai.data.mapper.Mappers.toDomain
 import com.example.pricedropai.data.mapper.Mappers.toEntity
+import com.example.pricedropai.data.remote.datasource.BackendProductDataSource
 import com.example.pricedropai.data.remote.datasource.MultiStoreProductDataSource
 import com.example.pricedropai.data.remote.datasource.ProductDataSource
 import kotlinx.coroutines.Dispatchers
@@ -20,7 +21,7 @@ import kotlinx.coroutines.withContext
 
 class ProductRepository(
     private val database: PriceDropDatabase,
-    private val remoteDataSource: ProductDataSource = MultiStoreProductDataSource()
+    private val remoteDataSource: ProductDataSource = BackendProductDataSource()
 ) {
     private val productDao = database.productDao()
     private val priceSnapshotDao = database.priceSnapshotDao()
