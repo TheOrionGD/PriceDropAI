@@ -30,6 +30,22 @@ class MultiStoreProductDataSource(
                 .retryOnConnectionFailure(true)
                 .build()
         }
+
+        private fun logE(tag: String, msg: String, tr: Throwable? = null) {
+            try {
+                Log.e(tag, msg, tr)
+            } catch (_: Throwable) {
+                System.err.println("[$tag] ERROR: $msg ${tr?.message ?: ""}")
+            }
+        }
+
+        private fun logD(tag: String, msg: String) {
+            try {
+                Log.d(tag, msg)
+            } catch (_: Throwable) {
+                // Safe for JVM execution
+            }
+        }
     }
 
     private data class ScrapedOfferResult(
@@ -63,69 +79,50 @@ class MultiStoreProductDataSource(
                 meeshoScraped?.let { scrapedMap[Store.MEESHO] = it }
                 myntraScraped?.let { scrapedMap[Store.MYNTRA] = it }
 
-                val validScraped = scrapedMap.values.toList()
+                val validScraped = scrapedMap.values.filter { it.offer.price != null && it.offer.price > 10.0 }
                 val productId = cleanQuery.lowercase().replace("[^a-z0-9]+".toRegex(), "-").take(60)
-                val category = detectCategory(cleanQuery)
-                val brand = detectBrand(cleanQuery)
 
-                // 1. Establish Title
+                // 1. Establish Title directly from scraped results
                 val primaryScraped = validScraped.firstOrNull { !it.offer.deliveryInfo.isNullOrBlank() }
                 val title = (primaryScraped?.offer?.deliveryInfo?.takeIf { it.isNotBlank() } ?: cleanQuery)
                     .split(" ")
                     .filter { it.isNotBlank() }
                     .joinToString(" ") { word -> word.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() } }
 
-                // 2. Establish Anchor Price & MRP for competitive comparison
-                val lowestScrapedPrice = validScraped.mapNotNull { it.offer.price }.filter { it > 10.0 }.minOrNull()
-                val basePrice = lowestScrapedPrice ?: estimateBasePrice(cleanQuery)
-                val highestScrapedMrp = validScraped.mapNotNull { it.offer.originalPrice }.filter { it > basePrice }.maxOrNull()
-                val baseMrp = highestScrapedMrp ?: (basePrice * 1.25).toInt().toDouble()
-
-                // 3. Build Guaranteed 4 Stores Comparison (Amazon, Flipkart, Meesho, Myntra)
-                val encoded = URLEncoder.encode(cleanQuery, StandardCharsets.UTF_8.toString())
-                val allFourOffers = Store.entries.map { store ->
-                    val liveResult = scrapedMap[store]
-                    if (liveResult != null && liveResult.offer.price != null && liveResult.offer.price > 10.0) {
-                        liveResult.offer.copy(
-                            id = "${productId}_${store.name.lowercase()}",
-                            productId = productId
-                        )
-                    } else {
-                        // Generate competitive market comparison offer for this store
-                        createSyntheticStoreOffer(
-                            store = store,
-                            productId = productId,
-                            query = cleanQuery,
-                            encodedQuery = encoded,
-                            basePrice = basePrice,
-                            baseMrp = baseMrp
-                        )
-                    }
+                // 2. Real Scraped Store Offers ONLY (No synthetic / fallback data)
+                val liveOffers = validScraped.map { scraped ->
+                    scraped.offer.copy(
+                        id = "${productId}_${scraped.offer.store.name.lowercase()}",
+                        productId = productId
+                    )
                 }
 
-                // 4. Resolve Dynamic High-Definition Product Image
+                // 3. Resolve Dynamic Live Product Image directly from web
                 val scrapedImageCandidate = validScraped.mapNotNull { it.imageUrl }.firstOrNull { isValidImageUrl(it) }
                 val dynamicImage = resolveDynamicProductImage(
                     query = cleanQuery,
-                    scrapedImageUrl = scrapedImageCandidate,
-                    category = category
+                    scrapedImageUrl = scrapedImageCandidate
                 )
 
-                // 5. Ratings & Reviews
-                val verifiedRating = validScraped.mapNotNull { it.rating }.firstOrNull() ?: 4.4
-                val verifiedReviewCount = validScraped.mapNotNull { it.reviewCount }.firstOrNull() ?: 128
+                // 4. Live Scraped Ratings & Reviews
+                val verifiedRating = validScraped.mapNotNull { it.rating }.firstOrNull()
+                val verifiedReviewCount = validScraped.mapNotNull { it.reviewCount }.firstOrNull()
+
+                if (liveOffers.isEmpty() && dynamicImage == null) {
+                    return@coroutineScope Result.failure(NoSuchElementException("No live offers found for '$cleanQuery'"))
+                }
 
                 val product = Product(
                     id = productId,
                     title = title,
-                    description = "Live multi-store verified pricing across all 4 available retail stores.",
+                    description = "Live verified pricing across online retail stores.",
                     imageUrl = dynamicImage,
-                    category = category,
-                    brand = brand,
+                    category = detectCategory(cleanQuery),
+                    brand = detectBrand(cleanQuery),
                     rating = verifiedRating,
                     reviewCount = verifiedReviewCount,
                     variants = emptyList(),
-                    stores = allFourOffers,
+                    stores = liveOffers,
                     reviewSummary = ReviewSummary(isAvailable = false),
                     paymentOffers = emptyList(),
                     lastUpdated = System.currentTimeMillis()
@@ -134,7 +131,7 @@ class MultiStoreProductDataSource(
                 Result.success(listOf(product))
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Search error: ${e.localizedMessage}", e)
+            logE(TAG, "Search error: ${e.localizedMessage}", e)
             Result.failure(e)
         }
     }
@@ -166,115 +163,34 @@ class MultiStoreProductDataSource(
         return Result.success(emptyList())
     }
 
-    // --- STORE COMPARISON GENERATOR (4 Websites) ---
+    // --- DYNAMIC IMAGE RESOLUTION VIA LIVE WEB SEARCH ENGINES ---
 
-    private fun createSyntheticStoreOffer(
-        store: Store,
-        productId: String,
-        query: String,
-        encodedQuery: String,
-        basePrice: Double,
-        baseMrp: Double
-    ): StoreOffer {
-        val (priceMultiplier, url, delivery) = when (store) {
-            Store.AMAZON -> Triple(
-                1.00,
-                "https://www.amazon.in/s?k=$encodedQuery",
-                "Amazon Prime Delivery"
-            )
-            Store.FLIPKART -> Triple(
-                if (basePrice > 5000) 0.99 else 0.985,
-                "https://www.flipkart.com/search?q=$encodedQuery",
-                "Flipkart Assured Delivery"
-            )
-            Store.MEESHO -> Triple(
-                if (basePrice > 2000) 0.94 else 0.92,
-                "https://www.meesho.com/search?q=$encodedQuery",
-                "Free Delivery"
-            )
-            Store.MYNTRA -> Triple(
-                1.03,
-                "https://www.myntra.com/$encodedQuery",
-                "Express Delivery"
-            )
-        }
-
-        val computedPrice = (basePrice * priceMultiplier).toInt().toDouble()
-        val originalPrice = if (baseMrp > computedPrice) baseMrp else (computedPrice * 1.25).toInt().toDouble()
-        val discountPercent = if (originalPrice > computedPrice) {
-            ((originalPrice - computedPrice) / originalPrice * 100.0)
-        } else null
-
-        return StoreOffer(
-            id = "${productId}_${store.name.lowercase()}",
-            productId = productId,
-            store = store,
-            productUrl = url,
-            price = computedPrice,
-            originalPrice = originalPrice,
-            discountPercentage = discountPercent,
-            availability = Availability.IN_STOCK,
-            deliveryInfo = delivery,
-            lastUpdated = System.currentTimeMillis()
-        )
-    }
-
-    private fun estimateBasePrice(query: String): Double {
-        val lower = query.lowercase()
-        return when {
-            lower.contains("iphone") || lower.contains("s24") || lower.contains("s25") || lower.contains("pixel") || lower.contains("fold") -> 64999.0
-            lower.contains("macbook") || lower.contains("laptop") || lower.contains("gaming pc") -> 49999.0
-            lower.contains("ipad") || lower.contains("tablet") -> 28999.0
-            lower.contains("tv") || lower.contains("television") || lower.contains("oled") -> 32999.0
-            lower.contains("phone") || lower.contains("smartphone") || lower.contains("redmi") || lower.contains("realme") || lower.contains("oneplus") -> 15999.0
-            lower.contains("refrigerator") || lower.contains("fridge") || lower.contains("washing machine") || lower.contains("ac ") || lower.contains("air conditioner") -> 22999.0
-            lower.contains("headphone") || lower.contains("earbud") || lower.contains("airpod") || lower.contains("earphone") -> 1999.0
-            lower.contains("speaker") || lower.contains("soundbar") -> 3499.0
-            lower.contains("shoe") || lower.contains("sneaker") || lower.contains("nike") || lower.contains("puma") || lower.contains("adidas") || lower.contains("running") -> 2499.0
-            lower.contains("saree") || lower.contains("dress") || lower.contains("jacket") || lower.contains("suit") || lower.contains("blazer") -> 1899.0
-            lower.contains("shirt") || lower.contains("t-shirt") || lower.contains("jeans") || lower.contains("trouser") || lower.contains("kurti") || lower.contains("hoodie") -> 899.0
-            lower.contains("bottle") || lower.contains("flask") || lower.contains("thermosteel") || lower.contains("pexpo") || lower.contains("milton") -> 1159.0
-            lower.contains("cooker") || lower.contains("induction") || lower.contains("kettle") || lower.contains("air fryer") || lower.contains("mixer") || lower.contains("grinder") -> 2699.0
-            lower.contains("watch") || lower.contains("smartwatch") -> 2499.0
-            lower.contains("perfume") || lower.contains("deodorant") || lower.contains("fragrance") || lower.contains("serum") || lower.contains("cream") -> 799.0
-            lower.contains("shampoo") || lower.contains("facewash") || lower.contains("skincare") || lower.contains("hair oil") -> 499.0
-            lower.contains("bag") || lower.contains("backpack") || lower.contains("trolley") || lower.contains("suitcase") -> 1699.0
-            lower.contains("chair") || lower.contains("table") || lower.contains("desk") || lower.contains("sofa") || lower.contains("bed") -> 4999.0
-            lower.contains("cycle") || lower.contains("bicycle") || lower.contains("treadmill") || lower.contains("dumbbell") -> 5999.0
-            lower.contains("book") || lower.contains("novel") -> 399.0
-            lower.contains("toy") || lower.contains("game") || lower.contains("puzzle") || lower.contains("lego") -> 899.0
-            lower.contains("helmet") || lower.contains("car ") || lower.contains("bike ") -> 1499.0
-            else -> 999.0
-        }
-    }
-
-    // --- DYNAMIC IMAGE RESOLUTION ---
-
-    private fun isValidImageUrl(url: String?): Boolean {
+    fun isValidImageUrl(url: String?): Boolean {
         if (url.isNullOrBlank()) return false
         val lower = url.lowercase()
         if (!lower.startsWith("http://") && !lower.startsWith("https://")) return false
         if (lower.contains("s?k=") || lower.contains("/dp/") || lower.contains("/search?") || lower.contains(".html")) return false
-        val isImageExtension = lower.contains(".jpg") || lower.contains(".jpeg") || lower.contains(".png") || lower.contains(".webp")
-        val isImageHost = lower.contains("media-amazon") || lower.contains("images-amazon") || lower.contains("flixcart") ||
-                lower.contains("meesho") || lower.contains("myntassets") || lower.contains("unsplash") || lower.contains("wikimedia") ||
-                lower.contains("cloudfront") || lower.contains("cdn")
+        val isImageExtension = lower.contains(".jpg") || lower.contains(".jpeg") || lower.contains(".png") || lower.contains(".webp") || lower.contains(".svg")
+        val isImageHost = lower.contains("media-amazon") || lower.contains("images-amazon") || lower.contains("ssl-images-amazon") ||
+                lower.contains("flixcart") || lower.contains("meesho") || lower.contains("myntassets") ||
+                lower.contains("unsplash") || lower.contains("wikimedia") || lower.contains("wikipedia") ||
+                lower.contains("duckduckgo") || lower.contains("bing") || lower.contains("googleusercontent") ||
+                lower.contains("openlibrary") || lower.contains("cloudfront") || lower.contains("cdn")
         return isImageExtension || isImageHost
     }
 
-    private fun resolveDynamicProductImage(query: String, scrapedImageUrl: String?, category: String): String {
+    fun resolveDynamicProductImage(query: String, scrapedImageUrl: String? = null): String? {
         if (!scrapedImageUrl.isNullOrBlank() && isValidImageUrl(scrapedImageUrl)) {
             return scrapedImageUrl
         }
 
-        // Fetch dynamic product image from web search API
+        // Live web search API query (DuckDuckGo, Wikipedia, Commons, OpenLibrary)
         val webImage = fetchDynamicImageFromWeb(query)
         if (!webImage.isNullOrBlank() && isValidImageUrl(webImage)) {
             return webImage
         }
 
-        // High quality curated product imagery by category and keyword
-        return getCuratedCategoryImage(query, category)
+        return null
     }
 
     private fun fetchDynamicImageFromWeb(query: String): String? {
@@ -284,7 +200,7 @@ class MultiStoreProductDataSource(
             return null
         }
 
-        // Tier 1: DuckDuckGo Instant Search
+        // Tier 1: DuckDuckGo Live Search API (Checks direct Image, RelatedTopics, and Results)
         try {
             val ddgUrl = "https://api.duckduckgo.com/?q=$encoded&format=json&no_redirect=1&no_html=1"
             val request = Request.Builder().url(ddgUrl).header("User-Agent", USER_AGENT).build()
@@ -292,21 +208,63 @@ class MultiStoreProductDataSource(
             if (response.isSuccessful) {
                 val body = response.body?.string() ?: ""
                 response.close()
-                if (body.contains("\"Image\":\"http")) {
+                if (body.isNotEmpty()) {
                     val json = JSONObject(body)
-                    val img = json.optString("Image")
-                    if (isValidImageUrl(img)) return img
+                    // Check direct Image
+                    var img = json.optString("Image")
+                    if (img.isNotBlank()) {
+                        if (img.startsWith("/")) img = "https://duckduckgo.com$img"
+                        if (isValidImageUrl(img)) return img
+                    }
+
+                    // Check RelatedTopics array
+                    val relatedTopics = json.optJSONArray("RelatedTopics")
+                    if (relatedTopics != null && relatedTopics.length() > 0) {
+                        for (i in 0 until relatedTopics.length()) {
+                            val topic = relatedTopics.optJSONObject(i)
+                            var iconUrl = topic?.optJSONObject("Icon")?.optString("URL")
+                            if (!iconUrl.isNullOrBlank()) {
+                                if (iconUrl.startsWith("/")) iconUrl = "https://duckduckgo.com$iconUrl"
+                                if (isValidImageUrl(iconUrl)) return iconUrl
+                            }
+                            // Nested Topics
+                            val subTopics = topic?.optJSONArray("Topics")
+                            if (subTopics != null) {
+                                for (j in 0 until subTopics.length()) {
+                                    val subTopic = subTopics.optJSONObject(j)
+                                    var subIcon = subTopic?.optJSONObject("Icon")?.optString("URL")
+                                    if (!subIcon.isNullOrBlank()) {
+                                        if (subIcon.startsWith("/")) subIcon = "https://duckduckgo.com$subIcon"
+                                        if (isValidImageUrl(subIcon)) return subIcon
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Check Results array
+                    val results = json.optJSONArray("Results")
+                    if (results != null && results.length() > 0) {
+                        for (i in 0 until results.length()) {
+                            val resObj = results.optJSONObject(i)
+                            var resIcon = resObj?.optJSONObject("Icon")?.optString("URL")
+                            if (!resIcon.isNullOrBlank()) {
+                                if (resIcon.startsWith("/")) resIcon = "https://duckduckgo.com$resIcon"
+                                if (isValidImageUrl(resIcon)) return resIcon
+                            }
+                        }
+                    }
                 }
             } else {
                 response.close()
             }
         } catch (e: Exception) {
-            Log.d(TAG, "DDG image fetch notice: ${e.message}")
+            logD(TAG, "DDG image fetch notice: ${e.message}")
         }
 
-        // Tier 2: Wikipedia / Wikimedia Commons Instant PageImages API
+        // Tier 2: Wikipedia / Wikimedia PageImages Live Search API (Top 5 matches)
         try {
-            val wikiUrl = "https://en.wikipedia.org/w/api.php?action=query&format=json&prop=pageimages&pithumbsize=800&generator=search&gsrsearch=$encoded&gsrlimit=1"
+            val wikiUrl = "https://en.wikipedia.org/w/api.php?action=query&format=json&prop=pageimages&pithumbsize=800&generator=search&gsrsearch=$encoded&gsrlimit=5"
             val request = Request.Builder().url(wikiUrl).header("User-Agent", USER_AGENT).build()
             val response = client.newCall(request).execute()
             if (response.isSuccessful) {
@@ -316,9 +274,8 @@ class MultiStoreProductDataSource(
                     val json = JSONObject(body)
                     val pages = json.optJSONObject("query")?.optJSONObject("pages")
                     if (pages != null) {
-                        val firstKey = pages.keys().asSequence().firstOrNull()
-                        if (firstKey != null) {
-                            val pageObj = pages.optJSONObject(firstKey)
+                        for (key in pages.keys()) {
+                            val pageObj = pages.optJSONObject(key)
                             val img = pageObj?.optJSONObject("thumbnail")?.optString("source")
                             if (isValidImageUrl(img)) return img
                         }
@@ -328,69 +285,72 @@ class MultiStoreProductDataSource(
                 response.close()
             }
         } catch (e: Exception) {
-            Log.d(TAG, "Wiki image fetch notice: ${e.message}")
+            logD(TAG, "Wiki image fetch notice: ${e.message}")
+        }
+
+        // Tier 3: Wikimedia Commons Direct Image Search API
+        try {
+            val commonsUrl = "https://commons.wikimedia.org/w/api.php?action=query&format=json&generator=search&gsrsearch=$encoded&gsrlimit=3&prop=imageinfo&iiprop=url&iiurlwidth=800"
+            val request = Request.Builder().url(commonsUrl).header("User-Agent", USER_AGENT).build()
+            val response = client.newCall(request).execute()
+            if (response.isSuccessful) {
+                val body = response.body?.string() ?: ""
+                response.close()
+                if (body.contains("\"imageinfo\":[") && body.contains("\"url\":\"http")) {
+                    val json = JSONObject(body)
+                    val pages = json.optJSONObject("query")?.optJSONObject("pages")
+                    if (pages != null) {
+                        for (key in pages.keys()) {
+                            val pageObj = pages.optJSONObject(key)
+                            val imageInfos = pageObj?.optJSONArray("imageinfo")
+                            if (imageInfos != null && imageInfos.length() > 0) {
+                                val info = imageInfos.optJSONObject(0)
+                                val thumbUrl = info?.optString("thumburl")
+                                if (isValidImageUrl(thumbUrl)) return thumbUrl
+                                val directUrl = info?.optString("url")
+                                if (isValidImageUrl(directUrl)) return directUrl
+                            }
+                        }
+                    }
+                }
+            } else {
+                response.close()
+            }
+        } catch (e: Exception) {
+            logD(TAG, "Commons image fetch notice: ${e.message}")
+        }
+
+        // Tier 4: OpenLibrary API for Books
+        if (query.lowercase().contains("book") || query.lowercase().contains("novel") || query.lowercase().contains("author")) {
+            try {
+                val openLibUrl = "https://openlibrary.org/search.json?q=$encoded&limit=1"
+                val request = Request.Builder().url(openLibUrl).header("User-Agent", USER_AGENT).build()
+                val response = client.newCall(request).execute()
+                if (response.isSuccessful) {
+                    val body = response.body?.string() ?: ""
+                    response.close()
+                    val json = JSONObject(body)
+                    val docs = json.optJSONArray("docs")
+                    if (docs != null && docs.length() > 0) {
+                        val firstDoc = docs.optJSONObject(0)
+                        val coverI = firstDoc?.optInt("cover_i", -1) ?: -1
+                        if (coverI > 0) {
+                            val coverUrl = "https://covers.openlibrary.org/b/id/$coverI-L.jpg"
+                            if (isValidImageUrl(coverUrl)) return coverUrl
+                        }
+                    }
+                } else {
+                    response.close()
+                }
+            } catch (e: Exception) {
+                logD(TAG, "OpenLibrary fetch notice: ${e.message}")
+            }
         }
 
         return null
     }
 
-    private fun getCuratedCategoryImage(query: String, category: String): String {
-        val lower = query.lowercase()
-        return when {
-            lower.contains("bottle") || lower.contains("flask") || lower.contains("pexpo") || lower.contains("thermosteel") || lower.contains("milton") ->
-                "https://images.unsplash.com/photo-1602143407151-7111542de6e8?auto=format&fit=crop&w=800&q=80"
-            lower.contains("iphone") || lower.contains("apple") ->
-                "https://images.unsplash.com/photo-1592750475338-74b7b21085ab?auto=format&fit=crop&w=800&q=80"
-            lower.contains("phone") || lower.contains("samsung") || lower.contains("pixel") || lower.contains("oneplus") || lower.contains("smartphone") ->
-                "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=800&q=80"
-            lower.contains("laptop") || lower.contains("macbook") || lower.contains("computer") || lower.contains("dell") || lower.contains("hp") || lower.contains("asus") ->
-                "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&w=800&q=80"
-            lower.contains("ipad") || lower.contains("tablet") ->
-                "https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?auto=format&fit=crop&w=800&q=80"
-            lower.contains("headphone") || lower.contains("earbud") || lower.contains("boat") || lower.contains("sony") || lower.contains("airpod") ->
-                "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=800&q=80"
-            lower.contains("speaker") || lower.contains("soundbar") || lower.contains("audio") ->
-                "https://images.unsplash.com/photo-1545454675-3531b543be5d?auto=format&fit=crop&w=800&q=80"
-            lower.contains("shoe") || lower.contains("sneaker") || lower.contains("nike") || lower.contains("puma") || lower.contains("adidas") || lower.contains("running") ->
-                "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=800&q=80"
-            lower.contains("watch") || lower.contains("smartwatch") ->
-                "https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=800&q=80"
-            lower.contains("shirt") || lower.contains("t-shirt") || lower.contains("hoodie") || lower.contains("jacket") ->
-                "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=800&q=80"
-            lower.contains("dress") || lower.contains("saree") || lower.contains("kurti") || lower.contains("women") ->
-                "https://images.unsplash.com/photo-1618932260643-eee4a2f652a6?auto=format&fit=crop&w=800&q=80"
-            lower.contains("jeans") || lower.contains("denim") || lower.contains("pant") || lower.contains("trouser") ->
-                "https://images.unsplash.com/photo-1541099649105-f69ad21f3246?auto=format&fit=crop&w=800&q=80"
-            lower.contains("perfume") || lower.contains("deodorant") || lower.contains("fragrance") || lower.contains("cologne") ->
-                "https://images.unsplash.com/photo-1592945403244-b3fbafd7f539?auto=format&fit=crop&w=800&q=80"
-            lower.contains("shampoo") || lower.contains("soap") || lower.contains("serum") || lower.contains("skincare") || lower.contains("cream") ->
-                "https://images.unsplash.com/photo-1556228720-195a672e8a03?auto=format&fit=crop&w=800&q=80"
-            lower.contains("bag") || lower.contains("backpack") || lower.contains("luggage") || lower.contains("suitcase") || lower.contains("trolley") ->
-                "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=800&q=80"
-            lower.contains("cooker") || lower.contains("pan") || lower.contains("kettle") || lower.contains("kitchen") || lower.contains("cookware") ->
-                "https://images.unsplash.com/photo-1556911220-e15b29be8c8f?auto=format&fit=crop&w=800&q=80"
-            lower.contains("tv") || lower.contains("television") ->
-                "https://images.unsplash.com/photo-1593784991095-a205069470b6?auto=format&fit=crop&w=800&q=80"
-            lower.contains("chair") || lower.contains("table") || lower.contains("desk") || lower.contains("sofa") || lower.contains("furniture") ->
-                "https://images.unsplash.com/photo-1580481077195-c22ae9a1030e?auto=format&fit=crop&w=800&q=80"
-            lower.contains("cycle") || lower.contains("bicycle") || lower.contains("fitness") || lower.contains("gym") || lower.contains("dumbbell") ->
-                "https://images.unsplash.com/photo-1517838277536-f5f99be501cd?auto=format&fit=crop&w=800&q=80"
-            lower.contains("book") || lower.contains("novel") ->
-                "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=800&q=80"
-            lower.contains("toy") || lower.contains("game") || lower.contains("lego") ->
-                "https://images.unsplash.com/photo-1566576912321-d58ddd7a6088?auto=format&fit=crop&w=800&q=80"
-            category == "Fashion" || category == "Clothing" ->
-                "https://images.unsplash.com/photo-1489987707025-afc232f7ea0f?auto=format&fit=crop&w=800&q=80"
-            category == "Kitchen" ->
-                "https://images.unsplash.com/photo-1556911220-e15b29be8c8f?auto=format&fit=crop&w=800&q=80"
-            category == "Beauty" || category == "Personal Care" ->
-                "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&w=800&q=80"
-            else ->
-                "https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?auto=format&fit=crop&w=800&q=80"
-        }
-    }
-
-    // --- STORE IMPLEMENTATIONS (HTML Extractors) ---
+    // --- STORE IMPLEMENTATIONS (Direct Live Web Scraping) ---
 
     private fun fetchAmazonLive(query: String): ScrapedOfferResult? {
         return try {
@@ -464,7 +424,7 @@ class MultiStoreProductDataSource(
             }
             null
         } catch (e: Exception) {
-            Log.d(TAG, "Amazon fetch notice: ${e.message}")
+            logD(TAG, "Amazon fetch notice: ${e.message}")
             null
         }
     }
@@ -538,7 +498,7 @@ class MultiStoreProductDataSource(
             }
             null
         } catch (e: Exception) {
-            Log.d(TAG, "Flipkart fetch notice: ${e.message}")
+            logD(TAG, "Flipkart fetch notice: ${e.message}")
             null
         }
     }
@@ -596,7 +556,7 @@ class MultiStoreProductDataSource(
             }
             null
         } catch (e: Exception) {
-            Log.d(TAG, "Meesho fetch notice: ${e.message}")
+            logD(TAG, "Meesho fetch notice: ${e.message}")
             null
         }
     }
@@ -659,7 +619,7 @@ class MultiStoreProductDataSource(
             }
             null
         } catch (e: Exception) {
-            Log.d(TAG, "Myntra fetch notice: ${e.message}")
+            logD(TAG, "Myntra fetch notice: ${e.message}")
             null
         }
     }
