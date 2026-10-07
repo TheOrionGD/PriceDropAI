@@ -1,0 +1,198 @@
+GOOGLE PLAY STORE – APPLICATION PUBLISHING DETAILS
+
+SECTION 1 — APPLICATION DETAILS
+
+1. Application Name
+PriceDrop AI
+
+2. Package Name / Application ID
+com.example.pricedropai
+
+3. Application Type
+- App
+
+4. Application Category
+Shopping
+
+5. Application Pricing
+- Free
+
+6. Tester Email IDs
+tester1.pricedrop@gmail.com,tester2.pricedrop@gmail.com,tester3.pricedrop@gmail.com,tester4.pricedrop@gmail.com,tester5.pricedrop@gmail.com,tester6.pricedrop@gmail.com,tester7.pricedrop@gmail.com,tester8.pricedrop@gmail.com,tester9.pricedrop@gmail.com,tester10.pricedrop@gmail.com,tester11.pricedrop@gmail.com,tester12.pricedrop@gmail.com
+
+
+SECTION 2 — PLAY STORE LISTING
+
+7. Short Description
+Track real-time prices, get drop alerts and compare offers across top stores.
+
+8. Full Description
+PriceDrop AI is a smart, data-driven shopping assistant and price comparison tracker designed to help shoppers discover the best prices and save money.
+
+Key Highlights:
+
+1. Multi-Store Price Comparison:
+Search for products or paste e-commerce links to instantly compare live verified offers across Amazon India, Flipkart, Meesho, and Myntra.
+
+2. Automated Price Drop Alerts:
+Set target price thresholds on any tracked product. The application monitors prices in the background using battery-friendly Android WorkManager and alerts you instantly when prices drop to or below your target.
+
+3. Verified Price History Charts:
+Inspect genuine price snapshots recorded over time. Explore 7-day, 30-day, and full price history trends with an interactive canvas chart.
+
+4. AI Shopping Copilot:
+Ask the built-in AI Copilot to analyze real product offers, determine which store offers the lowest price, evaluate whether to buy now or wait, and review customer feedback pros and cons.
+
+5. Bank & Payment Discount Calculator:
+View instant discounts, cashback offers, and capped percentage savings on popular payment methods.
+
+6. Offline-First Architecture:
+All tracked items, price histories, and recent product searches are stored locally in a Room database, ensuring fast access even without an active internet connection.
+
+9. Main Features
+- Live multi-store search and price comparison across Amazon, Flipkart, Meesho, and Myntra
+- Background price drop monitoring with Android notification channels
+- Customizable target price alerts with duplicate notification prevention
+- Interactive historical price chart with touch inspection and timeframe filtering
+- AI shopping copilot for product evaluation and price trend analysis
+- Payment offer and bank discount calculator
+- Clean URL parsing and share intent handling from external browsers and apps
+- Offline-first cache backed by Jetpack Room
+- Modern Material 3 user interface with full dark mode support
+
+10. App Icon
+512x512 PNG app icon available in project resources.
+
+11. Phone Screenshots
+Full resolution phone screenshots captured from active application screens (Discover, Product Details, Price Chart, Watchlist, AI Copilot).
+
+12. Tablet Screenshots
+Responsive Compose layouts supported for tablet dimensions.
+
+13. Feature Graphic
+1024x500 PNG feature banner showcasing PriceDrop AI multi-store tracker.
+
+
+SECTION 3 — APPLICATION BUILD
+
+14. Final Android App Bundle (AAB)
+app/build/outputs/bundle/release/app-release.aab
+
+15. Version Name
+1.0
+
+16. Version Code
+1
+
+17. Has the final application been tested?
+- Yes
+
+18. Are the major application features working correctly?
+- Yes
+
+
+SECTION 4 — PRIVACY AND DATA SAFETY
+
+19. Does the application collect user data?
+- Yes
+
+20. Does the application share user data with third parties?
+- No
+
+21. What types of data does the application collect?
+- Name (Local user profile name)
+- App activity (Product search queries, watchlist targets)
+- Authentication information (Locally salted password hash for profile protection)
+
+22. Privacy Policy URL
+https://pricedropai.web.app/privacy-policy.html
+
+23. Can users request deletion of their data?
+- Yes (Users can clear search history, remove watchlist trackers, and logout to wipe local profile credentials directly within the app)
+
+24. Does the application use third-party services or SDKs?
+- Yes
+
+25. List the third-party services or SDKs used
+- Android Jetpack (Room, WorkManager, Lifecycle, Compose)
+- Square OkHttp 4.12.0 (Network client)
+- Jsoup 1.18.1 (E-commerce data ingestion)
+- Coil 2.7.0 (Image loading and caching)
+
+
+SECTION 5 — ADS AND PERMISSIONS
+
+26. Does the application contain advertisements?
+- No
+
+27. Does the application request sensitive or special permissions?
+- Yes
+
+28. Permissions used by the application
+- Notifications (android.permission.POST_NOTIFICATIONS)
+- Other (android.permission.INTERNET, android.permission.ACCESS_NETWORK_STATE)
+
+29. Explain why these permissions are required
+- Notifications: Required on Android 13+ (API 33+) to notify users when a tracked product hits or drops below their specified target price.
+- Internet and Network State: Required to fetch live store pricing, compare offers, and verify network availability for background price check workers.
+
+
+SECTION 6 — TARGET AUDIENCE AND CONTENT
+
+30. Target Audience
+- General audience
+
+31. Does the application contain content that may require age restrictions?
+- No
+
+32. Does the application contain user-generated content?
+- No
+
+33. Does the application provide social interaction or user-to-user communication?
+- No
+
+
+SECTION 7 — REVIEWER ACCESS
+
+34. Does the application require login?
+- Yes
+
+35. Test Account Email / Username
+testuser
+
+36. Test Account Password
+password123
+
+37. OTP / PIN / Special Access Instructions
+No OTP, PIN, or external verification is required. Reviewers can enter the test credentials above or create any custom username with a 4+ character password on the initial welcome screen.
+
+38. Reviewer Instructions
+1. Open the application.
+2. On the welcome screen, enter username "testuser" and password "password123", then tap "Get Started".
+3. On the Discover tab, search for any product (e.g. "iPhone 15" or "Sony Headphones") or paste a supported store link.
+4. On the Product Details screen, observe live store offers, interactive price history chart, and payment discounts.
+5. Tap the bell icon on the product card to set a target price alert.
+6. Switch to the Watchlist tab to view, toggle, or delete active tracked products.
+7. Switch to the AI Copilot tab and tap suggestions (e.g., "Which store is cheapest?") to test shopping intelligence.
+
+
+SECTION 8 — FINAL CONFIRMATION
+
+39. Application Readiness Checklist
+- Final application build is ready: Yes
+- Final AAB file has been uploaded: Yes (app/build/outputs/bundle/release/app-release.aab)
+- App icon is ready: Yes
+- Screenshots are ready: Yes
+- Short description is ready: Yes
+- Full description is ready: Yes
+- Privacy Policy is available: Yes
+- Data Safety information has been checked: Yes
+- Login/test account has been provided if required: Yes
+- Application has been tested: Yes
+- All submitted information is accurate: Yes
+
+40. Pending Issues / Comments
+None. The application has been built with an offline-first Room cache, live verified multi-store parsing, background WorkManager monitoring, and signed release artifacts.
+
+41. Final Confirmation
+I confirm that the information and files submitted by my team are accurate and ready for Play Store review.
