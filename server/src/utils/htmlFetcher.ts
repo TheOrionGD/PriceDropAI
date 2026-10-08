@@ -7,9 +7,9 @@ export async function fetchPageHtml(url: string, referer?: string): Promise<stri
   // Tier 1: If ZenRows API Key is provided, use its anti-bot residential proxy
   if (zenrowsKey) {
     try {
-      const zenrowsUrl = `https://api.zenrows.com/v1/?apikey=${zenrowsKey}&url=${encodeURIComponent(url)}&antibot=true`;
+      const zenrowsUrl = `https://api.zenrows.com/v1/?apikey=${zenrowsKey}&url=${encodeURIComponent(url)}&antibot=true&js_render=true&premium_proxy=true`;
       const response = await axios.get(zenrowsUrl, {
-        timeout: 20000,
+        timeout: 30000,
         maxContentLength: 5 * 1024 * 1024,
         maxBodyLength: 5 * 1024 * 1024,
         validateStatus: (status) => status === 200,
