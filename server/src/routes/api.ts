@@ -75,4 +75,39 @@ router.get('/product/:id', async (req: Request, res: Response) => {
   }
 });
 
+// Image Proxy endpoint to bypass hotlink & CORS restrictions: GET /api/image-proxy?url=...
+router.get('/image-proxy', async (req: Request, res: Response) => {
+  let targetUrl = (req.query.url as string || '').trim();
+  if (!targetUrl) {
+    res.status(400).send('Missing url parameter');
+    return;
+  }
+
+  if (targetUrl.startsWith('http://')) {
+    targetUrl = targetUrl.replace(/^http:\/\//i, 'https://');
+  }
+
+  try {
+    const axiosModule = await import('axios');
+    const response = await axiosModule.default.get(targetUrl, {
+      responseType: 'arraybuffer',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+        'Referer': '',
+      },
+      timeout: 8000,
+    });
+
+    const contentType = response.headers['content-type'] || 'image/jpeg';
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.send(Buffer.from(response.data));
+  } catch (err: any) {
+    console.warn(`[Image Proxy Fallback] Redirecting directly to ${targetUrl}`);
+    res.redirect(targetUrl);
+  }
+});
+
 export default router;

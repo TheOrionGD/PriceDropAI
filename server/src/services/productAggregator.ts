@@ -3,7 +3,7 @@ import { scrapeAmazon } from '../scrapers/amazon.js';
 import { scrapeFlipkart } from '../scrapers/flipkart.js';
 import { scrapeMeesho } from '../scrapers/meesho.js';
 import { scrapeMyntra } from '../scrapers/myntra.js';
-import { fetchWebImageFallback, isValidImageUrl, optimizeProductImageUrl } from '../scrapers/webFallback.js';
+import { fetchWebImageFallback, isValidImageUrl, optimizeProductImageUrl, getCategoryFallbackImage } from '../scrapers/webFallback.js';
 
 function cleanTitle(title: string): string {
   return title
@@ -536,12 +536,16 @@ export async function aggregateSearchResults(query: string): Promise<Product[]> 
       });
     }
 
-    // Find best image and upscale to high-resolution
+    // Find best image and upscale to high-resolution with guaranteed category fallback
     let candidateImage = cluster.items.map(i => i.imageUrl).find(img => isValidImageUrl(img));
     if (!candidateImage) {
       candidateImage = await fetchWebImageFallback(cluster.title) || await fetchWebImageFallback(cleanQ);
     }
-    const highResImage = optimizeProductImageUrl(candidateImage);
+    const detectedCategory = detectCategory(cluster.title);
+    let highResImage = optimizeProductImageUrl(candidateImage);
+    if (!highResImage) {
+      highResImage = getCategoryFallbackImage(detectedCategory);
+    }
 
     // Ratings & Reviews
     const validRatings = cluster.items.map(i => i.rating).filter((r): r is number => r !== null && r > 0);

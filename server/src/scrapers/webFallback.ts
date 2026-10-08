@@ -22,23 +22,69 @@ export function optimizeProductImageUrl(url: string | null | undefined): string 
 
   let optimized = url.trim();
 
-  // Amazon high-res upscaling: replace small thumbnail suffix with high-res standard
+  // 1. Mandatory HTTPS enforcement (prevents Cleartext HTTP & Mixed Content blocking)
+  if (optimized.startsWith('http://')) {
+    optimized = optimized.replace(/^http:\/\//i, 'https://');
+  }
+
+  // 2. Amazon high-res upscaling: replace small thumbnail suffix with high-res standard
   if (optimized.includes('media-amazon.com') || optimized.includes('images-amazon.com')) {
     optimized = optimized.replace(/\._AC_[A-Z0-9,]+_\.jpg/i, '._AC_SL1000_.jpg');
     optimized = optimized.replace(/\._[A-Z0-9,]+_\.jpg/i, '._AC_SL1000_.jpg');
   }
 
-  // Flipkart high-res upscaling: upgrade thumbnail dimensions (312/312 -> 832/832)
+  // 3. Flipkart high-res upscaling: upgrade thumbnail dimensions (312/312 -> 832/832)
   if (optimized.includes('flixcart.com')) {
     optimized = optimized.replace(/\/image\/[0-9]+\/[0-9]+\//i, '/image/832/832/');
   }
 
-  // Meesho upscaling
+  // 4. Meesho upscaling
   if (optimized.includes('meesho.com') || optimized.includes('meeshosupply.com')) {
     optimized = optimized.replace(/\/(128|256)\//i, '/512/');
   }
 
+  // 5. Myntra image assets
+  if (optimized.includes('myntassets.com')) {
+    if (optimized.startsWith('http://')) {
+      optimized = optimized.replace(/^http:\/\//i, 'https://');
+    }
+  }
+
   return optimized;
+}
+
+export function getCategoryFallbackImage(category: string | null | undefined): string {
+  const cat = (category || '').toLowerCase();
+
+  if (cat.includes('mobile') || cat.includes('phone')) {
+    return 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=800&auto=format&fit=crop&q=80';
+  }
+  if (cat.includes('computer') || cat.includes('laptop')) {
+    return 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=800&auto=format&fit=crop&q=80';
+  }
+  if (cat.includes('audio') || cat.includes('headphone')) {
+    return 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&auto=format&fit=crop&q=80';
+  }
+  if (cat.includes('wearable') || cat.includes('watch')) {
+    return 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800&auto=format&fit=crop&q=80';
+  }
+  if (cat.includes('tv') || cat.includes('entertainment')) {
+    return 'https://images.unsplash.com/photo-1593784991095-a205069470b6?w=800&auto=format&fit=crop&q=80';
+  }
+  if (cat.includes('footwear') || cat.includes('shoe')) {
+    return 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=800&auto=format&fit=crop&q=80';
+  }
+  if (cat.includes('fashion') || cat.includes('apparel')) {
+    return 'https://images.unsplash.com/photo-1445205170230-053b83016050?w=800&auto=format&fit=crop&q=80';
+  }
+  if (cat.includes('bag') || cat.includes('luggage')) {
+    return 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=800&auto=format&fit=crop&q=80';
+  }
+  if (cat.includes('beauty') || cat.includes('grooming')) {
+    return 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=800&auto=format&fit=crop&q=80';
+  }
+
+  return 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=800&auto=format&fit=crop&q=80';
 }
 
 export async function fetchWebImageFallback(query: string): Promise<string | null> {

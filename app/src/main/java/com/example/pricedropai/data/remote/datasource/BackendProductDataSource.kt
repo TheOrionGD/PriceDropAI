@@ -130,9 +130,14 @@ class BackendProductDataSource(
         val id = json.optString("id").takeIf { it.isNotBlank() } ?: return null
         val title = json.optString("title").takeIf { it.isNotBlank() } ?: return null
 
-        val description = json.optString("description").takeIf { it.isNotBlank() }
-        val imageUrl = json.optString("imageUrl").takeIf { it.isNotBlank() && it.startsWith("http") }
         val category = json.optString("category").takeIf { it.isNotBlank() }
+        val rawImageUrl = json.optString("imageUrl").takeIf { it.isNotBlank() && it.startsWith("http") }
+        val sanitizedImageUrl = when {
+            rawImageUrl != null && rawImageUrl.startsWith("http://") -> rawImageUrl.replaceFirst("http://", "https://")
+            rawImageUrl != null -> rawImageUrl
+            else -> getCategoryFallbackImageUrl(category)
+        }
+        val description = json.optString("description").takeIf { it.isNotBlank() }
         val brand = json.optString("brand").takeIf { it.isNotBlank() }
         val rating = if (json.has("rating") && !json.isNull("rating")) json.optDouble("rating") else null
         val reviewCount = if (json.has("reviewCount") && !json.isNull("reviewCount")) json.optInt("reviewCount") else null
@@ -258,7 +263,7 @@ class BackendProductDataSource(
             id = id,
             title = title,
             description = description,
-            imageUrl = imageUrl,
+            imageUrl = sanitizedImageUrl,
             category = category,
             brand = brand,
             rating = rating,
@@ -269,5 +274,20 @@ class BackendProductDataSource(
             paymentOffers = paymentOffersList,
             lastUpdated = json.optLong("lastUpdated", System.currentTimeMillis())
         )
+    }
+
+    private fun getCategoryFallbackImageUrl(category: String?): String {
+        val cat = (category ?: "").lowercase(java.util.Locale.ROOT)
+        return when {
+            cat.contains("mobile") || cat.contains("phone") -> "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=800&auto=format&fit=crop&q=80"
+            cat.contains("computer") || cat.contains("laptop") -> "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=800&auto=format&fit=crop&q=80"
+            cat.contains("audio") || cat.contains("headphone") -> "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&auto=format&fit=crop&q=80"
+            cat.contains("wearable") || cat.contains("watch") -> "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800&auto=format&fit=crop&q=80"
+            cat.contains("tv") || cat.contains("entertainment") -> "https://images.unsplash.com/photo-1593784991095-a205069470b6?w=800&auto=format&fit=crop&q=80"
+            cat.contains("footwear") || cat.contains("shoe") -> "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=800&auto=format&fit=crop&q=80"
+            cat.contains("fashion") || cat.contains("apparel") -> "https://images.unsplash.com/photo-1445205170230-053b83016050?w=800&auto=format&fit=crop&q=80"
+            cat.contains("bag") || cat.contains("luggage") -> "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=800&auto=format&fit=crop&q=80"
+            else -> "https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=800&auto=format&fit=crop&q=80"
+        }
     }
 }
