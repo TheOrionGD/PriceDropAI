@@ -1,5 +1,6 @@
 import { RawScrapedItem, Store, Availability } from '../types/index.js';
 import { scrapePage } from '../utils/puppeteer.js';
+import { fetchPageHtml } from '../utils/htmlFetcher.js';
 
 function extractProductsFromHtml(html: string): any[] {
   const products: any[] = [];
@@ -42,9 +43,15 @@ export async function scrapeMyntra(query: string): Promise<RawScrapedItem[]> {
   const encoded = encodeURIComponent(query.trim());
   const url = `https://www.myntra.com/${encoded}`;
 
-  const html = await scrapePage(url, async (page: any) => {
-    return await page.content();
-  });
+  // Primary: Fast direct HTML fetch without requiring Chrome/Puppeteer
+  let html = await fetchPageHtml(url, 'https://www.myntra.com/');
+
+  // Secondary fallback: Puppeteer browser rendering if direct HTML fetch returned null
+  if (!html) {
+    html = await scrapePage(url, async (page: any) => {
+      return await page.content();
+    });
+  }
 
   if (!html) return [];
 

@@ -10,8 +10,8 @@ export async function fetchPageHtml(url: string, referer?: string): Promise<stri
       const zenrowsUrl = `https://api.zenrows.com/v1/?apikey=${zenrowsKey}&url=${encodeURIComponent(url)}&antibot=true`;
       const response = await axios.get(zenrowsUrl, {
         timeout: 20000,
-        maxContentLength: 3 * 1024 * 1024,
-        maxBodyLength: 3 * 1024 * 1024,
+        maxContentLength: 5 * 1024 * 1024,
+        maxBodyLength: 5 * 1024 * 1024,
         validateStatus: (status) => status === 200,
       });
 
@@ -19,7 +19,10 @@ export async function fetchPageHtml(url: string, referer?: string): Promise<stri
         return typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
       }
     } catch (err: any) {
-      console.warn(`[ZenRows Gateway Notice] ${url}: ${err.message}. Falling back to direct fetch.`);
+      const status = err.response?.status;
+      const respData = err.response?.data;
+      const detail = respData ? (typeof respData === 'object' ? JSON.stringify(respData) : respData) : err.message;
+      console.warn(`[ZenRows Gateway Notice] ${url}: Request failed${status ? ` (status ${status})` : ''}: ${detail}. Falling back to direct fetch.`);
     }
   }
 
@@ -27,9 +30,9 @@ export async function fetchPageHtml(url: string, referer?: string): Promise<stri
   try {
     const response = await axios.get(url, {
       headers: getBrowserHeaders(referer || 'https://www.google.com/'),
-      timeout: 10000,
-      maxContentLength: 3 * 1024 * 1024,
-      maxBodyLength: 3 * 1024 * 1024,
+      timeout: 12000,
+      maxContentLength: 5 * 1024 * 1024,
+      maxBodyLength: 5 * 1024 * 1024,
       validateStatus: (status) => status < 400,
     });
 

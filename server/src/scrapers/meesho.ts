@@ -1,5 +1,6 @@
 import { RawScrapedItem, Store, Availability } from '../types/index.js';
 import { scrapePage } from '../utils/puppeteer.js';
+import { fetchPageHtml } from '../utils/htmlFetcher.js';
 
 function extractFromHtml(html: string): any[] {
   const products: any[] = [];
@@ -37,17 +38,54 @@ function extractFromHtml(html: string): any[] {
   return products;
 }
 
+function extractFromNextData(html: string): any[] {
+  const products: any[] = [];
+  const nextDataMatch = html.match(/<script id="__NEXT_DATA__" type="application\/json">([\s\S]*?)<\/script>/);
+  if (nextDataMatch) {
+    try {
+      const data = JSON.parse(nextDataMatch[1]);
+      const list = data?.props?.pageProps?.initialState?.search?.products ||
+                   data?.props?.pageProps?.data?.products ||
+                   data?.props?.pageProps?.products || [];
+      for (const item of list) {
+        const title = item.name || item.title;
+        const price = item.price || item.minPrice;
+        if (title && price && price > 10) {
+          products.push({
+            title,
+            price,
+            originalPrice: item.originalPrice || item.mrp || null,
+            imageUrl: item.images?.[0] || item.image || null,
+            landingPageUrl: item.slug ? `/p/${item.slug}` : (item.id ? `/p/${item.id}` : null),
+          });
+        }
+      }
+    } catch {}
+  }
+  return products;
+}
+
 export async function scrapeMeesho(query: string): Promise<RawScrapedItem[]> {
   const encoded = encodeURIComponent(query.trim());
   const url = `https://www.meesho.com/search?q=${encoded}`;
 
-  const html = await scrapePage(url, async (page: any) => {
-    return await page.content();
-  });
+  // Primary: Fast direct HTML fetch without requiring Chrome/Puppeteer
+  let html = await fetchPageHtml(url, 'https://www.meesho.com/');
+
+  // Secondary fallback: Puppeteer browser rendering if direct HTML fetch returned null
+  if (!html) {
+    html = await scrapePage(url, async (page: any) => {
+      return await page.content();
+    });
+  }
 
   if (!html) return [];
 
-  const products = extractFromHtml(html);
+  let products = extractFromHtml(html);
+  if (products.length === 0) {
+    products = extractFromNextData(html);
+  }
+
   const results: RawScrapedItem[] = [];
 
   for (const p of products) {
@@ -55,7 +93,7 @@ export async function scrapeMeesho(query: string): Promise<RawScrapedItem[]> {
     if (productUrl && !productUrl.startsWith('http')) {
       productUrl = `https://www.meesho.com${productUrl.startsWith('/') ? '' : '/'}${productUrl}`;
     }
-    if (!productUrl) productUrl = `https://www.meesho.com/${encoded}`;
+    if (!productUrl) productUrl = `https://www.meesho.com/search?q=${encoded}`;
 
     let imageUrl = p.imageUrl || null;
     if (imageUrl && !imageUrl.startsWith('http')) {

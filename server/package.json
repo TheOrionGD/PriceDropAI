@@ -8,7 +8,8 @@
     "build": "tsc",
     "start": "node --max-old-space-size=384 dist/index.js",
     "dev": "tsx watch src/index.ts",
-    "test": "node --test"
+    "test": "node --test",
+    "postinstall": "npx puppeteer install chrome"
   },
   "keywords": [
     "price-comparison",
