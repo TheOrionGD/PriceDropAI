@@ -564,7 +564,7 @@ class MultiStoreProductDataSource(
     private fun fetchMyntraLive(query: String): ScrapedOfferResult? {
         return try {
             val encoded = URLEncoder.encode(query, StandardCharsets.UTF_8.toString())
-            val targetUrl = "https://www.myntra.com/$encoded"
+            val targetUrl = "https://www.myntra.com/search?rawQuery=$encoded"
 
             val request = Request.Builder()
                 .url(targetUrl)
