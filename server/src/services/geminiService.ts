@@ -36,15 +36,23 @@ function getApiKey(): string {
 function safeParseJson<T = any>(rawText: string | null | undefined): T | null {
   if (!rawText || typeof rawText !== 'string') return null;
   let cleanStr = rawText.trim();
-  
+
   // Remove markdown code fences if present
-  cleanStr = cleanStr.replace(/^```(?:json)?/gi, '').replace(/```$/gi, '').trim();
+  cleanStr = cleanStr.replace(/^```(?:json)?\s*/gi, '').replace(/\s*```$/gi, '').trim();
 
   // Extract JSON object/array boundaries if there's conversational text wrapped around it
   const firstBrace = cleanStr.indexOf('{');
   const lastBrace = cleanStr.lastIndexOf('}');
   if (firstBrace !== -1 && lastBrace > firstBrace) {
     cleanStr = cleanStr.substring(firstBrace, lastBrace + 1);
+  } else if (firstBrace !== -1 && lastBrace <= firstBrace) {
+    // If output was truncated (no closing brace), attempt to auto-close JSON structure
+    cleanStr = cleanStr.substring(firstBrace);
+    const openBraces = (cleanStr.match(/\{/g) || []).length;
+    const closeBraces = (cleanStr.match(/\}/g) || []).length;
+    for (let i = 0; i < openBraces - closeBraces; i++) {
+      cleanStr += '}';
+    }
   }
 
   // Remove trailing commas before closing braces/brackets
@@ -57,7 +65,8 @@ function safeParseJson<T = any>(rawText: string | null | undefined): T | null {
       // Secondary cleanup attempt: replace unescaped control chars / multiline strings
       const sanitized = cleanStr
         .replace(/[\u0000-\u001F\u007F-\u009F]/g, ' ')
-        .replace(/\\'/g, "'");
+        .replace(/\\'/g, "'")
+        .replace(/,\s*([\}\]])/g, '$1');
       return JSON.parse(sanitized) as T;
     } catch (e2) {
       console.warn('[Gemini SafeParse Warning] Unable to parse response string into JSON:', e2);
@@ -85,7 +94,7 @@ async function callGeminiApi(prompt: string, modelsList: string[], expectJson: b
         ],
         generationConfig: {
           temperature: 0.2,
-          maxOutputTokens: 1024
+          maxOutputTokens: 2048
         }
       };
 
@@ -127,7 +136,7 @@ export async function analyzeStorePricesWithGemini(
   primaryTitle: string
 ): Promise<Record<string, AiStoreAnalysis>> {
   const referencePrice = primaryPrice && primaryPrice > 10 ? primaryPrice : 1500;
-  
+
   const prompt = `You are an expert e-commerce price drop analyst and market data parser for top Indian retail platforms: Amazon India, Flipkart, Meesho, and Myntra.
   
 Product Title: "${primaryTitle || query}"
