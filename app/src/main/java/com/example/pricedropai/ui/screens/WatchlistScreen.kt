@@ -25,19 +25,29 @@ import com.example.pricedropai.ui.TrackerViewModel
 import java.text.SimpleDateFormat
 import java.util.*
 
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.ExperimentalMaterial3Api
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WatchlistScreen(
     viewModel: TrackerViewModel,
     onProductSelect: (String) -> Unit
 ) {
     val watchlistItems by viewModel.watchlist.collectAsState()
+    val isRefreshing by viewModel.isRefreshing.collectAsState()
     val dateFormatter = SimpleDateFormat("dd MMM", Locale.getDefault())
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
+    PullToRefreshBox(
+        isRefreshing = isRefreshing,
+        onRefresh = { viewModel.refreshWatchlist() },
+        modifier = Modifier.fillMaxSize()
     ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp)
+        ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -173,4 +183,5 @@ fun WatchlistScreen(
             }
         }
     }
+}
 }

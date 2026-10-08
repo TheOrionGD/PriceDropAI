@@ -99,7 +99,7 @@ router.get('/image-proxy', async (req: Request, res: Response) => {
       timeout: 8000,
     });
 
-    const contentType = response.headers['content-type'] || 'image/jpeg';
+    const contentType = String(response.headers['content-type'] || 'image/jpeg');
     res.setHeader('Content-Type', contentType);
     res.setHeader('Cache-Control', 'public, max-age=86400');
     res.setHeader('Access-Control-Allow-Origin', '*');

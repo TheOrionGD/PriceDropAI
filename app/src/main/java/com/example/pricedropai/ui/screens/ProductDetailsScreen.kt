@@ -37,11 +37,17 @@ import com.example.pricedropai.ui.components.PaymentOfferCalculator
 import com.example.pricedropai.ui.components.ReviewSummarySection
 import com.example.pricedropai.ui.components.StoreOfferCard
 
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.ExperimentalMaterial3Api
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProductDetailsScreen(
     product: Product,
     priceSnapshots: List<PriceSnapshot>,
-    onSaveAlert: (targetPrice: Double, store: Store?, imageUrl: String?) -> Unit
+    onSaveAlert: (targetPrice: Double, store: Store?, imageUrl: String?) -> Unit,
+    isRefreshing: Boolean = false,
+    onRefresh: () -> Unit = {}
 ) {
     val context = LocalContext.current
     var showAlertDialog by remember { mutableStateOf(false) }
@@ -50,6 +56,12 @@ fun ProductDetailsScreen(
             product.lowestPrice?.let { (it * 0.95).toInt().toString() } ?: ""
         )
     }
+
+    PullToRefreshBox(
+        isRefreshing = isRefreshing,
+        onRefresh = onRefresh,
+        modifier = Modifier.fillMaxSize()
+    ) {
     var selectedVariant by remember(product.variants) { mutableStateOf(product.variants.firstOrNull()) }
     var storeFilter by remember { mutableIntStateOf(0) } // 0: All, 1: Lowest first, 2: In stock
 
@@ -379,4 +391,5 @@ fun ProductDetailsScreen(
             Spacer(Modifier.height(20.dp))
         }
     }
+}
 }

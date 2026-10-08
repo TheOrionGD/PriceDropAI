@@ -42,6 +42,12 @@ import com.example.pricedropai.core.model.Product
 import com.example.pricedropai.ui.TrackerViewModel
 import com.example.pricedropai.ui.state.SearchUiState
 
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DiscoverScreen(viewModel: TrackerViewModel) {
     var searchQuery by remember { mutableStateOf("") }
@@ -50,13 +56,19 @@ fun DiscoverScreen(viewModel: TrackerViewModel) {
     val recentSearches by viewModel.recentSearches.collectAsState()
     val recentProducts by viewModel.recentProducts.collectAsState()
     val currentSnapshots by viewModel.currentSnapshots.collectAsState()
+    val isRefreshing by viewModel.isRefreshing.collectAsState()
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 16.dp)
+    PullToRefreshBox(
+        isRefreshing = isRefreshing,
+        onRefresh = { viewModel.refresh(searchQuery) },
+        modifier = Modifier.fillMaxSize()
     ) {
-        Spacer(Modifier.height(12.dp))
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp)
+        ) {
+            Spacer(Modifier.height(12.dp))
 
         // Top Search Bar
         Row(
@@ -236,6 +248,7 @@ fun DiscoverScreen(viewModel: TrackerViewModel) {
             }
         }
     }
+}
 }
 
 @Composable

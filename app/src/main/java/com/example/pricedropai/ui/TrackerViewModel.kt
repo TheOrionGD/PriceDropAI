@@ -60,6 +60,9 @@ class TrackerViewModel(application: Application) : AndroidViewModel(application)
     private val _currentSnapshots = MutableStateFlow<List<PriceSnapshot>>(emptyList())
     val currentSnapshots: StateFlow<List<PriceSnapshot>> = _currentSnapshots.asStateFlow()
 
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
+
     var chatMessages = mutableStateListOf<CopilotChatMessage>()
         private set
 
@@ -170,6 +173,50 @@ class TrackerViewModel(application: Application) : AndroidViewModel(application)
             )
             isBotTyping = false
             chatMessages.add(botReply)
+        }
+    }
+
+    fun refresh(query: String? = null) {
+        val targetQuery = query?.trim()?.takeIf { it.isNotBlank() }
+            ?: (_searchState.value as? SearchUiState.Success)?.product?.title
+            ?: recentSearches.value.firstOrNull()
+
+        if (targetQuery.isNullOrBlank()) {
+            _isRefreshing.value = false
+            return
+        }
+
+        _isRefreshing.value = true
+        viewModelScope.launch {
+            try {
+                productRepository.searchAndSyncProduct(targetQuery).collect { result ->
+                    result.getOrNull()?.let { product ->
+                        _searchState.value = SearchUiState.Success(product)
+                        loadSnapshotsForProduct(product.id)
+                    }
+                }
+            } finally {
+                _isRefreshing.value = false
+            }
+        }
+    }
+
+    fun refreshWatchlist() {
+        val tracked = watchlist.value
+        if (tracked.isEmpty()) {
+            _isRefreshing.value = false
+            return
+        }
+
+        _isRefreshing.value = true
+        viewModelScope.launch {
+            try {
+                for (item in tracked) {
+                    productRepository.searchAndSyncProduct(item.productTitle).collect {}
+                }
+            } finally {
+                _isRefreshing.value = false
+            }
         }
     }
 }
