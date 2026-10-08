@@ -15,43 +15,92 @@ export interface CopilotResponse {
   isVerifiedFact: boolean;
 }
 
-const GEMINI_MODELS = [
-  'gemini-3.5-flash'
+export const GEMINI_ANALYSIS_MODELS = [
+  'gemini-3.8-flash',
+  'gemini-3.6-flash',
+  'gemini-3.5-flash',
+  'gemini-flash-latest'
+];
+
+export const GEMINI_CHAT_MODELS = [
+  'gemini-3.8-flash',
+  'gemini-3.6-flash',
+  'gemini-3.1-pro-preview',
+  'gemini-pro-latest'
 ];
 
 function getApiKey(): string {
   return process.env.GEMINI_API_KEY || '';
 }
 
-async function callGeminiApi(prompt: string): Promise<string | null> {
+function safeParseJson<T = any>(rawText: string | null | undefined): T | null {
+  if (!rawText || typeof rawText !== 'string') return null;
+  let cleanStr = rawText.trim();
+  
+  // Remove markdown code fences if present
+  cleanStr = cleanStr.replace(/^```(?:json)?/gi, '').replace(/```$/gi, '').trim();
+
+  // Extract JSON object/array boundaries if there's conversational text wrapped around it
+  const firstBrace = cleanStr.indexOf('{');
+  const lastBrace = cleanStr.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace > firstBrace) {
+    cleanStr = cleanStr.substring(firstBrace, lastBrace + 1);
+  }
+
+  // Remove trailing commas before closing braces/brackets
+  cleanStr = cleanStr.replace(/,\s*([\}\]])/g, '$1');
+
+  try {
+    return JSON.parse(cleanStr) as T;
+  } catch (e1) {
+    try {
+      // Secondary cleanup attempt: replace unescaped control chars / multiline strings
+      const sanitized = cleanStr
+        .replace(/[\u0000-\u001F\u007F-\u009F]/g, ' ')
+        .replace(/\\'/g, "'");
+      return JSON.parse(sanitized) as T;
+    } catch (e2) {
+      console.warn('[Gemini SafeParse Warning] Unable to parse response string into JSON:', e2);
+      return null;
+    }
+  }
+}
+
+async function callGeminiApi(prompt: string, modelsList: string[], expectJson: boolean = true): Promise<string | null> {
   const apiKey = getApiKey();
   if (!apiKey) return null;
 
-  for (const model of GEMINI_MODELS) {
+  for (const model of modelsList) {
     try {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      const payload: any = {
+        contents: [
+          {
+            parts: [
+              {
+                text: prompt
+              }
+            ]
+          }
+        ],
+        generationConfig: {
+          temperature: 0.2,
+          maxOutputTokens: 1024
+        }
+      };
+
+      if (expectJson) {
+        payload.generationConfig.responseMimeType = 'application/json';
+      }
+
       const response = await axios.post(
         url,
-        {
-          contents: [
-            {
-              parts: [
-                {
-                  text: prompt
-                }
-              ]
-            }
-          ],
-          generationConfig: {
-            temperature: 0.2,
-            maxOutputTokens: 1024
-          }
-        },
+        payload,
         {
           headers: {
             'Content-Type': 'application/json'
           },
-          timeout: 10000
+          timeout: 12000
         }
       );
 
@@ -90,7 +139,7 @@ Analyze and generate JSON market rate estimates for Amazon, Flipkart, Meesho, an
 - Flipkart usually offers competitive electronics/fashion pricing near reference price.
 - Meesho offers lower price points for fashion/home/lifestyle (approx 10-20% lower) or standard price for electronics.
 - Myntra offers targeted fashion/lifestyle deals.
-- Output strictly a RAW JSON object with keys "AMAZON", "FLIPKART", "MEESHO", "MYNTRA". Do NOT wrap in markdown formatting, code blocks or backticks.
+- Output strictly a RAW JSON object with keys "AMAZON", "FLIPKART", "MEESHO", "MYNTRA".
 
 Expected JSON Schema:
 {
@@ -100,17 +149,8 @@ Expected JSON Schema:
   "MYNTRA": { "price": ${Math.round(referencePrice * 1.02)}, "originalPrice": ${Math.round(referencePrice * 1.25)}, "discountPercentage": 18, "availability": "IN_STOCK", "deliveryInfo": "Standard Express Shipping" }
 }`;
 
-  const rawResult = await callGeminiApi(prompt);
-  let parsed: Record<string, any> | null = null;
-
-  if (rawResult) {
-    try {
-      const cleanJsonStr = rawResult.replace(/```json/gi, '').replace(/```/g, '').trim();
-      parsed = JSON.parse(cleanJsonStr);
-    } catch (e) {
-      console.warn('[Gemini Parse Warning] Failed to parse JSON response from Gemini API:', e);
-    }
-  }
+  const rawResult = await callGeminiApi(prompt, GEMINI_ANALYSIS_MODELS, true);
+  const parsed = safeParseJson<Record<string, any>>(rawResult);
 
   // Fallback heuristic calculations guaranteeing 100% data coverage for all 4 platforms
   const stores = [Store.AMAZON, Store.FLIPKART, Store.MEESHO, Store.MYNTRA];
@@ -185,19 +225,16 @@ Return strictly a RAW JSON object:
   "suggestedSearchQuery": "optional product search query or null"
 }`;
 
-  const rawResult = await callGeminiApi(prompt);
+  const rawResult = await callGeminiApi(prompt, GEMINI_CHAT_MODELS, true);
   if (rawResult && rawResult.trim().length > 0) {
-    try {
-      const cleanJsonStr = rawResult.replace(/```json/gi, '').replace(/```/g, '').trim();
-      const parsed = JSON.parse(cleanJsonStr);
-      if (parsed?.replyText) {
-        return {
-          replyText: parsed.replyText,
-          suggestedSearchQuery: parsed.suggestedSearchQuery || undefined,
-          isVerifiedFact: true,
-        };
-      }
-    } catch {
+    const parsed = safeParseJson<{ replyText?: string; suggestedSearchQuery?: string }>(rawResult);
+    if (parsed?.replyText) {
+      return {
+        replyText: parsed.replyText,
+        suggestedSearchQuery: parsed.suggestedSearchQuery || undefined,
+        isVerifiedFact: true,
+      };
+    } else {
       // If Gemini returned plain text instead of JSON, return the raw text directly
       return {
         replyText: rawResult.trim(),

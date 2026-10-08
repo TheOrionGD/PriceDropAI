@@ -3,7 +3,7 @@ import { scrapeAmazon } from '../scrapers/amazon.js';
 import { scrapeFlipkart } from '../scrapers/flipkart.js';
 import { scrapeMeesho } from '../scrapers/meesho.js';
 import { scrapeMyntra } from '../scrapers/myntra.js';
-import { fetchWebImageFallback, isValidImageUrl, optimizeProductImageUrl, getCategoryFallbackImage } from '../scrapers/webFallback.js';
+import { fetchWebImageFallback, isValidImageUrl, optimizeProductImageUrl } from '../scrapers/webFallback.js';
 import { analyzeStorePricesWithGemini } from './geminiService.js';
 
 function cleanTitle(title: string): string {
@@ -562,15 +562,20 @@ export async function aggregateSearchResults(query: string): Promise<Product[]> 
     }
 
 
-    // Find best image and upscale to high-resolution with guaranteed category fallback
-    let candidateImage = cluster.items.map(i => i.imageUrl).find(img => isValidImageUrl(img));
-    if (!candidateImage) {
-      candidateImage = await fetchWebImageFallback(cluster.title) || await fetchWebImageFallback(cleanQ);
+    // 1. FIRST: Check online search APIs (ZenRows Gateway, DuckDuckGo, Wikipedia, Commons) for the exact relevant product image
+    let highResImage: string | null = null;
+    const onlineSearchImg = await fetchWebImageFallback(cluster.title) || await fetchWebImageFallback(cleanQ);
+
+    if (onlineSearchImg && isValidImageUrl(onlineSearchImg)) {
+      highResImage = optimizeProductImageUrl(onlineSearchImg);
     }
-    const detectedCategory = detectCategory(cluster.title);
-    let highResImage = optimizeProductImageUrl(candidateImage);
+
+    // 2. SECOND: If online image search yields no result, fallback to scraped listing item image candidate
     if (!highResImage) {
-      highResImage = getCategoryFallbackImage(detectedCategory);
+      const candidateScraped = cluster.items.map(i => i.imageUrl).find(img => isValidImageUrl(img));
+      if (candidateScraped) {
+        highResImage = optimizeProductImageUrl(candidateScraped);
+      }
     }
 
     // Ratings & Reviews

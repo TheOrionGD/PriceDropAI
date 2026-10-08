@@ -25,8 +25,12 @@ import com.example.pricedropai.ui.TrackerViewModel
 import java.text.SimpleDateFormat
 import java.util.*
 
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
-import androidx.compose.material3.ExperimentalMaterial3Api
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -34,6 +38,7 @@ fun WatchlistScreen(
     viewModel: TrackerViewModel,
     onProductSelect: (String) -> Unit
 ) {
+    val context = LocalContext.current
     val watchlistItems by viewModel.watchlist.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
     val dateFormatter = SimpleDateFormat("dd MMM", Locale.getDefault())
@@ -115,9 +120,24 @@ fun WatchlistScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(14.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+                            if (!item.imageUrl.isNullOrBlank()) {
+                                AsyncImage(
+                                    model = ImageRequest.Builder(context)
+                                        .data(item.imageUrl)
+                                        .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+                                        .crossfade(true)
+                                        .build(),
+                                    contentDescription = item.productTitle,
+                                    modifier = Modifier
+                                        .size(56.dp)
+                                        .clip(RoundedCornerShape(10.dp)),
+                                    contentScale = ContentScale.Crop
+                                )
+                                Spacer(Modifier.width(12.dp))
+                            }
+
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = item.productTitle,

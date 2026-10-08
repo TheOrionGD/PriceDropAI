@@ -23,7 +23,17 @@ export async function scrapeAmazon(query: string): Promise<RawScrapedItem[]> {
       const reviewCountText = card.find('span.a-size-base.s-underline-text, span.s-underline-text').first().text().replace(/[^0-9]/g, '');
       
       const relHref = card.find('h2 a, a.a-link-normal.s-no-outline').first().attr('href');
-      const imgUrl = card.find('img.s-image, img.a-dynamic-image').first().attr('src');
+      const imgEl = card.find('img.s-image, img.a-dynamic-image').first();
+      let imgUrl = imgEl.attr('src') || imgEl.attr('data-image-src');
+      if (!imgUrl || imgUrl.includes('grey-pixel') || imgUrl.includes('transparent-pixel')) {
+        const srcset = imgEl.attr('srcset') || imgEl.attr('data-image-srcset');
+        if (srcset) {
+          const parts = srcset.split(',').map(s => s.trim().split(' ')[0]).filter(p => p && !p.includes('grey-pixel'));
+          if (parts.length > 0) {
+            imgUrl = parts[parts.length - 1];
+          }
+        }
+      }
 
       const price = priceText ? parseFloat(priceText) : null;
       const originalPrice = originalPriceText ? parseFloat(originalPriceText) : null;

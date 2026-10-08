@@ -1,15 +1,67 @@
 import axios from 'axios';
+import * as cheerio from 'cheerio';
 import { getRandomUserAgent } from '../utils/headers.js';
+
+export async function fetchZenRowsProductImage(query: string): Promise<string | null> {
+  const zenrowsKey = process.env.ZENROWS_KEY?.trim();
+  if (!zenrowsKey) return null;
+
+  const cleanQ = query.trim();
+  const searchUrl = `https://www.amazon.in/s?k=${encodeURIComponent(cleanQ)}`;
+  const zenrowsUrl = `https://api.zenrows.com/v1/?apikey=${zenrowsKey}&url=${encodeURIComponent(searchUrl)}&js_render=true&antibot=true&premium_proxy=true`;
+
+  try {
+    const res = await axios.get(zenrowsUrl, {
+      timeout: 15000,
+      headers: { 'Accept': 'text/html' }
+    });
+
+    if (res.status === 200 && res.data) {
+      const $ = cheerio.load(res.data);
+      let foundUrl: string | null = null;
+
+      $('div[data-component-type="s-search-result"]').each((_, el) => {
+        if (foundUrl) return;
+        const imgEl = $(el).find('img.s-image, img.a-dynamic-image').first();
+        let src = imgEl.attr('src') || imgEl.attr('data-image-src');
+        
+        if (!src || src.includes('grey-pixel') || src.includes('transparent-pixel')) {
+          const srcset = imgEl.attr('srcset') || imgEl.attr('data-image-srcset');
+          if (srcset) {
+            const parts = srcset.split(',').map(s => s.trim().split(' ')[0]).filter(p => p && !p.includes('grey-pixel'));
+            if (parts.length > 0) src = parts[parts.length - 1];
+          }
+        }
+
+        if (src && isValidImageUrl(src)) {
+          foundUrl = optimizeProductImageUrl(src);
+        }
+      });
+
+      if (foundUrl) {
+        console.log(`[ZenRows Image Gateway] Successfully resolved image for "${cleanQ}": ${foundUrl}`);
+        return foundUrl;
+      }
+    }
+  } catch (err: any) {
+    console.warn(`[ZenRows Image Gateway Notice] Unable to fetch dynamic image for "${cleanQ}":`, err.message);
+  }
+
+  return null;
+}
 
 export function isValidImageUrl(url: string | null | undefined): boolean {
   if (!url || typeof url !== 'string') return false;
   const lower = url.toLowerCase().trim();
   if (!lower.startsWith('http://') && !lower.startsWith('https://')) return false;
-  if (lower.includes('s?k=') || lower.includes('/dp/') || lower.includes('/search?') || lower.includes('.html')) return false;
+  // Exclude landing page / search URLs that are not raw images
+  if (lower.includes('s?k=') || (lower.includes('/dp/') && !lower.includes('/images/')) || lower.includes('/search?q=')) return false;
+  // Exclude lazy-loading placeholder images
+  if (lower.includes('grey-pixel') || lower.includes('transparent-pixel') || lower.includes('1x1') || lower.includes('blank.gif')) return false;
 
-  const isImageExt = lower.includes('.jpg') || lower.includes('.jpeg') || lower.includes('.png') || lower.includes('.webp') || lower.includes('.svg');
+  const isImageExt = lower.includes('.jpg') || lower.includes('.jpeg') || lower.includes('.png') || lower.includes('.webp') || lower.includes('.svg') || lower.includes('.gif') || lower.includes('.avif');
   const isImageHost = lower.includes('media-amazon') || lower.includes('images-amazon') || lower.includes('ssl-images-amazon') ||
-    lower.includes('flixcart') || lower.includes('meesho') || lower.includes('myntassets') ||
+    lower.includes('flixcart') || lower.includes('meesho') || lower.includes('myntassets') || lower.includes('myntra') ||
     lower.includes('unsplash') || lower.includes('wikimedia') || lower.includes('wikipedia') ||
     lower.includes('duckduckgo') || lower.includes('bing') || lower.includes('googleusercontent') ||
     lower.includes('openlibrary') || lower.includes('cloudfront') || lower.includes('cdn');
@@ -53,49 +105,24 @@ export function optimizeProductImageUrl(url: string | null | undefined): string 
   return optimized;
 }
 
-export function getCategoryFallbackImage(category: string | null | undefined): string {
-  const cat = (category || '').toLowerCase();
-
-  if (cat.includes('mobile') || cat.includes('phone')) {
-    return 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=800&auto=format&fit=crop&q=80';
-  }
-  if (cat.includes('computer') || cat.includes('laptop')) {
-    return 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=800&auto=format&fit=crop&q=80';
-  }
-  if (cat.includes('audio') || cat.includes('headphone')) {
-    return 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&auto=format&fit=crop&q=80';
-  }
-  if (cat.includes('wearable') || cat.includes('watch')) {
-    return 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800&auto=format&fit=crop&q=80';
-  }
-  if (cat.includes('tv') || cat.includes('entertainment')) {
-    return 'https://images.unsplash.com/photo-1593784991095-a205069470b6?w=800&auto=format&fit=crop&q=80';
-  }
-  if (cat.includes('footwear') || cat.includes('shoe')) {
-    return 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=800&auto=format&fit=crop&q=80';
-  }
-  if (cat.includes('fashion') || cat.includes('apparel')) {
-    return 'https://images.unsplash.com/photo-1445205170230-053b83016050?w=800&auto=format&fit=crop&q=80';
-  }
-  if (cat.includes('bag') || cat.includes('luggage')) {
-    return 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=800&auto=format&fit=crop&q=80';
-  }
-  if (cat.includes('beauty') || cat.includes('grooming')) {
-    return 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=800&auto=format&fit=crop&q=80';
-  }
-
-  return 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=800&auto=format&fit=crop&q=80';
-}
-
 export async function fetchWebImageFallback(query: string): Promise<string | null> {
-  const encoded = encodeURIComponent(query.trim());
+  const cleanQ = query.trim();
+  const encoded = encodeURIComponent(cleanQ);
   const userAgent = getRandomUserAgent();
+
+  // Tier 0: ZenRows Anti-Bot Dynamic Image Resolution Gateway
+  try {
+    const zenrowsImg = await fetchZenRowsProductImage(cleanQ);
+    if (zenrowsImg && isValidImageUrl(zenrowsImg)) {
+      return zenrowsImg;
+    }
+  } catch {}
 
   // Tier 1: DuckDuckGo Instant Answers API
   try {
     const res = await axios.get(`https://api.duckduckgo.com/?q=${encoded}&format=json&no_redirect=1&no_html=1`, {
       headers: { 'User-Agent': userAgent },
-      timeout: 5000,
+      timeout: 4000,
     });
     if (res.data) {
       if (res.data.Image && isValidImageUrl(res.data.Image)) {
@@ -120,7 +147,7 @@ export async function fetchWebImageFallback(query: string): Promise<string | nul
     const wikiUrl = `https://en.wikipedia.org/w/api.php?action=query&format=json&prop=pageimages&pithumbsize=800&generator=search&gsrsearch=${encoded}&gsrlimit=3`;
     const res = await axios.get(wikiUrl, {
       headers: { 'User-Agent': userAgent },
-      timeout: 5000,
+      timeout: 4000,
     });
     const pages = res.data?.query?.pages;
     if (pages) {
@@ -133,13 +160,32 @@ export async function fetchWebImageFallback(query: string): Promise<string | nul
     }
   } catch {}
 
-  // Tier 3: OpenLibrary API (for books/novels)
-  if (/book|novel|author|edition/i.test(query)) {
+  // Tier 3: Wikimedia Commons Media Search API
+  try {
+    const commonsUrl = `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=${encoded}&gsrnamespace=6&prop=imageinfo&iiprop=url&iiurlwidth=800&format=json&gsrlimit=3`;
+    const res = await axios.get(commonsUrl, {
+      headers: { 'User-Agent': userAgent },
+      timeout: 4000,
+    });
+    const pages = res.data?.query?.pages;
+    if (pages) {
+      for (const key of Object.keys(pages)) {
+        const info = pages[key]?.imageinfo?.[0];
+        const imgUrl = info?.thumburl || info?.url;
+        if (isValidImageUrl(imgUrl)) {
+          return imgUrl;
+        }
+      }
+    }
+  } catch {}
+
+  // Tier 4: OpenLibrary API (for books/novels)
+  if (/book|novel|author|edition/i.test(cleanQ)) {
     try {
       const openLibUrl = `https://openlibrary.org/search.json?q=${encoded}&limit=1`;
       const res = await axios.get(openLibUrl, {
         headers: { 'User-Agent': userAgent },
-        timeout: 5000,
+        timeout: 4000,
       });
       const doc = res.data?.docs?.[0];
       if (doc?.cover_i) {

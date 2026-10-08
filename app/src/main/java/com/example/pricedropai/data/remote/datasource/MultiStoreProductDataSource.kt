@@ -205,12 +205,13 @@ class MultiStoreProductDataSource(
 
     fun isValidImageUrl(url: String?): Boolean {
         if (url.isNullOrBlank()) return false
-        val lower = url.lowercase()
+        val lower = url.lowercase().trim()
         if (!lower.startsWith("http://") && !lower.startsWith("https://")) return false
-        if (lower.contains("s?k=") || lower.contains("/dp/") || lower.contains("/search?") || lower.contains(".html")) return false
-        val isImageExtension = lower.contains(".jpg") || lower.contains(".jpeg") || lower.contains(".png") || lower.contains(".webp") || lower.contains(".svg")
+        if (lower.contains("s?k=") || (lower.contains("/dp/") && !lower.contains("/images/")) || lower.contains("/search?q=")) return false
+        if (lower.contains("grey-pixel") || lower.contains("transparent-pixel") || lower.contains("1x1") || lower.contains("blank.gif")) return false
+        val isImageExtension = lower.contains(".jpg") || lower.contains(".jpeg") || lower.contains(".png") || lower.contains(".webp") || lower.contains(".svg") || lower.contains(".gif") || lower.contains(".avif")
         val isImageHost = lower.contains("media-amazon") || lower.contains("images-amazon") || lower.contains("ssl-images-amazon") ||
-                lower.contains("flixcart") || lower.contains("meesho") || lower.contains("myntassets") ||
+                lower.contains("flixcart") || lower.contains("meesho") || lower.contains("myntassets") || lower.contains("myntra") ||
                 lower.contains("unsplash") || lower.contains("wikimedia") || lower.contains("wikipedia") ||
                 lower.contains("duckduckgo") || lower.contains("bing") || lower.contains("googleusercontent") ||
                 lower.contains("openlibrary") || lower.contains("cloudfront") || lower.contains("cdn")
@@ -218,14 +219,15 @@ class MultiStoreProductDataSource(
     }
 
     fun resolveDynamicProductImage(query: String, scrapedImageUrl: String? = null): String? {
-        if (!scrapedImageUrl.isNullOrBlank() && isValidImageUrl(scrapedImageUrl)) {
-            return scrapedImageUrl
-        }
-
-        // Live web search API query (DuckDuckGo, Wikipedia, Commons, OpenLibrary)
+        // 1. Check online search for relevant query images FIRST
         val webImage = fetchDynamicImageFromWeb(query)
         if (!webImage.isNullOrBlank() && isValidImageUrl(webImage)) {
             return webImage
+        }
+
+        // 2. Fall back to scraped product image if online image search is not found
+        if (!scrapedImageUrl.isNullOrBlank() && isValidImageUrl(scrapedImageUrl)) {
+            return scrapedImageUrl
         }
 
         return null
