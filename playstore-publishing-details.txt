@@ -79,10 +79,10 @@ SECTION 3 — APPLICATION BUILD
 app/build/outputs/bundle/release/app-release.aab
 
 15. Version Name
-1.6
+1.7
 
 16. Version Code
-7
+8
 
 17. Has the final application been tested?
 - Yes
