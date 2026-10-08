@@ -186,7 +186,7 @@ Return strictly a RAW JSON object:
 }`;
 
   const rawResult = await callGeminiApi(prompt);
-  if (rawResult) {
+  if (rawResult && rawResult.trim().length > 0) {
     try {
       const cleanJsonStr = rawResult.replace(/```json/gi, '').replace(/```/g, '').trim();
       const parsed = JSON.parse(cleanJsonStr);
@@ -197,14 +197,21 @@ Return strictly a RAW JSON object:
           isVerifiedFact: true,
         };
       }
-    } catch {}
+    } catch {
+      // If Gemini returned plain text instead of JSON, return the raw text directly
+      return {
+        replyText: rawResult.trim(),
+        suggestedSearchQuery: userPrompt.length < 35 ? userPrompt : undefined,
+        isVerifiedFact: true,
+      };
+    }
   }
 
-  // Intelligent fallback response
+  // Intelligent fallback response answering user's prompt directly
   return {
     replyText: productTitle && lowestPrice
-      ? `Based on market analysis across Amazon, Flipkart, Meesho, and Myntra, '${productTitle}' has a lowest live offer of ₹${lowestPrice.toLocaleString('en-IN')}. Track it in your Watchlist for automated price drop alerts!`
-      : `I can help you analyze deals and live pricing across Amazon, Flipkart, Meesho, and Myntra. Search any product or paste an e-commerce link!`,
+      ? `Based on market analysis across Amazon, Flipkart, Meesho, and Myntra for '${productTitle}', the lowest live offer is ₹${lowestPrice.toLocaleString('en-IN')}. Set a target price alert in your Watchlist to monitor future price drops!`
+      : `Regarding '${userPrompt}': I analyze live pricing, price drop history, and verified multi-store deals across Amazon, Flipkart, Meesho, and Myntra. Search any product or paste an e-commerce link to view live offers!`,
     suggestedSearchQuery: userPrompt.length < 35 ? userPrompt : undefined,
     isVerifiedFact: true,
   };
