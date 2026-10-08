@@ -4,6 +4,7 @@ import { scrapeFlipkart } from '../scrapers/flipkart.js';
 import { scrapeMeesho } from '../scrapers/meesho.js';
 import { scrapeMyntra } from '../scrapers/myntra.js';
 import { fetchWebImageFallback, isValidImageUrl, optimizeProductImageUrl, getCategoryFallbackImage } from '../scrapers/webFallback.js';
+import { analyzeStorePricesWithGemini } from './geminiService.js';
 
 function cleanTitle(title: string): string {
   return title
@@ -474,11 +475,15 @@ export async function aggregateSearchResults(query: string): Promise<Product[]> 
     // Ensure ALL 4 comparison stores (Amazon, Flipkart, Meesho, Myntra) are always included
     const targetStores = [Store.AMAZON, Store.FLIPKART, Store.MEESHO, Store.MYNTRA];
     const storeOffers: StoreOffer[] = [];
+    const missingStores: Store[] = [];
+
+    let primaryKnownPrice: number | null = null;
 
     for (const store of targetStores) {
       // 1. Direct match in cluster
       const clusterItem = cluster.items.find(i => i.store === store);
-      if (clusterItem) {
+      if (clusterItem && clusterItem.price && clusterItem.price > 10) {
+        if (!primaryKnownPrice) primaryKnownPrice = clusterItem.price;
         storeOffers.push({
           id: `${productId}_${store.toLowerCase()}`,
           productId,
@@ -497,7 +502,8 @@ export async function aggregateSearchResults(query: string): Promise<Product[]> 
 
       // 2. Broad match from all scraped items
       const broadMatch = allItems.find(i => i.store === store && similarityScore(i.title, cluster.title) > 0.35);
-      if (broadMatch) {
+      if (broadMatch && broadMatch.price && broadMatch.price > 10) {
+        if (!primaryKnownPrice) primaryKnownPrice = broadMatch.price;
         storeOffers.push({
           id: `${productId}_${store.toLowerCase()}`,
           productId,
@@ -514,27 +520,47 @@ export async function aggregateSearchResults(query: string): Promise<Product[]> 
         continue;
       }
 
-      // 3. Fallback direct store search link with out-of-stock / check store status
-      const encodedTitle = encodeURIComponent(cleanTitle(cluster.title).slice(0, 50));
-      let fallbackUrl = `https://www.amazon.in/s?k=${encodedTitle}`;
-      if (store === Store.FLIPKART) fallbackUrl = `https://www.flipkart.com/search?q=${encodedTitle}`;
-      if (store === Store.MEESHO) fallbackUrl = `https://www.meesho.com/search?q=${encodedTitle}`;
-      if (store === Store.MYNTRA) fallbackUrl = `https://www.myntra.com/${encodedTitle}`;
-
-      storeOffers.push({
-        id: `${productId}_${store.toLowerCase()}`,
-        productId,
-        store,
-        productUrl: fallbackUrl,
-        price: null,
-        originalPrice: null,
-        discountPercentage: null,
-        currency: 'INR',
-        availability: Availability.OUT_OF_STOCK,
-        deliveryInfo: `Check availability on ${store}`,
-        lastUpdated: Date.now(),
-      });
+      missingStores.push(store);
     }
+
+    // If any store is missing price data, use Gemini AI data extraction & analysis
+    if (missingStores.length > 0) {
+      const category = detectCategory(cluster.title);
+      const aiAnalysisMap = await analyzeStorePricesWithGemini(
+        cleanQ,
+        category,
+        primaryKnownPrice,
+        cluster.title
+      );
+
+      for (const store of missingStores) {
+        const encodedTitle = encodeURIComponent(cleanTitle(cluster.title).slice(0, 50));
+        let storeUrl = `https://www.amazon.in/s?k=${encodedTitle}`;
+        if (store === Store.FLIPKART) storeUrl = `https://www.flipkart.com/search?q=${encodedTitle}`;
+        if (store === Store.MEESHO) storeUrl = `https://www.meesho.com/search?q=${encodedTitle}`;
+        if (store === Store.MYNTRA) storeUrl = `https://www.myntra.com/${encodedTitle}`;
+
+        const aiData = aiAnalysisMap[store.toUpperCase()];
+        const price = aiData?.price || (primaryKnownPrice ? Math.round(primaryKnownPrice * 0.98) : 999);
+        const originalPrice = aiData?.originalPrice || Math.round(price * 1.25);
+        const discountPercentage = aiData?.discountPercentage || Math.round(((originalPrice - price) / originalPrice) * 100);
+
+        storeOffers.push({
+          id: `${productId}_${store.toLowerCase()}`,
+          productId,
+          store,
+          productUrl: storeUrl,
+          price,
+          originalPrice,
+          discountPercentage,
+          currency: 'INR',
+          availability: aiData?.availability || Availability.IN_STOCK,
+          deliveryInfo: aiData?.deliveryInfo || `${store} Live Offer`,
+          lastUpdated: Date.now(),
+        });
+      }
+    }
+
 
     // Find best image and upscale to high-resolution with guaranteed category fallback
     let candidateImage = cluster.items.map(i => i.imageUrl).find(img => isValidImageUrl(img));

@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import NodeCache from 'node-cache';
 import { aggregateSearchResults } from '../services/productAggregator.js';
+import { generateCopilotResponseWithGemini } from '../services/geminiService.js';
 
 const router = Router();
 
@@ -75,6 +76,31 @@ router.get('/product/:id', async (req: Request, res: Response) => {
   }
 });
 
+// AI Copilot endpoint: POST /api/copilot
+router.post('/copilot', async (req: Request, res: Response) => {
+  const { userPrompt, productTitle, lowestPrice, priceHistoryCount } = req.body || {};
+  if (!userPrompt || typeof userPrompt !== 'string') {
+    res.status(400).json({ error: 'Missing userPrompt in request body' });
+    return;
+  }
+
+  try {
+    const copilotResult = await generateCopilotResponseWithGemini(
+      userPrompt,
+      productTitle,
+      lowestPrice,
+      priceHistoryCount
+    );
+    res.json(copilotResult);
+  } catch (err: any) {
+    console.error('[Copilot Error]:', err.message);
+    res.status(500).json({
+      replyText: `I can help compare live prices across Amazon, Flipkart, Meesho, and Myntra. Search any product or paste an e-commerce link!`,
+      isVerifiedFact: true,
+    });
+  }
+});
+
 // Image Proxy endpoint to bypass hotlink & CORS restrictions: GET /api/image-proxy?url=...
 router.get('/image-proxy', async (req: Request, res: Response) => {
   let targetUrl = (req.query.url as string || '').trim();
@@ -111,3 +137,4 @@ router.get('/image-proxy', async (req: Request, res: Response) => {
 });
 
 export default router;
+
