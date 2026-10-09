@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy - PriceDrop AI</title>
+    <meta name="description" content="Privacy Policy for PriceDrop AI - Learn how we handle your data, permissions, and security.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #4F46E5;
+            --primary-hover: #4338CA;
+            --primary-light: #EEF2FF;
+            --secondary: #10B981;
+            --bg-main: #0F172A;
+            --card-bg: rgba(30, 41, 59, 0.7);
+            --card-border: rgba(255, 255, 255, 0.1);
+            --text-main: #F8FAFC;
+            --text-muted: #94A3B8;
+            --text-sub: #CBD5E1;
+            --accent-glow: rgba(79, 70, 229, 0.15);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            line-height: 1.7;
+            padding: 0;
+            margin: 0;
+            background-image: 
+                radial-gradient(circle at 15% 15%, rgba(79, 70, 229, 0.12) 0%, transparent 40%),
+                radial-gradient(circle at 85% 85%, rgba(16, 185, 129, 0.08) 0%, transparent 40%);
+            background-attachment: fixed;
+            min-height: 100vh;
+        }
+
+        header {
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--card-border);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            padding: 1.25rem 2rem;
+        }
+
+        .header-content {
+            max-width: 900px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .logo-container {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            text-decoration: none;
+        }
+
+        .logo-badge {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #6366F1, #4F46E5);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            color: #FFFFFF;
+            font-size: 1.25rem;
+            box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+        }
+
+        .brand-name {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #FFFFFF;
+            letter-spacing: -0.02em;
+        }
+
+        .brand-name span {
+            color: #818CF8;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 3rem auto 5rem;
+            padding: 0 1.5rem;
+        }
+
+        .hero-card {
+            background: linear-gradient(135deg, rgba(30, 41, 59, 0.8), rgba(15, 23, 42, 0.9));
+            border: 1px solid var(--card-border);
+            border-radius: 20px;
+            padding: 2.5rem 2rem;
+            margin-bottom: 2.5rem;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #6366F1, #10B981, #6366F1);
+        }
+
+        h1 {
+            font-size: 2.25rem;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+            margin-bottom: 0.75rem;
+            background: linear-gradient(135deg, #FFFFFF 0%, #CBD5E1 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .effective-date {
+            font-size: 0.9rem;
+            color: var(--secondary);
+            font-weight: 600;
+            background: rgba(16, 185, 129, 0.1);
+            padding: 0.35rem 1rem;
+            border-radius: 9999px;
+            display: inline-block;
+            margin-top: 0.5rem;
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+
+        .content-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            padding: 2rem;
+            margin-bottom: 1.75rem;
+            backdrop-filter: blur(8px);
+            transition: border-color 0.2s ease, transform 0.2s ease;
+        }
+
+        .content-card:hover {
+            border-color: rgba(99, 102, 241, 0.3);
+        }
+
+        h2 {
+            font-size: 1.35rem;
+            font-weight: 700;
+            color: #FFFFFF;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            letter-spacing: -0.02em;
+        }
+
+        .section-icon {
+            width: 32px;
+            height: 32px;
+            background: rgba(79, 70, 229, 0.15);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+            color: #818CF8;
+            border: 1px solid rgba(129, 140, 248, 0.2);
+        }
+
+        p {
+            color: var(--text-sub);
+            margin-bottom: 1rem;
+            font-size: 0.98rem;
+        }
+
+        p:last-child {
+            margin-bottom: 0;
+        }
+
+        ul {
+            list-style: none;
+            padding-left: 0;
+            margin-bottom: 1rem;
+        }
+
+        li {
+            position: relative;
+            padding-left: 1.75rem;
+            margin-bottom: 0.75rem;
+            color: var(--text-sub);
+            font-size: 0.96rem;
+        }
+
+        li::before {
+            content: '✓';
+            position: absolute;
+            left: 0;
+            top: 0;
+            color: var(--secondary);
+            font-weight: 700;
+        }
+
+        .highlight-box {
+            background: rgba(79, 70, 229, 0.1);
+            border-left: 4px solid var(--primary);
+            padding: 1.25rem 1.5rem;
+            border-radius: 0 12px 12px 0;
+            margin: 1.25rem 0;
+        }
+
+        .highlight-box p {
+            color: #E2E8F0;
+            margin-bottom: 0;
+            font-size: 0.95rem;
+        }
+
+        .table-responsive {
+            overflow-x: auto;
+            margin: 1.25rem 0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+            font-size: 0.93rem;
+        }
+
+        th, td {
+            padding: 0.85rem 1rem;
+            border-bottom: 1px solid var(--card-border);
+        }
+
+        th {
+            background: rgba(15, 23, 42, 0.6);
+            color: #FFFFFF;
+            font-weight: 600;
+        }
+
+        td {
+            color: var(--text-sub);
+        }
+
+        footer {
+            text-align: center;
+            padding: 2.5rem 1.5rem;
+            border-top: 1px solid var(--card-border);
+            color: var(--text-muted);
+            font-size: 0.88rem;
+            background: rgba(15, 23, 42, 0.9);
+        }
+
+        footer a {
+            color: #818CF8;
+            text-decoration: none;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+        }
+
+        @media (max-width: 640px) {
+            h1 {
+                font-size: 1.75rem;
+            }
+            .hero-card {
+                padding: 1.75rem 1.25rem;
+            }
+            .content-card {
+                padding: 1.5rem 1.25rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="header-content">
+            <a href="#" class="logo-container">
+                <div class="logo-badge">🏷️</div>
+                <div class="brand-name">PriceDrop <span>AI</span></div>
+            </a>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="hero-card">
+            <h1>Privacy Policy</h1>
+            <p>Your privacy is important to us. Learn how PriceDrop AI collects, uses, and protects your data.</p>
+            <div class="effective-date">Last Updated: October 2026</div>
+        </div>
+
+        <!-- Section 1: Overview -->
+        <div class="content-card">
+            <h2><div class="section-icon">📌</div> 1. Introduction & Overview</h2>
+            <p>PriceDrop AI ("we", "our", or "the Application") is an intelligent shopping assistant designed to help users track e-commerce product prices, compare multi-store offers, calculate payment discounts, and receive background price drop notifications.</p>
+            <p>We are committed to maintaining an <strong>offline-first</strong>, user-privacy-centric approach. Your personal search habits, target price thresholds, and security credentials remain under your direct control on your device.</p>
+        </div>
+
+        <!-- Section 2: Information We Collect -->
+        <div class="content-card">
+            <h2><div class="section-icon">🛡️</div> 2. Information We Collect & How It Is Stored</h2>
+            <p>We believe in minimal data collection. Here is a detailed breakdown of the data types handled by the Application:</p>
+
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Data Category</th>
+                            <th>Data Types Collected</th>
+                            <th>Storage Location</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Account & Profile</strong></td>
+                            <td>Username & SHA-256 salted password hash</td>
+                            <td>Stored locally in Android SharedPreferences</td>
+                        </tr>
+                        <tr>
+                            <td><strong>App Activity & Trackers</strong></td>
+                            <td>Product queries, target prices, watchlist items</td>
+                            <td>Stored locally in SQLite/Room Database (`pricedrop.db`)</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Technical & API Data</strong></td>
+                            <td>Standard HTTP headers (IP, User-Agent) during search</td>
+                            <td>Transient in-memory processing on backend API</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="highlight-box">
+                <p><strong>Note on Passwords:</strong> We never store plain-text passwords. Passwords are salted and hashed locally using SHA-256 on your Android device for local profile access verification only.</p>
+            </div>
+        </div>
+
+        <!-- Section 3: Third-Party Services -->
+        <div class="content-card">
+            <h2><div class="section-icon">🔗</div> 3. Third-Party Services & Integrations</h2>
+            <p>To provide real-time price comparisons and AI-assisted shopping insights, PriceDrop AI communicates with the following external services:</p>
+            <ul>
+                <li><strong>Backend Aggregation Server (`pricedropai-backend.onrender.com`):</strong> Handles live price scraping and search requests across Amazon India, Flipkart, Meesho, and Myntra.</li>
+                <li><strong>Google Gemini AI API:</strong> Powers the AI Shopping Copilot to evaluate live product deals, suggest whether to buy or wait, and analyze offer pros and cons.</li>
+                <li><strong>Android Jetpack Libraries:</strong> Uses standard Android frameworks (Room, WorkManager, NotificationManager) for background price checks and local storage.</li>
+            </ul>
+            <p>No personally identifiable information (PII) is sold, rented, or traded with any third-party advertising network.</p>
+        </div>
+
+        <!-- Section 4: Permissions -->
+        <div class="content-card">
+            <h2><div class="section-icon">⚙️</div> 4. App Permissions & Usage Justification</h2>
+            <p>PriceDrop AI requests only essential permissions required to deliver its core shopping utilities:</p>
+
+            <ul>
+                <li><strong>Notifications (`POST_NOTIFICATIONS`):</strong> Required on Android 13+ (API 33+) to alert you when a product in your Watchlist drops to or below your custom target price.</li>
+                <li><strong>Internet (`INTERNET` & `ACCESS_NETWORK_STATE`):</strong> Required to fetch current product pricing from online stores and verify network connectivity before initiating background checks.</li>
+            </ul>
+        </div>
+
+        <!-- Section 5: Data Retention & User Deletion Rights -->
+        <div class="content-card">
+            <h2><div class="section-icon">🗑️</div> 5. Data Retention & User Data Deletion</h2>
+            <p>Because PriceDrop AI utilizes an offline-first local database, you retain complete authority over your data:</p>
+            <ul>
+                <li><strong>Clear Search History:</strong> You can clear your recent search history directly from the search bar UI.</li>
+                <li><strong>Remove Tracked Products:</strong> Items can be removed from your Watchlist at any time, instantly deleting them from local storage.</li>
+                <li><strong>Account Logout & Wipe:</strong> Logging out clears the active local session and profile preferences.</li>
+                <li><strong>Full App Reset:</strong> Clearing application storage via Android Settings or uninstalling the app permanently erases all local databases, watchlist items, and saved credentials.</li>
+            </ul>
+        </div>
+
+        <!-- Section 6: Security -->
+        <div class="content-card">
+            <h2><div class="section-icon">🔒</div> 6. Security Measures</h2>
+            <p>We enforce modern security best practices including HTTPS/TLS encryption for all backend communications, salted SHA-256 local hash storage for user accounts, and battery-optimized background WorkManager execution.</p>
+        </div>
+
+        <!-- Section 7: Children's Privacy -->
+        <div class="content-card">
+            <h2><div class="section-icon">👶</div> 7. Children's Privacy</h2>
+            <p>PriceDrop AI is intended for general audiences and does not knowingly collect or solicit personal data from children under the age of 13. If you believe a child has provided us with information, please contact us for immediate removal.</p>
+        </div>
+
+        <!-- Section 8: Changes & Contact -->
+        <div class="content-card">
+            <h2><div class="section-icon">📬</div> 8. Changes & Contact Information</h2>
+            <p>We may update this Privacy Policy periodically to reflect app updates or regulatory changes. Any modifications will be posted on this URL with an updated revision date.</p>
+            <p style="margin-top: 1rem;">If you have any questions or feedback regarding this Privacy Policy, please contact our support team:</p>
+            <div class="highlight-box">
+                <p><strong>Email:</strong> <a href="mailto:support@pricedropai.web.app" style="color: #818CF8; text-decoration: underline;">support@pricedropai.web.app</a></p>
+                <p><strong>Application:</strong> PriceDrop AI (com.example.pricedropai)</p>
+                <p><strong>Website:</strong> <a href="https://pricedropai-backend.onrender.com" style="color: #818CF8; text-decoration: underline;">https://pricedropai-backend.onrender.com</a></p>
+            </div>
+        </div>
+
+    </div>
+
+    <footer>
+        <p>&copy; 2026 PriceDrop AI Team. All rights reserved. | <a href="/privacy-policy">Privacy Policy</a></p>
+    </footer>
+
+</body>
+</html>

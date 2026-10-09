@@ -79,10 +79,10 @@ SECTION 3 — APPLICATION BUILD
 app/build/outputs/bundle/release/app-release.aab
 
 15. Version Name
-1.7
+2.1.4
 
 16. Version Code
-8
+12
 
 17. Has the final application been tested?
 - Yes
@@ -105,7 +105,7 @@ SECTION 4 — PRIVACY AND DATA SAFETY
 - Authentication information (Locally salted password hash for profile protection)
 
 22. Privacy Policy URL
-https://pricedropai.web.app/privacy-policy.html
+https://pricedropai-backend.onrender.com/privacy-policy
 
 23. Can users request deletion of their data?
 - Yes (Users can clear search history, remove watchlist trackers, and logout to wipe local profile credentials directly within the app)
@@ -114,10 +114,12 @@ https://pricedropai.web.app/privacy-policy.html
 - Yes
 
 25. List the third-party services or SDKs used
-- Android Jetpack (Room, WorkManager, Lifecycle, Compose)
+- Android Jetpack (Room 2.6.1, WorkManager 2.9.1, Lifecycle 2.8.5, Compose)
 - Square OkHttp 4.12.0 (Network client)
+- Retrofit 2.11.0 (API networking)
 - Jsoup 1.18.1 (E-commerce data ingestion)
 - Coil 2.7.0 (Image loading and caching)
+- Google Gemini AI (AI Shopping Copilot backend integration)
 
 
 SECTION 5 — ADS AND PERMISSIONS
@@ -192,7 +194,7 @@ SECTION 8 — FINAL CONFIRMATION
 - All submitted information is accurate: Yes
 
 40. Pending Issues / Comments
-None. The application has been built with an offline-first Room cache, live verified multi-store parsing, background WorkManager monitoring, and signed release artifacts.
+None. 
 
 41. Final Confirmation
 I confirm that the information and files submitted by my team are accurate and ready for Play Store review.
