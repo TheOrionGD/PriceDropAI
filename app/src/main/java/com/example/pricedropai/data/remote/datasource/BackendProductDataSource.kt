@@ -131,10 +131,23 @@ class BackendProductDataSource(
         val title = json.optString("title").takeIf { it.isNotBlank() } ?: return null
 
         val category = json.optString("category").takeIf { it.isNotBlank() }
-        val rawImageUrl = json.optString("imageUrl").takeIf { it.isNotBlank() && it.startsWith("http") }
-        val sanitizedImageUrl = when {
-            rawImageUrl != null && rawImageUrl.startsWith("http://") -> rawImageUrl.replaceFirst("http://", "https://")
-            else -> rawImageUrl
+        
+        val rawImageStr = (
+            json.optString("imageUrl").takeIf { it.isNotBlank() && it != "null" && it != "undefined" }
+                ?: json.optString("image").takeIf { it.isNotBlank() && it != "null" && it != "undefined" }
+                ?: json.optString("thumbnail").takeIf { it.isNotBlank() && it != "null" && it != "undefined" }
+        )?.trim()
+
+        var sanitizedImageUrl: String? = when {
+            rawImageStr == null -> null
+            rawImageStr.startsWith("//") -> "https:$rawImageStr"
+            rawImageStr.startsWith("http://") -> rawImageStr.replaceFirst("http://", "https://")
+            rawImageStr.startsWith("https://") -> rawImageStr
+            else -> null
+        }
+
+        if (sanitizedImageUrl.isNullOrBlank()) {
+            sanitizedImageUrl = com.example.pricedropai.LocalPriceEngine.resolveFallbackImage(title)
         }
         val description = json.optString("description").takeIf { it.isNotBlank() }
         val brand = json.optString("brand").takeIf { it.isNotBlank() }

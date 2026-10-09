@@ -28,7 +28,7 @@ export async function fetchZenRowsProductImage(query: string): Promise<string | 
         if (foundUrl) return;
         const imgEl = $(el).find('img.s-image, img.a-dynamic-image').first();
         let src = imgEl.attr('src') || imgEl.attr('data-image-src');
-        
+
         if (!src || src.includes('grey-pixel') || src.includes('transparent-pixel')) {
           const srcset = imgEl.attr('srcset') || imgEl.attr('data-image-srcset');
           if (srcset) {
@@ -125,7 +125,7 @@ export async function fetchWebImageFallback(query: string): Promise<string | nul
     if (zenrowsImg && isValidImageUrl(zenrowsImg)) {
       return zenrowsImg;
     }
-  } catch {}
+  } catch { }
 
   // Tier 1: DuckDuckGo Instant Answers API
   try {
@@ -149,7 +149,7 @@ export async function fetchWebImageFallback(query: string): Promise<string | nul
         }
       }
     }
-  } catch {}
+  } catch { }
 
   // Tier 2: Wikipedia Search API
   try {
@@ -167,7 +167,7 @@ export async function fetchWebImageFallback(query: string): Promise<string | nul
         }
       }
     }
-  } catch {}
+  } catch { }
 
   // Tier 3: Wikimedia Commons Media Search API
   try {
@@ -186,7 +186,7 @@ export async function fetchWebImageFallback(query: string): Promise<string | nul
         }
       }
     }
-  } catch {}
+  } catch { }
 
   // Tier 4: OpenLibrary API (for books/novels)
   if (/book|novel|author|edition/i.test(cleanQ)) {
@@ -200,7 +200,7 @@ export async function fetchWebImageFallback(query: string): Promise<string | nul
       if (doc?.cover_i) {
         return `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg`;
       }
-    } catch {}
+    } catch { }
   }
 
   return null;

@@ -394,7 +394,7 @@ function similarityScore(strA: string, strB: string): number {
   const wordsA = new Set(strA.toLowerCase().replace(/[^a-z0-9 ]/g, '').split(/\s+/).filter(w => w.length > 2));
   const wordsB = new Set(strB.toLowerCase().replace(/[^a-z0-9 ]/g, '').split(/\s+/).filter(w => w.length > 2));
   if (wordsA.size === 0 || wordsB.size === 0) return 0;
-  
+
   let intersection = 0;
   for (const w of wordsA) {
     if (wordsB.has(w)) intersection++;
@@ -562,19 +562,18 @@ export async function aggregateSearchResults(query: string): Promise<Product[]> 
     }
 
 
-    // 1. FIRST: Check online search APIs (ZenRows Gateway, DuckDuckGo, Wikipedia, Commons) for the exact relevant product image
+    // 1. FIRST: Use direct scraped product listing image from store items (Amazon, Flipkart, Meesho, Myntra)
     let highResImage: string | null = null;
-    const onlineSearchImg = await fetchWebImageFallback(cluster.title) || await fetchWebImageFallback(cleanQ);
-
-    if (onlineSearchImg && isValidImageUrl(onlineSearchImg)) {
-      highResImage = optimizeProductImageUrl(onlineSearchImg);
+    const candidateScraped = cluster.items.map(i => i.imageUrl).find(img => isValidImageUrl(img));
+    if (candidateScraped) {
+      highResImage = optimizeProductImageUrl(candidateScraped);
     }
 
-    // 2. SECOND: If online image search yields no result, fallback to scraped listing item image candidate
+    // 2. SECOND: If no store listing image found, fallback to online image search APIs (ZenRows, DuckDuckGo, Wikipedia)
     if (!highResImage) {
-      const candidateScraped = cluster.items.map(i => i.imageUrl).find(img => isValidImageUrl(img));
-      if (candidateScraped) {
-        highResImage = optimizeProductImageUrl(candidateScraped);
+      const onlineSearchImg = await fetchWebImageFallback(cluster.title) || await fetchWebImageFallback(cleanQ);
+      if (onlineSearchImg && isValidImageUrl(onlineSearchImg)) {
+        highResImage = optimizeProductImageUrl(onlineSearchImg);
       }
     }
 

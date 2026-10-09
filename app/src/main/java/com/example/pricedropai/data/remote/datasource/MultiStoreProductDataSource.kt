@@ -140,13 +140,13 @@ class MultiStoreProductDataSource(
                 val dynamicImage = resolveDynamicProductImage(
                     query = cleanQuery,
                     scrapedImageUrl = scrapedImageCandidate
-                )
+                ) ?: com.example.pricedropai.LocalPriceEngine.resolveFallbackImage(cleanQuery)
 
                 // 4. Live Scraped Ratings & Reviews
                 val verifiedRating = validScraped.mapNotNull { it.rating }.firstOrNull()
                 val verifiedReviewCount = validScraped.mapNotNull { it.reviewCount }.firstOrNull()
 
-                if (allStoreOffers.isEmpty() && dynamicImage == null) {
+                if (allStoreOffers.isEmpty()) {
                     return@coroutineScope Result.failure(NoSuchElementException("No live offers found for '$cleanQuery'"))
                 }
 
@@ -219,15 +219,15 @@ class MultiStoreProductDataSource(
     }
 
     fun resolveDynamicProductImage(query: String, scrapedImageUrl: String? = null): String? {
-        // 1. Check online search for relevant query images FIRST
+        // 1. Prioritize direct scraped product image from store listing
+        if (!scrapedImageUrl.isNullOrBlank() && isValidImageUrl(scrapedImageUrl)) {
+            return scrapedImageUrl
+        }
+
+        // 2. Fallback to live web search image engines if no scraped image is available
         val webImage = fetchDynamicImageFromWeb(query)
         if (!webImage.isNullOrBlank() && isValidImageUrl(webImage)) {
             return webImage
-        }
-
-        // 2. Fall back to scraped product image if online image search is not found
-        if (!scrapedImageUrl.isNullOrBlank() && isValidImageUrl(scrapedImageUrl)) {
-            return scrapedImageUrl
         }
 
         return null

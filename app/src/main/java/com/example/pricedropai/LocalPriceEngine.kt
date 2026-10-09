@@ -102,10 +102,13 @@ object LocalPriceEngine {
         }
     }
 
-    private fun resolveProductImage(query: String): Pair<String, String> {
+    fun resolveFallbackImage(query: String): String {
         val q = query.lowercase().trim()
+        return when {
+            // Lamps & Lighting
+            q.contains("lamp") || q.contains("light") || q.contains("bulb") || q.contains("chandelier") || q.contains("lantern") ->
+                "https://images.unsplash.com/photo-1507473885765-e6ed057f782c?w=600&auto=format&fit=crop&q=80"
 
-        val imageUrl = when {
             // Chairs & Furniture
             q.contains("chair") || q.contains("table") || q.contains("desk") || q.contains("sofa") || q.contains("furniture") || q.contains("bed") ->
                 "https://images.unsplash.com/photo-1580481077195-c3a821a58875?w=600&auto=format&fit=crop&q=80"
@@ -182,6 +185,11 @@ object LocalPriceEngine {
             else ->
                 "https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=600&auto=format&fit=crop&q=80"
         }
+    }
+
+    private fun resolveProductImage(query: String): Pair<String, String> {
+        val q = query.lowercase().trim()
+        val imageUrl = resolveFallbackImage(query)
 
         val category = when {
             q.contains("chair") || q.contains("table") || q.contains("desk") || q.contains("furniture") -> "Home & Furniture"
