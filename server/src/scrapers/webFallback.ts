@@ -1,13 +1,14 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { getRandomUserAgent } from '../utils/headers.js';
+import { isZenRowsDisabled, disableZenRows } from '../utils/zenrowsState.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
 export async function fetchZenRowsProductImage(query: string): Promise<string | null> {
   const zenrowsKey = process.env.ZENROWS_KEY?.trim();
-  if (!zenrowsKey) return null;
+  if (!zenrowsKey || isZenRowsDisabled()) return null;
 
   const cleanQ = query.trim();
   const searchUrl = `https://www.amazon.in/s?k=${encodeURIComponent(cleanQ)}`;
@@ -47,7 +48,12 @@ export async function fetchZenRowsProductImage(query: string): Promise<string | 
       }
     }
   } catch (err: any) {
-    console.warn(`[ZenRows Image Gateway Notice] Unable to fetch dynamic image for "${cleanQ}":`, err.message);
+    const status = err.response?.status;
+    if (status === 402 || status === 401 || status === 403) {
+      disableZenRows(`Usage limit / Auth error (status ${status}) during image search.`);
+    } else {
+      console.warn(`[ZenRows Image Gateway Notice] Unable to fetch dynamic image for "${cleanQ}":`, err.message);
+    }
   }
 
   return null;

@@ -33,6 +33,8 @@ function getApiKey(): string {
   return process.env.GEMINI_API_KEY || '';
 }
 
+let geminiCooldownUntil = 0;
+
 function safeParseJson<T = any>(rawText: string | null | undefined): T | null {
   if (!rawText || typeof rawText !== 'string') return null;
   let cleanStr = rawText.trim();
@@ -79,6 +81,11 @@ async function callGeminiApi(prompt: string, modelsList: string[], expectJson: b
   const apiKey = getApiKey();
   if (!apiKey) return null;
 
+  // Short-circuit if API is in rate-limit cooldown
+  if (Date.now() < geminiCooldownUntil) {
+    return null;
+  }
+
   for (const model of modelsList) {
     try {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
@@ -109,7 +116,7 @@ async function callGeminiApi(prompt: string, modelsList: string[], expectJson: b
           headers: {
             'Content-Type': 'application/json'
           },
-          timeout: 12000
+          timeout: 10000
         }
       );
 
@@ -119,7 +126,17 @@ async function callGeminiApi(prompt: string, modelsList: string[], expectJson: b
         if (text) return text;
       }
     } catch (err: any) {
-      console.warn(`[Gemini API Warning] Model ${model} returned error: ${err.message}`);
+      const status = err.response?.status;
+      if (status === 429) {
+        console.warn(`[Gemini API Notice] Rate limit (HTTP 429) on model ${model}. Pausing Gemini API requests for 60s. Using local price estimation heuristics.`);
+        geminiCooldownUntil = Date.now() + 60000;
+        break; // Stop attempting other models for this request as quota is shared across the key
+      } else if (status === 404 || status === 400) {
+        // Silently skip non-existent model versions
+        continue;
+      } else {
+        console.warn(`[Gemini API Notice] Model ${model} returned error: ${err.message}`);
+      }
     }
   }
   return null;
