@@ -1,15 +1,19 @@
 import axios from 'axios';
 import { getBrowserHeaders } from './headers.js';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 export async function fetchPageHtml(url: string, referer?: string): Promise<string | null> {
   const zenrowsKey = process.env.ZENROWS_KEY?.trim();
 
-  // Tier 1: If ZenRows API Key is provided, use its anti-bot residential proxy
+  // Tier 1: If ZenRows API Key is provided, use anti-bot gateway
   if (zenrowsKey) {
     try {
-      const zenrowsUrl = `https://api.zenrows.com/v1/?apikey=${zenrowsKey}&url=${encodeURIComponent(url)}&antibot=true&js_render=true&premium_proxy=true`;
+      // First attempt fast antibot fetch (1 credit)
+      const zenrowsUrl = `https://api.zenrows.com/v1/?apikey=${zenrowsKey}&url=${encodeURIComponent(url)}&antibot=true`;
       const response = await axios.get(zenrowsUrl, {
-        timeout: 30000,
+        timeout: 20000,
         maxContentLength: 5 * 1024 * 1024,
         maxBodyLength: 5 * 1024 * 1024,
         validateStatus: (status) => status === 200,

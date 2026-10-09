@@ -1,6 +1,9 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { getRandomUserAgent } from '../utils/headers.js';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 export async function fetchZenRowsProductImage(query: string): Promise<string | null> {
   const zenrowsKey = process.env.ZENROWS_KEY?.trim();

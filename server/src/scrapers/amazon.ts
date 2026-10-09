@@ -1,6 +1,7 @@
 import * as cheerio from 'cheerio';
 import { RawScrapedItem, Store, Availability } from '../types/index.js';
 import { fetchPageHtml } from '../utils/htmlFetcher.js';
+import { optimizeProductImageUrl } from './webFallback.js';
 
 export async function scrapeAmazon(query: string): Promise<RawScrapedItem[]> {
   try {
@@ -33,6 +34,10 @@ export async function scrapeAmazon(query: string): Promise<RawScrapedItem[]> {
             imgUrl = parts[parts.length - 1];
           }
         }
+      }
+
+      if (imgUrl) {
+        imgUrl = optimizeProductImageUrl(imgUrl) || imgUrl;
       }
 
       const price = priceText ? parseFloat(priceText) : null;
