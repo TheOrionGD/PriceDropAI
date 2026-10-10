@@ -6,7 +6,7 @@ SECTION 1 — APPLICATION DETAILS
 PriceDrop AI
 
 2. Package Name / Application ID
-com.pricedropai.thas
+com.pricedropai.myapp
 
 3. Application Type
 - App
@@ -79,41 +79,48 @@ SECTION 3 — APPLICATION BUILD
 app/build/outputs/bundle/release/app-release.aab
 
 15. Version Name
-2.1.4
+2.1.5
 
 16. Version Code
-12
+13
 
-17. Has the final application been tested?
+17. What's New in Version 2.1.5 (Release Notes)
+- Increased version code to 13 and version name to 2.1.5 for Play Console update.
+- Performance and stability optimizations for background price drop tracking and WorkManager jobs.
+- Enhanced live offer matching accuracy across Amazon India, Flipkart, Meesho, and Myntra.
+- AI Shopping Copilot response enhancements and streamlined discount engine checks.
+- Material 3 theme and UI responsiveness improvements across phone and tablet layouts.
+
+18. Has the final application been tested?
 - Yes
 
-18. Are the major application features working correctly?
+19. Are the major application features working correctly?
 - Yes
 
 
 SECTION 4 — PRIVACY AND DATA SAFETY
 
-19. Does the application collect user data?
+20. Does the application collect user data?
 - Yes
 
-20. Does the application share user data with third parties?
+21. Does the application share user data with third parties?
 - No
 
-21. What types of data does the application collect?
+22. What types of data does the application collect?
 - Name (Local user profile name)
 - App activity (Product search queries, watchlist targets)
 - Authentication information (Locally salted password hash for profile protection)
 
-22. Privacy Policy URL
+23. Privacy Policy URL
 https://pricedropai-backend.onrender.com/privacy-policy
 
-23. Can users request deletion of their data?
+24. Can users request deletion of their data?
 - Yes (Users can clear search history, remove watchlist trackers, and logout to wipe local profile credentials directly within the app)
 
-24. Does the application use third-party services or SDKs?
+25. Does the application use third-party services or SDKs?
 - Yes
 
-25. List the third-party services or SDKs used
+26. List the third-party services or SDKs used
 - Android Jetpack (Room 2.6.1, WorkManager 2.9.1, Lifecycle 2.8.5, Compose)
 - Square OkHttp 4.12.0 (Network client)
 - Retrofit 2.11.0 (API networking)
@@ -124,51 +131,51 @@ https://pricedropai-backend.onrender.com/privacy-policy
 
 SECTION 5 — ADS AND PERMISSIONS
 
-26. Does the application contain advertisements?
+27. Does the application contain advertisements?
 - No
 
-27. Does the application request sensitive or special permissions?
+28. Does the application request sensitive or special permissions?
 - Yes
 
-28. Permissions used by the application
+29. Permissions used by the application
 - Notifications (android.permission.POST_NOTIFICATIONS)
 - Other (android.permission.INTERNET, android.permission.ACCESS_NETWORK_STATE)
 
-29. Explain why these permissions are required
+30. Explain why these permissions are required
 - Notifications: Required on Android 13+ (API 33+) to notify users when a tracked product hits or drops below their specified target price.
 - Internet and Network State: Required to fetch live store pricing, compare offers, and verify network availability for background price check workers.
 
 
 SECTION 6 — TARGET AUDIENCE AND CONTENT
 
-30. Target Audience
+31. Target Audience
 - General audience
 
-31. Does the application contain content that may require age restrictions?
+32. Does the application contain content that may require age restrictions?
 - No
 
-32. Does the application contain user-generated content?
+33. Does the application contain user-generated content?
 - No
 
-33. Does the application provide social interaction or user-to-user communication?
+34. Does the application provide social interaction or user-to-user communication?
 - No
 
 
 SECTION 7 — REVIEWER ACCESS
 
-34. Does the application require login?
+35. Does the application require login?
 - Yes
 
-35. Test Account Email / Username
+36. Test Account Email / Username
 testuser
 
-36. Test Account Password
+37. Test Account Password
 password123
 
-37. OTP / PIN / Special Access Instructions
+38. OTP / PIN / Special Access Instructions
 No OTP, PIN, or external verification is required. Reviewers can enter the test credentials above or create any custom username with a 4+ character password on the initial welcome screen.
 
-38. Reviewer Instructions
+39. Reviewer Instructions
 1. Open the application.
 2. On the welcome screen, enter username "testuser" and password "password123", then tap "Get Started".
 3. On the Discover tab, search for any product (e.g. "iPhone 15" or "Sony Headphones") or paste a supported store link.
@@ -180,7 +187,7 @@ No OTP, PIN, or external verification is required. Reviewers can enter the test 
 
 SECTION 8 — FINAL CONFIRMATION
 
-39. Application Readiness Checklist
+40. Application Readiness Checklist
 - Final application build is ready: Yes
 - Final AAB file has been uploaded: Yes (app/build/outputs/bundle/release/app-release.aab)
 - App icon is ready: Yes
@@ -193,8 +200,8 @@ SECTION 8 — FINAL CONFIRMATION
 - Application has been tested: Yes
 - All submitted information is accurate: Yes
 
-40. Pending Issues / Comments
+41. Pending Issues / Comments
 None. 
 
-41. Final Confirmation
+42. Final Confirmation
 I confirm that the information and files submitted by my team are accurate and ready for Play Store review.

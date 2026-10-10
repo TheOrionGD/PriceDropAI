@@ -17,15 +17,15 @@ val geminiApiKey = localProperties.getProperty("GEMINI_API_KEY")
     ?: ""
 
 android {
-    namespace = "com.pricedropai.thas"
+    namespace = "com.pricedropai.myapp"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.pricedropai.thas"
+        applicationId = "com.pricedropai.myapp"
         minSdk = 26
         targetSdk = 36
-        versionCode = 12
-        versionName = "2.1.4"
+        versionCode = 13
+        versionName = "2.1.5"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "GEMINI_API_KEY", "\"$geminiApiKey\"")
