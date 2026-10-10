@@ -6,7 +6,7 @@ SECTION 1 — APPLICATION DETAILS
 PriceDrop AI
 
 2. Package Name / Application ID
-com.example.pricedropai
+com.pricedropai.thas
 
 3. Application Type
 - App

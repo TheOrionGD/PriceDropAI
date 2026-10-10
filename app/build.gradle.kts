@@ -17,11 +17,11 @@ val geminiApiKey = localProperties.getProperty("GEMINI_API_KEY")
     ?: ""
 
 android {
-    namespace = "com.example.pricedropai"
+    namespace = "com.pricedropai.thas"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.example.pricedropai"
+        applicationId = "com.pricedropai.thas"
         minSdk = 26
         targetSdk = 36
         versionCode = 12
