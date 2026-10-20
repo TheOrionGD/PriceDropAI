@@ -59,14 +59,37 @@ fun StoreOfferCard(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = offer.store.displayName,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
+                    val storeColor = when (offer.store) {
+                        com.pricedropai.myapp.core.model.Store.AMAZON -> Color(0xFFFF9900)
+                        com.pricedropai.myapp.core.model.Store.FLIPKART -> Color(0xFF2874F0)
+                        com.pricedropai.myapp.core.model.Store.MEESHO -> Color(0xFFE40066)
+                        com.pricedropai.myapp.core.model.Store.MYNTRA -> Color(0xFFFF3F6C)
+                        com.pricedropai.myapp.core.model.Store.CROMA -> Color(0xFF00E676)
+                        com.pricedropai.myapp.core.model.Store.RELIANCE_DIGITAL -> Color(0xFFE42529)
+                        com.pricedropai.myapp.core.model.Store.JIOMART -> Color(0xFF0F3E99)
+                        com.pricedropai.myapp.core.model.Store.TATACLIQ -> Color(0xFF000000)
+                        com.pricedropai.myapp.core.model.Store.AJIO -> Color(0xFF2C4152)
+                        com.pricedropai.myapp.core.model.Store.NYKAA -> Color(0xFFFC2779)
+                        com.pricedropai.myapp.core.model.Store.BLINKIT -> Color(0xFFF8CB46)
+                        com.pricedropai.myapp.core.model.Store.EBAY -> Color(0xFFE53238)
+                        com.pricedropai.myapp.core.model.Store.WALMART -> Color(0xFF0071DC)
+                        com.pricedropai.myapp.core.model.Store.TARGET -> Color(0xFFCC0000)
+                    }
+
+                    Surface(
+                        color = storeColor.copy(alpha = 0.15f),
+                        shape = RoundedCornerShape(6.dp),
+                        modifier = Modifier.padding(end = 8.dp)
+                    ) {
+                        Text(
+                            text = offer.store.displayName,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            color = storeColor,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        )
+                    }
                     if (isLowest && offer.price != null) {
-                        Spacer(Modifier.width(8.dp))
                         Surface(color = Color(0xFF10B981), shape = RoundedCornerShape(4.dp)) {
                             Text(
                                 text = "LOWEST",
@@ -79,7 +102,18 @@ fun StoreOfferCard(
                     }
                 }
 
-                Spacer(Modifier.height(2.dp))
+                Spacer(Modifier.height(4.dp))
+
+                val delivery = offer.deliveryInfo
+                if (!delivery.isNullOrBlank()) {
+                    Text(
+                        text = "🚚 $delivery",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(2.dp))
+                }
 
                 val stockStatusText = when (offer.availability) {
                     Availability.IN_STOCK -> "In Stock"

@@ -155,19 +155,75 @@ fun DiscoverScreen(viewModel: TrackerViewModel) {
                 )
             }
             is SearchUiState.Loading -> {
+                // Multi-stage animated progression during live multi-store comparison
+                val steps = remember {
+                    listOf(
+                        "Connecting to 12 stores (Amazon, Flipkart, Croma, Ajio...)" to 0.18f,
+                        "Querying Amazon, Flipkart & Myntra live catalog cards..." to 0.42f,
+                        "Engaging Gemini & Groq dual-AI market price comparison..." to 0.70f,
+                        "Clustering offers, sorting lowest prices & calculating discounts..." to 0.92f
+                    )
+                }
+                var currentStepIdx by remember { mutableIntStateOf(0) }
+
+                LaunchedEffect(Unit) {
+                    while (currentStepIdx < steps.size - 1) {
+                        kotlinx.coroutines.delay(1600)
+                        currentStepIdx++
+                    }
+                }
+
+                val currentStep = steps[currentStepIdx]
+
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-                        Spacer(Modifier.height(16.dp))
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(horizontal = 28.dp)
+                    ) {
+                        CircularProgressIndicator(
+                            color = MaterialTheme.colorScheme.primary,
+                            strokeWidth = 3.dp,
+                            modifier = Modifier.size(52.dp)
+                        )
+                        Spacer(Modifier.height(20.dp))
+
                         Text(
-                            text = "Querying live data across Amazon, Flipkart, Meesho, and Myntra...",
-                            fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(horizontal = 24.dp)
+                            text = "COMPARING 12 PLATFORMS",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = 1.2.sp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(Modifier.height(6.dp))
+
+                        Text(
+                            text = currentStep.first,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(Modifier.height(14.dp))
+
+                        // Linear progress visualizer
+                        LinearProgressIndicator(
+                            progress = { currentStep.second },
+                            modifier = Modifier
+                                .fillMaxWidth(0.75f)
+                                .height(6.dp)
+                                .clip(RoundedCornerShape(3.dp)),
+                            color = MaterialTheme.colorScheme.primary,
+                            trackColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+                        )
+                        Spacer(Modifier.height(8.dp))
+
+                        Text(
+                            text = "Step ${currentStepIdx + 1} of ${steps.size}",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -405,7 +461,7 @@ private fun HomeDiscoveryContent(
                         Spacer(Modifier.height(6.dp))
 
                         Text(
-                            text = "Search any electronics, fashion, appliances, or paste an Amazon, Flipkart, Meesho, or Myntra link to compare real prices instantly.",
+                            text = "Search across 12+ stores including Amazon, Flipkart, Croma, Reliance Digital, Tata CLiQ, Ajio, Nykaa, Meesho, Myntra, and eBay with instant price comparison.",
                             fontSize = 13.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center,

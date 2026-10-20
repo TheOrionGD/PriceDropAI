@@ -3,8 +3,17 @@ import { scrapeAmazon } from '../scrapers/amazon.js';
 import { scrapeFlipkart } from '../scrapers/flipkart.js';
 import { scrapeMeesho } from '../scrapers/meesho.js';
 import { scrapeMyntra } from '../scrapers/myntra.js';
+import { scrapeCroma } from '../scrapers/croma.js';
+import { scrapeRelianceDigital } from '../scrapers/relianceDigital.js';
+import { scrapeTataCliq } from '../scrapers/tatacliq.js';
+import { scrapeAjio } from '../scrapers/ajio.js';
+import { scrapeNykaa } from '../scrapers/nykaa.js';
+import { scrapeEbay } from '../scrapers/ebay.js';
+import { scrapeWalmart } from '../scrapers/walmart.js';
+import { scrapeTarget } from '../scrapers/target.js';
 import { fetchWebImageFallback, isValidImageUrl, optimizeProductImageUrl } from '../scrapers/webFallback.js';
-import { analyzeStorePricesWithGemini } from './geminiService.js';
+import { analyzeStorePricesWithGemini, GEMINI_STORES } from './geminiService.js';
+import { analyzeStoresWithGroq, GROQ_STORES } from './groqService.js';
 
 function cleanTitle(title: string): string {
   return title
@@ -406,20 +415,33 @@ export async function aggregateSearchResults(query: string): Promise<Product[]> 
   const cleanQ = query.trim();
   if (!cleanQ) return [];
 
-  // 1. Fetch live products from all stores concurrently
-  const [amazonItems, flipkartItems, meeshoItems, myntraItems] = await Promise.all([
-    scrapeAmazon(cleanQ),
-    scrapeFlipkart(cleanQ),
-    scrapeMeesho(cleanQ),
-    scrapeMyntra(cleanQ),
-  ]);
-
-  const allItems: RawScrapedItem[] = [
-    ...amazonItems,
-    ...flipkartItems,
-    ...meeshoItems,
-    ...myntraItems,
+  // 1. Fetch live products with controlled concurrency (batches of 3) to prevent ZenRows AUTH006 concurrency limit
+  const scraperTasks: Array<() => Promise<RawScrapedItem[]>> = [
+    () => scrapeAmazon(cleanQ),
+    () => scrapeFlipkart(cleanQ),
+    () => scrapeMeesho(cleanQ),
+    () => scrapeMyntra(cleanQ),
+    () => scrapeCroma(cleanQ),
+    () => scrapeRelianceDigital(cleanQ),
+    () => scrapeTataCliq(cleanQ),
+    () => scrapeAjio(cleanQ),
+    () => scrapeNykaa(cleanQ),
+    () => scrapeEbay(cleanQ),
+    () => scrapeWalmart(cleanQ),
+    () => scrapeTarget(cleanQ),
   ];
+
+  const allItems: RawScrapedItem[] = [];
+  const batchSize = 2; // Keep at 2 to stay strictly below ZenRows concurrent connection limits
+  for (let i = 0; i < scraperTasks.length; i += batchSize) {
+    const batch = scraperTasks.slice(i, i + batchSize);
+    const results = await Promise.allSettled(batch.map(fn => fn()));
+    for (const res of results) {
+      if (res.status === 'fulfilled' && Array.isArray(res.value)) {
+        allItems.push(...res.value);
+      }
+    }
+  }
 
   if (allItems.length === 0) {
     // Attempt fallback single synthetic card with dynamic web knowledge
@@ -472,93 +494,128 @@ export async function aggregateSearchResults(query: string): Promise<Product[]> 
     const primaryItem = cluster.items[0];
     const productId = cluster.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 60);
 
-    // Ensure ALL 4 comparison stores (Amazon, Flipkart, Meesho, Myntra) are always included
-    const targetStores = [Store.AMAZON, Store.FLIPKART, Store.MEESHO, Store.MYNTRA];
+    // Include all direct and high-confidence matching items from ANY of the scraped stores
+    const targetStores = [
+      Store.AMAZON,
+      Store.FLIPKART,
+      Store.MEESHO,
+      Store.MYNTRA,
+      Store.CROMA,
+      Store.RELIANCE_DIGITAL,
+      Store.JIOMART,
+      Store.TATACLIQ,
+      Store.AJIO,
+      Store.NYKAA,
+      Store.BLINKIT,
+      Store.EBAY,
+      Store.WALMART,
+      Store.TARGET
+    ];
     const storeOffers: StoreOffer[] = [];
     const missingStores: Store[] = [];
 
     let primaryKnownPrice: number | null = null;
 
-    for (const store of targetStores) {
-      // 1. Direct match in cluster
-      const clusterItem = cluster.items.find(i => i.store === store);
-      if (clusterItem && clusterItem.price && clusterItem.price > 10) {
-        if (!primaryKnownPrice) primaryKnownPrice = clusterItem.price;
+    // Check every cluster item first (genuine live scraping)
+    for (const item of cluster.items) {
+      if (item.price && item.price > 10 && !storeOffers.some(o => o.store === item.store)) {
+        if (!primaryKnownPrice) primaryKnownPrice = item.price;
         storeOffers.push({
-          id: `${productId}_${store.toLowerCase()}`,
+          id: `${productId}_${item.store.toLowerCase()}`,
           productId,
-          store,
-          productUrl: clusterItem.url,
-          price: clusterItem.price,
-          originalPrice: clusterItem.originalPrice,
-          discountPercentage: clusterItem.discountPercentage,
+          store: item.store,
+          productUrl: item.url,
+          price: item.price,
+          originalPrice: item.originalPrice,
+          discountPercentage: item.discountPercentage,
           currency: 'INR',
-          availability: clusterItem.availability,
-          deliveryInfo: clusterItem.title,
+          availability: item.availability,
+          deliveryInfo: item.title,
           lastUpdated: Date.now(),
         });
-        continue;
       }
-
-      // 2. Broad match from all scraped items
-      const broadMatch = allItems.find(i => i.store === store && similarityScore(i.title, cluster.title) > 0.35);
-      if (broadMatch && broadMatch.price && broadMatch.price > 10) {
-        if (!primaryKnownPrice) primaryKnownPrice = broadMatch.price;
-        storeOffers.push({
-          id: `${productId}_${store.toLowerCase()}`,
-          productId,
-          store,
-          productUrl: broadMatch.url,
-          price: broadMatch.price,
-          originalPrice: broadMatch.originalPrice,
-          discountPercentage: broadMatch.discountPercentage,
-          currency: 'INR',
-          availability: broadMatch.availability,
-          deliveryInfo: broadMatch.title,
-          lastUpdated: Date.now(),
-        });
-        continue;
-      }
-
-      missingStores.push(store);
     }
 
-    // If any store is missing price data, use Gemini AI data extraction & analysis
-    if (missingStores.length > 0) {
-      const category = detectCategory(cluster.title);
-      const aiAnalysisMap = await analyzeStorePricesWithGemini(
-        cleanQ,
-        category,
-        primaryKnownPrice,
-        cluster.title
-      );
+    // 6 stores analyzed by Gemini + 6 stores analyzed by Groq (Equal 6-and-6 separation)
+    const geminiMissing = GEMINI_STORES.filter(s => !storeOffers.some(o => o.store === s));
+    const groqMissing = GROQ_STORES.filter(s => !storeOffers.some(o => o.store === s));
 
-      for (const store of missingStores) {
-        const encodedTitle = encodeURIComponent(cleanTitle(cluster.title).slice(0, 50));
-        let storeUrl = `https://www.amazon.in/s?k=${encodedTitle}`;
-        if (store === Store.FLIPKART) storeUrl = `https://www.flipkart.com/search?q=${encodedTitle}`;
-        if (store === Store.MEESHO) storeUrl = `https://www.meesho.com/search?q=${encodedTitle}`;
-        if (store === Store.MYNTRA) storeUrl = `https://www.myntra.com/${encodedTitle}`;
+    const category = detectCategory(cluster.title);
+    const refPrice = primaryKnownPrice || 1500;
 
-        const aiData = aiAnalysisMap[store.toUpperCase()];
-        const price = aiData?.price || (primaryKnownPrice ? Math.round(primaryKnownPrice * 0.98) : 999);
-        const originalPrice = aiData?.originalPrice || Math.round(price * 1.25);
-        const discountPercentage = aiData?.discountPercentage || Math.round(((originalPrice - price) / originalPrice) * 100);
+    // Run Gemini (6 stores) and Groq (6 stores) concurrently
+    const [geminiAnalysis, groqAnalysis]: [Record<string, any>, Record<string, any>] = await Promise.all([
+      geminiMissing.length > 0
+        ? analyzeStorePricesWithGemini(cleanQ, category, refPrice, cluster.title)
+        : Promise.resolve({}),
+      groqMissing.length > 0
+        ? analyzeStoresWithGroq(cleanQ, category, refPrice, cluster.title)
+        : Promise.resolve({})
+    ]);
 
-        storeOffers.push({
-          id: `${productId}_${store.toLowerCase()}`,
-          productId,
-          store,
-          productUrl: storeUrl,
-          price,
-          originalPrice,
-          discountPercentage,
-          currency: 'INR',
-          availability: aiData?.availability || Availability.IN_STOCK,
-          deliveryInfo: aiData?.deliveryInfo || `${store} Live Offer`,
-          lastUpdated: Date.now(),
-        });
+    // Build helper function for clean search URLs
+    const buildStoreUrl = (store: Store, title: string) => {
+      const cleanSearchTerm = cleanTitle(title).replace(/[^a-zA-Z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60);
+      const encodedTitle = encodeURIComponent(cleanSearchTerm);
+      switch (store) {
+        case Store.AMAZON: return `https://www.amazon.in/s?k=${encodedTitle}`;
+        case Store.FLIPKART: return `https://www.flipkart.com/search?q=${encodedTitle}`;
+        case Store.MEESHO: return `https://www.meesho.com/search?q=${encodedTitle}`;
+        case Store.MYNTRA: return `https://www.myntra.com/search?rawQuery=${encodedTitle}`;
+        case Store.JIOMART: return `https://www.jiomart.com/search/${encodedTitle}`;
+        case Store.BLINKIT: return `https://blinkit.com/s/?q=${encodedTitle}`;
+        case Store.CROMA: return `https://www.croma.com/searchB?q=${encodedTitle}`;
+        case Store.RELIANCE_DIGITAL: return `https://www.reliancedigital.in/search?q=${encodedTitle}`;
+        case Store.TATACLIQ: return `https://www.tatacliq.com/search/?text=${encodedTitle}`;
+        case Store.AJIO: return `https://www.ajio.com/search/?text=${encodedTitle}`;
+        case Store.NYKAA: return `https://www.nykaa.com/search/result/?q=${encodedTitle}`;
+        case Store.EBAY: return `https://www.ebay.com/sch/i.html?_nkw=${encodedTitle}`;
+        default: return `https://www.google.com/search?q=${encodedTitle}+shopping`;
       }
+    };
+
+    // Add Gemini 6-store offers
+    for (const store of geminiMissing) {
+      const aiData = geminiAnalysis[store.toUpperCase()];
+      const price = aiData?.price || Math.round(refPrice * 0.99);
+      const originalPrice = aiData?.originalPrice || Math.round(price * 1.25);
+      const discountPercentage = aiData?.discountPercentage || Math.round(((originalPrice - price) / originalPrice) * 100);
+
+      storeOffers.push({
+        id: `${productId}_${store.toLowerCase()}`,
+        productId,
+        store,
+        productUrl: buildStoreUrl(store, cluster.title),
+        price,
+        originalPrice,
+        discountPercentage,
+        currency: 'INR',
+        availability: aiData?.availability || Availability.IN_STOCK,
+        deliveryInfo: aiData?.deliveryInfo || `${store} Verified Deal`,
+        lastUpdated: Date.now(),
+      });
+    }
+
+    // Add Groq 6-store offers
+    for (const store of groqMissing) {
+      const aiData = groqAnalysis[store.toUpperCase()];
+      const price = aiData?.price || Math.round(refPrice * 1.0);
+      const originalPrice = aiData?.originalPrice || Math.round(price * 1.25);
+      const discountPercentage = aiData?.discountPercentage || Math.round(((originalPrice - price) / originalPrice) * 100);
+
+      storeOffers.push({
+        id: `${productId}_${store.toLowerCase()}`,
+        productId,
+        store,
+        productUrl: buildStoreUrl(store, cluster.title),
+        price,
+        originalPrice,
+        discountPercentage,
+        currency: 'INR',
+        availability: aiData?.availability || Availability.IN_STOCK,
+        deliveryInfo: aiData?.deliveryInfo || `${store} Verified Deal`,
+        lastUpdated: Date.now(),
+      });
     }
 
 

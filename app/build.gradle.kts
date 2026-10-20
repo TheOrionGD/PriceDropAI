@@ -24,8 +24,8 @@ android {
         applicationId = "com.pricedropai.myapp"
         minSdk = 26
         targetSdk = 36
-        versionCode = 13
-        versionName = "2.1.5"
+        versionCode = 14
+        versionName = "2.1.6"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "GEMINI_API_KEY", "\"$geminiApiKey\"")

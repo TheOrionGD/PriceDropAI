@@ -4,7 +4,17 @@ enum class Store(val displayName: String, val hostPattern: String) {
     AMAZON("Amazon India", "amazon"),
     FLIPKART("Flipkart", "flipkart"),
     MEESHO("Meesho", "meesho"),
-    MYNTRA("Myntra", "myntra");
+    MYNTRA("Myntra", "myntra"),
+    CROMA("Croma", "croma"),
+    RELIANCE_DIGITAL("Reliance Digital", "reliancedigital"),
+    JIOMART("JioMart", "jiomart"),
+    TATACLIQ("Tata CLiQ", "tatacliq"),
+    AJIO("Ajio", "ajio"),
+    NYKAA("Nykaa", "nykaa"),
+    BLINKIT("Blinkit", "blinkit"),
+    EBAY("eBay", "ebay"),
+    WALMART("Walmart", "walmart"),
+    TARGET("Target", "target");
 
     companion object {
         fun fromUrl(url: String): Store? {
@@ -14,6 +24,16 @@ enum class Store(val displayName: String, val hostPattern: String) {
                 lower.contains("flipkart") || lower.contains("fkrt") -> FLIPKART
                 lower.contains("meesho") -> MEESHO
                 lower.contains("myntra") -> MYNTRA
+                lower.contains("croma") -> CROMA
+                lower.contains("reliancedigital") -> RELIANCE_DIGITAL
+                lower.contains("jiomart") -> JIOMART
+                lower.contains("tatacliq") -> TATACLIQ
+                lower.contains("ajio") -> AJIO
+                lower.contains("nykaa") -> NYKAA
+                lower.contains("blinkit") -> BLINKIT
+                lower.contains("ebay") -> EBAY
+                lower.contains("walmart") -> WALMART
+                lower.contains("target") -> TARGET
                 else -> null
             }
         }

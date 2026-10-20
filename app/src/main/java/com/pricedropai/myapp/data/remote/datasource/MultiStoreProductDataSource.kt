@@ -106,13 +106,28 @@ class MultiStoreProductDataSource(
                             Store.AMAZON -> "https://www.amazon.in/s?k=$encoded"
                             Store.FLIPKART -> "https://www.flipkart.com/search?q=$encoded"
                             Store.MEESHO -> "https://www.meesho.com/search?q=$encoded"
-                            Store.MYNTRA -> "https://www.myntra.com/$encoded"
+                            Store.MYNTRA -> "https://www.myntra.com/search?rawQuery=$encoded"
+                            Store.CROMA -> "https://www.croma.com/searchB?q=$encoded"
+                            Store.RELIANCE_DIGITAL -> "https://www.reliancedigital.in/search?q=$encoded"
+                            Store.JIOMART -> "https://www.jiomart.com/search/$encoded"
+                            Store.TATACLIQ -> "https://www.tatacliq.com/search/?text=$encoded"
+                            Store.AJIO -> "https://www.ajio.com/search/?text=$encoded"
+                            Store.NYKAA -> "https://www.nykaa.com/search/result/?q=$encoded"
+                            Store.EBAY -> "https://www.ebay.com/sch/i.html?_nkw=$encoded"
+                            Store.WALMART -> "https://www.walmart.com/search?q=$encoded"
+                            Store.TARGET -> "https://www.target.com/s?searchTerm=$encoded"
+                            else -> "https://www.google.com/search?q=${encoded}+shopping"
                         }
                         val mult = when (store) {
                             Store.AMAZON -> 1.0
-                            Store.FLIPKART -> 0.98
-                            Store.MEESHO -> 0.92
+                            Store.FLIPKART -> 0.99
+                            Store.MEESHO -> 1.01
                             Store.MYNTRA -> 1.02
+                            Store.CROMA -> 0.99
+                            Store.RELIANCE_DIGITAL -> 1.0
+                            Store.TATACLIQ -> 1.01
+                            Store.AJIO -> 0.98
+                            else -> 1.0
                         }
                         val estPrice = Math.round(primaryPrice * mult).toDouble()
                         val origPrice = Math.round(estPrice * 1.25).toDouble()

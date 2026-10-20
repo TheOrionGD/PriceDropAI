@@ -194,8 +194,10 @@ object UrlProductParser {
                     val slug = if (segments.isNotEmpty() && segments[0] != "s") segments[0] else null
                     Pair(id, slug?.let { cleanSlug(it) })
                 }
-                null -> {
-                    Pair(null, segments.lastOrNull()?.let { cleanSlug(it) })
+                else -> {
+                    val id = segments.lastOrNull { it.any { c -> c.isDigit() } } ?: segments.lastOrNull()
+                    val slug = segments.firstOrNull { it.length > 3 && !it.all { c -> c.isDigit() } }
+                    Pair(id, (slug ?: segments.firstOrNull())?.let { cleanSlug(it) })
                 }
             }
         } catch (e: Exception) {

@@ -3,6 +3,16 @@ export enum Store {
   FLIPKART = 'FLIPKART',
   MEESHO = 'MEESHO',
   MYNTRA = 'MYNTRA',
+  CROMA = 'CROMA',
+  RELIANCE_DIGITAL = 'RELIANCE_DIGITAL',
+  JIOMART = 'JIOMART',
+  TATACLIQ = 'TATACLIQ',
+  AJIO = 'AJIO',
+  NYKAA = 'NYKAA',
+  BLINKIT = 'BLINKIT',
+  EBAY = 'EBAY',
+  WALMART = 'WALMART',
+  TARGET = 'TARGET',
 }
 
 export enum Availability {

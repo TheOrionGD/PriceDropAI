@@ -16,17 +16,21 @@ export interface CopilotResponse {
 }
 
 export const GEMINI_ANALYSIS_MODELS = [
-  'gemini-1.5-flash',
-  'gemini-2.5-flash-lite',
-  'gemini-2.5-flash',
-  'gemini-2.0-flash-exp'
+  'gemini-3.6-flash'
 ];
 
 export const GEMINI_CHAT_MODELS = [
-  'gemini-1.5-flash',
-  'gemini-2.5-flash-lite',
-  'gemini-2.5-flash',
-  'gemini-2.0-flash-exp'
+  'gemini-3.6-flash'
+];
+
+// 6 Stores analyzed by Gemini
+export const GEMINI_STORES = [
+  Store.AMAZON,
+  Store.FLIPKART,
+  Store.MEESHO,
+  Store.MYNTRA,
+  Store.JIOMART,
+  Store.BLINKIT,
 ];
 
 function getApiKey(): string {
@@ -182,21 +186,43 @@ Expected JSON Schema:
   const stores = [Store.AMAZON, Store.FLIPKART, Store.MEESHO, Store.MYNTRA];
   const result: Record<string, AiStoreAnalysis> = {};
 
-  const meeshoMultiplier = /fashion|apparel|home|clothing|footwear|beauty|bag|decor/i.test(category) ? 0.88 : 0.97;
-  const myntraMultiplier = /fashion|apparel|clothing|footwear|beauty|bag|watch/i.test(category) ? 0.96 : 1.02;
+  // Balanced store multipliers to avoid artificially depressing Meesho or any single platform
+  // Prices naturally fluctuate between Amazon, Flipkart, Croma, Tata CLiQ, and Meesho
+  const meeshoMultiplier = /fashion|saree|kurti|dress|tshirt|ethnic/i.test(category) ? 0.96 : 1.02;
+  const myntraMultiplier = /fashion|apparel|clothing|footwear|beauty|bag|watch/i.test(category) ? 0.98 : 1.03;
 
-  const multipliers: Record<Store, number> = {
+  const multipliers: Partial<Record<Store, number>> = {
     [Store.AMAZON]: 1.0,
-    [Store.FLIPKART]: 0.98,
+    [Store.FLIPKART]: 0.99,
     [Store.MEESHO]: meeshoMultiplier,
     [Store.MYNTRA]: myntraMultiplier,
+    [Store.CROMA]: 0.99,
+    [Store.RELIANCE_DIGITAL]: 1.0,
+    [Store.JIOMART]: 0.99,
+    [Store.TATACLIQ]: 1.01,
+    [Store.AJIO]: 0.97,
+    [Store.NYKAA]: 1.0,
+    [Store.BLINKIT]: 1.02,
+    [Store.EBAY]: 1.05,
+    [Store.WALMART]: 1.02,
+    [Store.TARGET]: 1.03,
   };
 
-  const deliveryTexts: Record<Store, string> = {
+  const deliveryTexts: Partial<Record<Store, string>> = {
     [Store.AMAZON]: 'Prime Free Express Delivery',
     [Store.FLIPKART]: 'Flipkart Assured Delivery',
     [Store.MEESHO]: 'Free Delivery & Cash on Delivery',
     [Store.MYNTRA]: 'Myntra Insider Express',
+    [Store.CROMA]: 'Express Store Pickup & Delivery',
+    [Store.RELIANCE_DIGITAL]: 'Fast In-Store & Doorstep Delivery',
+    [Store.JIOMART]: 'JioMart Scheduled Express Delivery',
+    [Store.TATACLIQ]: 'Tata CLiQ Luxury Express',
+    [Store.AJIO]: 'Ajio Standard Delivery',
+    [Store.NYKAA]: 'Nykaa Doorstep Delivery',
+    [Store.BLINKIT]: '10-minute Instant Delivery',
+    [Store.EBAY]: 'International Priority Shipping',
+    [Store.WALMART]: 'Walmart 2-Day Shipping',
+    [Store.TARGET]: 'Target RedCard Free Shipping',
   };
 
   for (const store of stores) {
@@ -210,10 +236,10 @@ Expected JSON Schema:
         originalPrice: orig,
         discountPercentage: Math.max(5, disc),
         availability: p.availability === 'LIMITED_STOCK' ? Availability.LIMITED_STOCK : Availability.IN_STOCK,
-        deliveryInfo: p.deliveryInfo || deliveryTexts[store],
+        deliveryInfo: p.deliveryInfo || deliveryTexts[store] || 'Standard Delivery',
       };
     } else {
-      const mult = multipliers[store];
+      const mult = multipliers[store] ?? 1.0;
       const estimatedPrice = Math.round(referencePrice * mult);
       const originalPrice = Math.round(estimatedPrice * 1.25);
       const discountPercentage = Math.round(((originalPrice - estimatedPrice) / originalPrice) * 100);
@@ -222,7 +248,7 @@ Expected JSON Schema:
         originalPrice,
         discountPercentage,
         availability: Availability.IN_STOCK,
-        deliveryInfo: deliveryTexts[store],
+        deliveryInfo: deliveryTexts[store] || 'Standard Delivery',
       };
     }
   }
