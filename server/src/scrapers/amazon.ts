@@ -17,7 +17,11 @@ export async function scrapeAmazon(query: string): Promise<RawScrapedItem[]> {
     $('div[data-component-type="s-search-result"]').each((_, el) => {
       const card = $(el);
       
-      const title = card.find('h2 span, span.a-size-medium, span.a-size-base-plus').first().text().trim();
+      let title = card.find('h2 a span').last().text().trim() ||
+                  card.find('h2 a').text().trim() ||
+                  card.find('h2').text().trim() ||
+                  card.find('span.a-size-medium, span.a-size-base-plus').last().text().trim();
+      title = title.replace(/\s+/g, ' ').trim();
       const priceText = card.find('span.a-price-whole').first().text().replace(/[^0-9]/g, '');
       const originalPriceText = card.find('span.a-price.a-text-price span.a-offscreen').first().text().replace(/[^0-9]/g, '');
       const ratingText = card.find('span.a-icon-alt, i.a-icon-star-small span').first().text().trim();

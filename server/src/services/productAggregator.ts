@@ -465,13 +465,25 @@ export async function aggregateSearchResults(query: string): Promise<Product[]> 
     ];
   }
 
+  // Filter items by relevance to the search query to eliminate irrelevant cross-category items (e.g. fashion on phone queries)
+  const queryWords = cleanQ.toLowerCase().replace(/[^a-z0-9 ]/g, '').split(/\s+/).filter(w => w.length > 2);
+  const relevantItems = allItems.filter(item => {
+    if (queryWords.length === 0) return true;
+    const titleLower = item.title.toLowerCase();
+    const matchCount = queryWords.filter(w => titleLower.includes(w)).length;
+    // Require at least 50% keyword overlap or at least 1 keyword for short queries
+    return matchCount >= Math.max(1, Math.ceil(queryWords.length * 0.4));
+  });
+
+  const itemsToCluster = relevantItems.length > 0 ? relevantItems : allItems;
+
   // 2. Cluster / Group items into distinct products
   const productClusters: Array<{
     title: string;
     items: RawScrapedItem[];
   }> = [];
 
-  for (const item of allItems) {
+  for (const item of itemsToCluster) {
     let matchedCluster = productClusters.find(c => similarityScore(c.title, item.title) > 0.45);
     if (matchedCluster) {
       // Don't add duplicate store offers for the same cluster if one already exists
@@ -553,7 +565,7 @@ export async function aggregateSearchResults(query: string): Promise<Product[]> 
         : Promise.resolve({})
     ]);
 
-    // Build helper function for clean search URLs
+    // Build helper function for clean search URLs for each store
     const buildStoreUrl = (store: Store, title: string) => {
       const cleanSearchTerm = cleanTitle(title).replace(/[^a-zA-Z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60);
       const encodedTitle = encodeURIComponent(cleanSearchTerm);
@@ -561,15 +573,17 @@ export async function aggregateSearchResults(query: string): Promise<Product[]> 
         case Store.AMAZON: return `https://www.amazon.in/s?k=${encodedTitle}`;
         case Store.FLIPKART: return `https://www.flipkart.com/search?q=${encodedTitle}`;
         case Store.MEESHO: return `https://www.meesho.com/search?q=${encodedTitle}`;
-        case Store.MYNTRA: return `https://www.myntra.com/search?rawQuery=${encodedTitle}`;
+        case Store.MYNTRA: return `https://www.myntra.com/${encodedTitle.replace(/%20|\+/g, '-')}`;
         case Store.JIOMART: return `https://www.jiomart.com/search/${encodedTitle}`;
         case Store.BLINKIT: return `https://blinkit.com/s/?q=${encodedTitle}`;
-        case Store.CROMA: return `https://www.croma.com/searchB?q=${encodedTitle}`;
-        case Store.RELIANCE_DIGITAL: return `https://www.reliancedigital.in/search?q=${encodedTitle}`;
-        case Store.TATACLIQ: return `https://www.tatacliq.com/search/?text=${encodedTitle}`;
+        case Store.CROMA: return `https://www.croma.com/searchB?q=${encodedTitle}%3Arelevance`;
+        case Store.RELIANCE_DIGITAL: return `https://www.reliancedigital.in/search?q=${encodedTitle}:relevance`;
+        case Store.TATACLIQ: return `https://www.tatacliq.com/search/?searchCategory=all&text=${encodedTitle}`;
         case Store.AJIO: return `https://www.ajio.com/search/?text=${encodedTitle}`;
-        case Store.NYKAA: return `https://www.nykaa.com/search/result/?q=${encodedTitle}`;
+        case Store.NYKAA: return `https://www.nykaa.com/search/result/?q=${encodedTitle}&root=search`;
         case Store.EBAY: return `https://www.ebay.com/sch/i.html?_nkw=${encodedTitle}`;
+        case Store.WALMART: return `https://www.walmart.com/search?q=${encodedTitle}`;
+        case Store.TARGET: return `https://www.target.com/s?searchTerm=${encodedTitle}`;
         default: return `https://www.google.com/search?q=${encodedTitle}+shopping`;
       }
     };

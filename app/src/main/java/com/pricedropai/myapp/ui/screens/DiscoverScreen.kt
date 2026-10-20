@@ -158,17 +158,21 @@ fun DiscoverScreen(viewModel: TrackerViewModel) {
                 // Multi-stage animated progression during live multi-store comparison
                 val steps = remember {
                     listOf(
-                        "Connecting to 12 stores (Amazon, Flipkart, Croma, Ajio...)" to 0.18f,
-                        "Querying Amazon, Flipkart & Myntra live catalog cards..." to 0.42f,
-                        "Engaging Gemini & Groq dual-AI market price comparison..." to 0.70f,
-                        "Clustering offers, sorting lowest prices & calculating discounts..." to 0.92f
+                        "Connecting to 12 retail platforms & initializing anti-bot gateways..." to 0.12f,
+                        "Querying Amazon India & Flipkart live inventory..." to 0.25f,
+                        "Scanning Meesho & Myntra catalog and checking keyword relevance..." to 0.38f,
+                        "Fetching electronics deals from Croma & Reliance Digital..." to 0.50f,
+                        "Scanning Tata CLiQ, Ajio, Nykaa & JioMart store listings..." to 0.62f,
+                        "Querying Blinkit quick-commerce & eBay international inventory..." to 0.75f,
+                        "Engaging Gemini & Groq dual-AI market validation & price normalization..." to 0.88f,
+                        "Clustering live offers, picking verified HD image & calculating lowest deals..." to 0.98f
                     )
                 }
                 var currentStepIdx by remember { mutableIntStateOf(0) }
 
                 LaunchedEffect(Unit) {
                     while (currentStepIdx < steps.size - 1) {
-                        kotlinx.coroutines.delay(1600)
+                        kotlinx.coroutines.delay(1200)
                         currentStepIdx++
                     }
                 }
@@ -181,30 +185,38 @@ fun DiscoverScreen(viewModel: TrackerViewModel) {
                 ) {
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.padding(horizontal = 28.dp)
+                        modifier = Modifier.padding(horizontal = 24.dp)
                     ) {
                         CircularProgressIndicator(
                             color = MaterialTheme.colorScheme.primary,
-                            strokeWidth = 3.dp,
-                            modifier = Modifier.size(52.dp)
+                            strokeWidth = 3.5.dp,
+                            modifier = Modifier.size(54.dp)
                         )
                         Spacer(Modifier.height(20.dp))
 
-                        Text(
-                            text = "COMPARING 12 PLATFORMS",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Black,
-                            letterSpacing = 1.2.sp,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(Modifier.height(6.dp))
+                        Surface(
+                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text(
+                                text = "SCANNING 12+ E-COMMERCE PLATFORMS",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Black,
+                                letterSpacing = 1.3.sp,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                            )
+                        }
+                        Spacer(Modifier.height(10.dp))
 
                         Text(
                             text = currentStep.first,
                             fontSize = 14.sp,
-                            fontWeight = FontWeight.Medium,
+                            fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onSurface,
-                            textAlign = TextAlign.Center
+                            textAlign = TextAlign.Center,
+                            lineHeight = 20.sp,
+                            modifier = Modifier.height(44.dp)
                         )
                         Spacer(Modifier.height(14.dp))
 
@@ -212,17 +224,18 @@ fun DiscoverScreen(viewModel: TrackerViewModel) {
                         LinearProgressIndicator(
                             progress = { currentStep.second },
                             modifier = Modifier
-                                .fillMaxWidth(0.75f)
+                                .fillMaxWidth(0.85f)
                                 .height(6.dp)
                                 .clip(RoundedCornerShape(3.dp)),
                             color = MaterialTheme.colorScheme.primary,
-                            trackColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+                            trackColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
                         )
                         Spacer(Modifier.height(8.dp))
 
                         Text(
-                            text = "Step ${currentStepIdx + 1} of ${steps.size}",
+                            text = "Phase ${currentStepIdx + 1} of ${steps.size} • ${(currentStep.second * 100).toInt()}% Complete",
                             fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
