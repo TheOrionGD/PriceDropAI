@@ -1,6 +1,7 @@
 import { RawScrapedItem, Store, Availability } from '../types/index.js';
 import { scrapePage } from '../utils/puppeteer.js';
 import { fetchPageHtml } from '../utils/htmlFetcher.js';
+import { optimizeProductImageUrl } from './webFallback.js';
 
 function extractFromHtml(html: string): any[] {
   const products: any[] = [];
@@ -102,13 +103,21 @@ export async function scrapeMeesho(query: string): Promise<RawScrapedItem[]> {
       else imageUrl = `https://www.meesho.com/${imageUrl}`;
     }
 
+    if (imageUrl) {
+      imageUrl = optimizeProductImageUrl(imageUrl) || imageUrl;
+    }
+
+    const discountPercentage = p.originalPrice && p.originalPrice > p.price
+      ? Math.round(((p.originalPrice - p.price) / p.originalPrice) * 100)
+      : null;
+
     results.push({
       store: Store.MEESHO,
       title: p.title,
       url: productUrl,
       price: p.price,
       originalPrice: p.originalPrice ?? null,
-      discountPercentage: null,
+      discountPercentage,
       imageUrl: imageUrl && imageUrl.startsWith('http') ? imageUrl : null,
       rating: null,
       reviewCount: null,

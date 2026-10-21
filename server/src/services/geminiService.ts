@@ -16,14 +16,20 @@ export interface CopilotResponse {
 }
 
 export const GEMINI_ANALYSIS_MODELS = [
-  'gemini-3.6-flash'
+  'gemini-flash-lite-latest',
+  'gemini-3.5-flash-lite',
+  'gemini-3.6-flash',
 ];
 
 export const GEMINI_CHAT_MODELS = [
-  'gemini-3.6-flash'
+  'gemini-flash-lite-latest',
+  'gemini-3.5-flash-lite',
+  'gemini-3.6-flash',
 ];
 
-// 6 Stores analyzed by Gemini
+import { getGeminiKey } from '../utils/keyManager.js';
+
+// 6-7 Stores analyzed by Gemini Segment 1
 export const GEMINI_STORES = [
   Store.AMAZON,
   Store.FLIPKART,
@@ -33,8 +39,8 @@ export const GEMINI_STORES = [
   Store.BLINKIT,
 ];
 
-function getApiKey(): string {
-  return process.env.GEMINI_API_KEY || '';
+function getApiKey(segment: 1 | 2 = 1): string {
+  return getGeminiKey(segment) || process.env.GEMINI_API_KEY || '';
 }
 
 let geminiCooldownUntil = 0;
@@ -82,64 +88,65 @@ function safeParseJson<T = any>(rawText: string | null | undefined): T | null {
 }
 
 async function callGeminiApi(prompt: string, modelsList: string[], expectJson: boolean = true): Promise<string | null> {
-  const apiKey = getApiKey();
-  if (!apiKey) return null;
+  const keys = [getApiKey(1), getApiKey(2)].filter(Boolean);
+  if (keys.length === 0) return null;
 
   // Short-circuit if API is in rate-limit cooldown
   if (Date.now() < geminiCooldownUntil) {
     return null;
   }
 
-  for (const model of modelsList) {
-    try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-      const payload: any = {
-        contents: [
-          {
-            parts: [
-              {
-                text: prompt
-              }
-            ]
+  for (const apiKey of keys) {
+    for (const model of modelsList) {
+      try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+        const payload: any = {
+          contents: [
+            {
+              parts: [
+                {
+                  text: prompt
+                }
+              ]
+            }
+          ],
+          generationConfig: {
+            temperature: 0.2,
+            maxOutputTokens: 2048
           }
-        ],
-        generationConfig: {
-          temperature: 0.2,
-          maxOutputTokens: 2048
+        };
+
+        if (expectJson) {
+          payload.generationConfig.responseMimeType = 'application/json';
         }
-      };
 
-      if (expectJson) {
-        payload.generationConfig.responseMimeType = 'application/json';
-      }
+        const response = await axios.post(
+          url,
+          payload,
+          {
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            timeout: 6000
+          }
+        );
 
-      const response = await axios.post(
-        url,
-        payload,
-        {
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          timeout: 10000
+        const candidates = response.data?.candidates;
+        if (Array.isArray(candidates) && candidates.length > 0) {
+          const text = candidates[0]?.content?.parts?.[0]?.text;
+          if (text) return text;
         }
-      );
-
-      const candidates = response.data?.candidates;
-      if (Array.isArray(candidates) && candidates.length > 0) {
-        const text = candidates[0]?.content?.parts?.[0]?.text;
-        if (text) return text;
-      }
-    } catch (err: any) {
-      const status = err.response?.status;
-      if (status === 429) {
-        console.warn(`[Gemini API Notice] Rate limit (HTTP 429) on model ${model}. Pausing Gemini API requests for 60s. Using local price estimation heuristics.`);
-        geminiCooldownUntil = Date.now() + 60000;
-        break; // Stop attempting other models for this request as quota is shared across the key
-      } else if (status === 404 || status === 400) {
-        // Silently skip non-existent model versions
-        continue;
-      } else {
-        console.warn(`[Gemini API Notice] Model ${model} returned error: ${err.message}`);
+      } catch (err: any) {
+        const status = err.response?.status;
+        if (status === 429) {
+          console.warn(`[Gemini API Notice] Rate limit (HTTP 429) on model ${model} with key ${apiKey.slice(0, 8)}... Trying next.`);
+          geminiCooldownUntil = Date.now() + 15000;
+          continue;
+        } else if (status === 404 || status === 400) {
+          continue;
+        } else {
+          console.warn(`[Gemini API Notice] Model ${model} returned error: ${err.message}`);
+        }
       }
     }
   }

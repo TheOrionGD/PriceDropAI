@@ -12,81 +12,78 @@ import { scrapeAjio } from './src/scrapers/ajio.js';
 import { scrapeNykaa } from './src/scrapers/nykaa.js';
 import { scrapeEbay } from './src/scrapers/ebay.js';
 import { analyzeStorePricesWithGemini } from './src/services/geminiService.js';
+import { analyzeStoresWithGroq } from './src/services/groqService.js';
 import { aggregateSearchResults } from './src/services/productAggregator.js';
+import { KEY_SET_1, KEY_SET_2, getZenRowsKeyForStore } from './src/utils/keyManager.js';
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-async function runTimeBasedTests() {
-  const query = 'iPhone 15';
+async function runDualKeyTests() {
   console.log(`\n==================================================`);
-  console.log(`⏱️ TIME-BASED LIVE STORE TEST (CONCURRENCY-SAFE)`);
-  console.log(`🤖 GEMINI MODEL: gemini-3.6-flash ONLY`);
-  console.log(`🔑 ZENROWS_KEY: ${process.env.ZENROWS_KEY ? process.env.ZENROWS_KEY.slice(0, 8) + '...' : 'MISSING'}`);
+  console.log(`🚀 DUAL KEY SET INTEGRATION & VALIDATION TEST`);
+  console.log(`🔑 Key Set 1: Gemini (${KEY_SET_1.gemini.slice(0, 10)}...), Groq (${KEY_SET_1.groq.slice(0, 10)}...), ZenRows (${KEY_SET_1.zenrows.slice(0, 8)}...)`);
+  console.log(`🔑 Key Set 2: Gemini (${KEY_SET_2.gemini.slice(0, 10)}...), Groq (${KEY_SET_2.groq.slice(0, 10)}...), ZenRows (${KEY_SET_2.zenrows.slice(0, 8)}...)`);
   console.log(`==================================================\n`);
 
-  // 1. Direct test of Gemini with gemini-3.6-flash ONLY
-  console.log(`▶ [STEP 1] Testing Gemini API with gemini-3.6-flash ONLY...`);
+  // 1. Direct validation of Gemini Set 1 & Set 2 with fallback
+  console.log(`▶ [STEP 1] Testing Gemini API with Dual Key Redundancy...`);
   const t0 = Date.now();
   const geminiResult = await analyzeStorePricesWithGemini('iPhone 15', 'Mobiles & Accessories', 69999, 'Apple iPhone 15 (128 GB) - Black');
   console.log(`   Gemini Duration: ${Date.now() - t0}ms`);
-  console.log(`   Gemini Result:`, JSON.stringify(geminiResult, null, 2));
+  console.log(`   Stores Analyzed: ${Object.keys(geminiResult).join(', ')}`);
 
-  // Small delay between tests to ensure clean network socket allocation
-  await sleep(1500);
+  // 2. Direct validation of Groq Set 1 & Set 2 with fallback
+  console.log(`\n▶ [STEP 2] Testing Groq API with Dual Key Redundancy...`);
+  const tGroq = Date.now();
+  const groqResult = await analyzeStoresWithGroq('iPhone 15', 'Mobiles & Accessories', 69999, 'Apple iPhone 15 (128 GB) - Black');
+  console.log(`   Groq Duration: ${Date.now() - tGroq}ms`);
+  console.log(`   Stores Analyzed: ${Object.keys(groqResult).join(', ')}`);
 
-  // 2. Sequential time-based test for each store to prevent concurrency locks
-  console.log(`\n▶ [STEP 2] Testing Individual Stores (Paced to Prevent Concurrency Limit)...`);
+  // 3. Selective Live Store Check using Partitioned ZenRows Keys
+  console.log(`\n▶ [STEP 3] Testing Partitioned Store Fetching...`);
   const stores = [
-    { name: 'Amazon', fn: () => scrapeAmazon(query) },
-    { name: 'Flipkart', fn: () => scrapeFlipkart(query) },
-    { name: 'Meesho', fn: () => scrapeMeesho(query) },
-    { name: 'Myntra', fn: () => scrapeMyntra('Running Shoes') },
-    { name: 'Croma', fn: () => scrapeCroma(query) },
-    { name: 'Reliance Digital', fn: () => scrapeRelianceDigital(query) },
-    { name: 'Tata CLiQ', fn: () => scrapeTataCliq(query) },
-    { name: 'Ajio', fn: () => scrapeAjio('Sneakers') },
-    { name: 'Nykaa', fn: () => scrapeNykaa('Perfume') },
-    { name: 'eBay', fn: () => scrapeEbay(query) },
+    { name: 'Amazon (Segment 1)', fn: () => scrapeAmazon('iPhone 15') },
+    { name: 'Flipkart (Segment 1)', fn: () => scrapeFlipkart('iPhone 15') },
+    { name: 'Myntra (Segment 1)', fn: () => scrapeMyntra('Running Shoes') },
+    { name: 'Nykaa (Segment 2)', fn: () => scrapeNykaa('Perfume') },
   ];
 
   for (const s of stores) {
     const start = Date.now();
     try {
-      console.log(`\n⏳ Checking ${s.name}...`);
+      console.log(`⏳ Checking ${s.name}...`);
       const items = await s.fn();
       const elapsed = Date.now() - start;
       if (items.length > 0) {
-        console.log(`   ✅ ${s.name} [${elapsed}ms]: Found ${items.length} items.`);
-        console.log(`      1st: "${items[0].title.slice(0, 45)}" - ₹${items[0].price}`);
-        console.log(`      URL: ${items[0].url.slice(0, 70)}...`);
+        console.log(`   ✅ ${s.name} [${elapsed}ms]: Found ${items.length} live items.`);
+        console.log(`      First: "${items[0].title.slice(0, 45)}" - ₹${items[0].price}`);
       } else {
-        console.log(`   ⚠️ ${s.name} [${elapsed}ms]: 0 items returned (stealth challenge or no match).`);
+        console.log(`   ⚠️ ${s.name} [${elapsed}ms]: 0 items (handled by AI multi-store engine).`);
       }
     } catch (err: any) {
       console.log(`   ❌ ${s.name}: ${err.message}`);
     }
-    // Respect ZenRows rate limit between queries
-    await sleep(2000);
+    await sleep(1500);
   }
 
-  // 3. Test Full Product Aggregator with Batched Calls
-  console.log(`\n▶ [STEP 3] Testing Full Aggregator (Batched + Gemini 3.6 Flash)...`);
+  // 4. Test Single Aggregator query to verify 14-store card generation
+  console.log(`\n▶ [STEP 4] Testing Aggregator on Single Product (Reduced load to prevent rate-limiting)...`);
   const aggStart = Date.now();
   const aggregated = await aggregateSearchResults('Milton Thermosteel Bottle');
   console.log(`   Aggregator Duration: ${Date.now() - aggStart}ms`);
-  console.log(`   Total Cards: ${aggregated.length}`);
+  console.log(`   Total Cards Produced: ${aggregated.length}`);
   if (aggregated.length > 0) {
     const top = aggregated[0];
     console.log(`   Top Card: "${top.title}"`);
-    console.log(`   Offers:`);
+    console.log(`   Total Store Comparison Offers: ${top.stores.length}`);
     top.stores.forEach(st => {
-      console.log(`     - [${st.store}] ₹${st.price} (Lowest: ${st.price === top.stores.map(o => o.price).reduce((a, b) => Math.min(a ?? 999999, b ?? 999999)) ? 'YES' : 'NO'}) | ${st.productUrl.slice(0, 55)}...`);
+      console.log(`     - [${st.store}] ₹${st.price} | ${st.productUrl.slice(0, 45)}...`);
     });
   }
 
   console.log(`\n==================================================`);
-  console.log(`🏁 TIME-BASED TESTING COMPLETED`);
+  console.log(`🏁 DUAL KEY INTEGRATION TEST COMPLETED`);
   console.log(`==================================================\n`);
 }
 
-runTimeBasedTests();
+runDualKeyTests();

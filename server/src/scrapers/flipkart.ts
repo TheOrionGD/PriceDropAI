@@ -1,5 +1,6 @@
 import { RawScrapedItem, Store, Availability } from '../types/index.js';
 import { fetchPageHtml } from '../utils/htmlFetcher.js';
+import { optimizeProductImageUrl } from './webFallback.js';
 
 function parseState(html: string): any {
   const idx = html.indexOf('window.__INITIAL_STATE__');
@@ -59,7 +60,8 @@ function getImage(v: any): string | null {
     .replace(/\{@height\}/g, '500')
     .replace(/\{@quality\}/g, '70');
   if (resolved.startsWith('//')) resolved = 'https:' + resolved;
-  return resolved.startsWith('http') ? resolved : null;
+  const finalUrl = resolved.startsWith('http') ? resolved : null;
+  return finalUrl ? (optimizeProductImageUrl(finalUrl) || finalUrl) : null;
 }
 
 export async function scrapeFlipkart(query: string): Promise<RawScrapedItem[]> {

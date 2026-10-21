@@ -36,6 +36,11 @@ import com.pricedropai.myapp.notification.NotificationHelper
 import com.pricedropai.myapp.ui.TrackerViewModel
 import com.pricedropai.myapp.ui.screens.CopilotScreen
 import com.pricedropai.myapp.ui.screens.DiscoverScreen
+import com.pricedropai.myapp.ui.screens.GetStartedScreen
+import com.pricedropai.myapp.ui.screens.LandingScreen
+import com.pricedropai.myapp.ui.screens.OnboardingScreen
+import com.pricedropai.myapp.ui.screens.SettingsScreen
+import com.pricedropai.myapp.ui.screens.SplashScreen
 import com.pricedropai.myapp.ui.screens.WatchlistScreen
 
 class MainActivity : ComponentActivity() {
@@ -127,73 +132,136 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+enum class AppScreenState {
+    SPLASH,
+    ONBOARDING,
+    LANDING,
+    GET_STARTED,
+    AUTH,
+    MAIN_HUB
+}
+
 @Composable
 fun MainAppContainer(
     viewModel: TrackerViewModel,
     sessionManager: SessionManager
 ) {
-    var isLoggedIn by remember { mutableStateOf(sessionManager.isLoggedIn()) }
-    var selectedTab by remember { mutableIntStateOf(0) }
-
-    if (!isLoggedIn) {
-        LoginScreen(
-            sessionManager = sessionManager,
-            onLoginSuccess = {
-                isLoggedIn = true
-            }
+    var screenState by remember {
+        mutableStateOf(
+            if (sessionManager.isLoggedIn()) AppScreenState.MAIN_HUB else AppScreenState.SPLASH
         )
-    } else {
-        Scaffold(
-            bottomBar = {
-                NavigationBar(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 8.dp
-                ) {
-                    NavigationBarItem(
-                        selected = selectedTab == 0,
-                        onClick = {
-                            selectedTab = 0
-                            viewModel.resetToHome()
-                        },
-                        icon = { Icon(Icons.Default.Explore, contentDescription = "Discover") },
-                        label = { Text("Discover", fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal) }
-                    )
-                    NavigationBarItem(
-                        selected = selectedTab == 1,
-                        onClick = { selectedTab = 1 },
-                        icon = { Icon(Icons.Default.SmartToy, contentDescription = "AI Copilot") },
-                        label = { Text("AI Copilot", fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal) }
-                    )
-                    NavigationBarItem(
-                        selected = selectedTab == 2,
-                        onClick = { selectedTab = 2 },
-                        icon = { Icon(Icons.Default.Notifications, contentDescription = "Watchlist") },
-                        label = { Text("Watchlist", fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.Normal) }
-                    )
+    }
+    var selectedTab by remember { mutableIntStateOf(0) }
+    var showSettingsScreen by remember { mutableStateOf(false) }
+
+    when (screenState) {
+        AppScreenState.SPLASH -> {
+            SplashScreen(
+                onSplashFinished = {
+                    if (sessionManager.isLoggedIn()) {
+                        screenState = AppScreenState.MAIN_HUB
+                    } else {
+                        screenState = AppScreenState.ONBOARDING
+                    }
                 }
-            }
-        ) { padding ->
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-            ) {
-                when (selectedTab) {
-                    0 -> DiscoverScreen(viewModel = viewModel)
-                    1 -> CopilotScreen(
-                        viewModel = viewModel,
-                        onProductSelect = { query ->
-                            selectedTab = 0
-                            viewModel.search(query)
+            )
+        }
+        AppScreenState.ONBOARDING -> {
+            OnboardingScreen(
+                onFinishOnboarding = {
+                    screenState = AppScreenState.LANDING
+                }
+            )
+        }
+        AppScreenState.LANDING -> {
+            LandingScreen(
+                onNavigateToAuth = {
+                    screenState = AppScreenState.GET_STARTED
+                }
+            )
+        }
+        AppScreenState.GET_STARTED -> {
+            GetStartedScreen(
+                onNavigateToLogin = {
+                    screenState = AppScreenState.AUTH
+                }
+            )
+        }
+        AppScreenState.AUTH -> {
+            LoginScreen(
+                sessionManager = sessionManager,
+                onLoginSuccess = {
+                    screenState = AppScreenState.MAIN_HUB
+                }
+            )
+        }
+        AppScreenState.MAIN_HUB -> {
+            if (showSettingsScreen) {
+                SettingsScreen(
+                    sessionManager = sessionManager,
+                    onBack = { showSettingsScreen = false },
+                    onLogout = {
+                        showSettingsScreen = false
+                        screenState = AppScreenState.AUTH
+                    }
+                )
+            } else {
+                Scaffold(
+                    bottomBar = {
+                        NavigationBar(
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            tonalElevation = 8.dp
+                        ) {
+                            NavigationBarItem(
+                                selected = selectedTab == 0,
+                                onClick = {
+                                    selectedTab = 0
+                                    viewModel.resetToHome()
+                                },
+                                icon = { Icon(Icons.Default.Explore, contentDescription = "Discover") },
+                                label = { Text("Discover", fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal) }
+                            )
+                            NavigationBarItem(
+                                selected = selectedTab == 1,
+                                onClick = { selectedTab = 1 },
+                                icon = { Icon(Icons.Default.SmartToy, contentDescription = "AI Copilot") },
+                                label = { Text("AI Copilot", fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal) }
+                            )
+                            NavigationBarItem(
+                                selected = selectedTab == 2,
+                                onClick = { selectedTab = 2 },
+                                icon = { Icon(Icons.Default.Notifications, contentDescription = "Watchlist") },
+                                label = { Text("Watchlist", fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.Normal) }
+                            )
                         }
-                    )
-                    2 -> WatchlistScreen(
-                        viewModel = viewModel,
-                        onProductSelect = { query ->
-                            selectedTab = 0
-                            viewModel.search(query)
+                    }
+                ) { padding ->
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(padding)
+                    ) {
+                        when (selectedTab) {
+                            0 -> DiscoverScreen(viewModel = viewModel)
+                            1 -> CopilotScreen(
+                                viewModel = viewModel,
+                                onProductSelect = { query ->
+                                    selectedTab = 0
+                                    viewModel.search(query)
+                                }
+                            )
+                            2 -> WatchlistScreen(
+                                viewModel = viewModel,
+                                onProductSelect = { query ->
+                                    selectedTab = 0
+                                    viewModel.search(query)
+                                },
+                                onOpenSettings = {
+                                    showSettingsScreen = true
+                                }
+                            )
                         }
-                    )
+                    }
                 }
             }
         }

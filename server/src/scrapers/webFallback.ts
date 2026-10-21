@@ -1,14 +1,15 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { getRandomUserAgent } from '../utils/headers.js';
-import { isZenRowsDisabled, disableZenRows } from '../utils/zenrowsState.js';
+import { isZenRowsKeyDisabled, disableZenRowsKey } from '../utils/zenrowsState.js';
+import { getZenRowsKeyForStore } from '../utils/keyManager.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
 export async function fetchZenRowsProductImage(query: string): Promise<string | null> {
-  const zenrowsKey = process.env.ZENROWS_KEY?.trim();
-  if (!zenrowsKey || isZenRowsDisabled()) return null;
+  const zenrowsKey = getZenRowsKeyForStore('AMAZON');
+  if (!zenrowsKey || isZenRowsKeyDisabled(zenrowsKey)) return null;
 
   const cleanQ = query.trim();
   const searchUrl = `https://www.amazon.in/s?k=${encodeURIComponent(cleanQ)}`;
@@ -50,7 +51,7 @@ export async function fetchZenRowsProductImage(query: string): Promise<string | 
   } catch (err: any) {
     const status = err.response?.status;
     if (status === 402 || status === 401 || status === 403) {
-      disableZenRows(`Usage limit / Auth error (status ${status}) during image search.`);
+      disableZenRowsKey(zenrowsKey, `Usage limit / Auth error (status ${status}) during image search.`);
     } else {
       console.warn(`[ZenRows Image Gateway Notice] Unable to fetch dynamic image for "${cleanQ}":`, err.message);
     }
@@ -137,14 +138,14 @@ export async function fetchWebImageFallback(query: string): Promise<string | nul
       if (res.data.Image && isValidImageUrl(res.data.Image)) {
         let img = res.data.Image;
         if (img.startsWith('/')) img = `https://duckduckgo.com${img}`;
-        return img;
+        return optimizeProductImageUrl(img) || img;
       }
       if (Array.isArray(res.data.RelatedTopics)) {
         for (const topic of res.data.RelatedTopics) {
           if (topic.Icon?.URL && isValidImageUrl(topic.Icon.URL)) {
             let img = topic.Icon.URL;
             if (img.startsWith('/')) img = `https://duckduckgo.com${img}`;
-            return img;
+            return optimizeProductImageUrl(img) || img;
           }
         }
       }
@@ -163,7 +164,7 @@ export async function fetchWebImageFallback(query: string): Promise<string | nul
       for (const key of Object.keys(pages)) {
         const thumb = pages[key]?.thumbnail?.source;
         if (isValidImageUrl(thumb)) {
-          return thumb;
+          return optimizeProductImageUrl(thumb) || thumb;
         }
       }
     }
@@ -182,7 +183,7 @@ export async function fetchWebImageFallback(query: string): Promise<string | nul
         const info = pages[key]?.imageinfo?.[0];
         const imgUrl = info?.thumburl || info?.url;
         if (isValidImageUrl(imgUrl)) {
-          return imgUrl;
+          return optimizeProductImageUrl(imgUrl) || imgUrl;
         }
       }
     }
@@ -198,7 +199,8 @@ export async function fetchWebImageFallback(query: string): Promise<string | nul
       });
       const doc = res.data?.docs?.[0];
       if (doc?.cover_i) {
-        return `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg`;
+        const img = `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg`;
+        return optimizeProductImageUrl(img) || img;
       }
     } catch { }
   }

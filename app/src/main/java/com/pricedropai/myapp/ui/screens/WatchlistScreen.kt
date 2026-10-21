@@ -9,6 +9,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.NotificationsNone
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -36,7 +37,8 @@ import coil.request.ImageRequest
 @Composable
 fun WatchlistScreen(
     viewModel: TrackerViewModel,
-    onProductSelect: (String) -> Unit
+    onProductSelect: (String) -> Unit,
+    onOpenSettings: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val watchlistItems by viewModel.watchlist.collectAsState()
@@ -71,8 +73,20 @@ fun WatchlistScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            Badge {
-                Text("${watchlistItems.size}")
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Badge {
+                    Text("${watchlistItems.size}")
+                }
+                if (onOpenSettings != null) {
+                    Spacer(Modifier.width(8.dp))
+                    IconButton(onClick = onOpenSettings) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = "Settings",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
             }
         }
 

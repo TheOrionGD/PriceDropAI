@@ -1,7 +1,8 @@
 import axios from 'axios';
 import { getBrowserHeaders } from './headers.js';
-import { isZenRowsDisabled, disableZenRows } from './zenrowsState.js';
+import { isZenRowsKeyDisabled, disableZenRowsKey } from './zenrowsState.js';
 import { scrapePage } from './puppeteer.js';
+import { getZenRowsKeyForStore } from './keyManager.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -12,6 +13,26 @@ export interface FetchHtmlOptions {
   wait?: number;
   premiumProxy?: boolean;
   proxyCountry?: string;
+  storeName?: string;
+}
+
+function detectStoreFromUrl(url: string): string {
+  const lower = url.toLowerCase();
+  if (lower.includes('amazon.')) return 'AMAZON';
+  if (lower.includes('flipkart.')) return 'FLIPKART';
+  if (lower.includes('meesho.')) return 'MEESHO';
+  if (lower.includes('myntra.')) return 'MYNTRA';
+  if (lower.includes('croma.')) return 'CROMA';
+  if (lower.includes('reliancedigital.')) return 'RELIANCE_DIGITAL';
+  if (lower.includes('jiomart.')) return 'JIOMART';
+  if (lower.includes('tatacliq.')) return 'TATACLIQ';
+  if (lower.includes('ajio.')) return 'AJIO';
+  if (lower.includes('nykaa.')) return 'NYKAA';
+  if (lower.includes('ebay.')) return 'EBAY';
+  if (lower.includes('walmart.')) return 'WALMART';
+  if (lower.includes('target.')) return 'TARGET';
+  if (lower.includes('blinkit.')) return 'BLINKIT';
+  return 'OTHER';
 }
 
 export async function fetchPageHtml(url: string, optionsOrReferer?: string | FetchHtmlOptions): Promise<string | null> {
@@ -19,18 +40,17 @@ export async function fetchPageHtml(url: string, optionsOrReferer?: string | Fet
     ? { referer: optionsOrReferer }
     : (optionsOrReferer || {});
 
-  const zenrowsKey = process.env.ZENROWS_KEY?.trim();
+  const detectedStore = options.storeName || detectStoreFromUrl(url);
+  const zenrowsKey = getZenRowsKeyForStore(detectedStore);
 
   // Tier 1: If ZenRows API Key is provided and active, use anti-bot gateway
-  if (zenrowsKey && !isZenRowsDisabled()) {
+  if (zenrowsKey && !isZenRowsKeyDisabled(zenrowsKey)) {
     try {
-      // According to ZenRows docs: Use Adaptive Stealth Mode (mode=auto)
-      // which picks the optimal proxy, antibot, and js_render configuration dynamically and never returns REQS002
       let zenrowsUrl = `https://api.zenrows.com/v1/?apikey=${zenrowsKey}&url=${encodeURIComponent(url)}&mode=auto`;
       if (options.proxyCountry) zenrowsUrl += `&proxy_country=${options.proxyCountry}`;
 
       const response = await axios.get(zenrowsUrl, {
-        timeout: 25000,
+        timeout: 12000,
         maxContentLength: 8 * 1024 * 1024,
         maxBodyLength: 8 * 1024 * 1024,
         validateStatus: (status) => status === 200,
@@ -45,9 +65,9 @@ export async function fetchPageHtml(url: string, optionsOrReferer?: string | Fet
       const detail = respData ? (typeof respData === 'object' ? JSON.stringify(respData) : respData) : err.message;
       
       if (status === 402 || status === 401 || status === 403) {
-        disableZenRows(`Usage limit / Auth error (status ${status}). Falling back to direct & Puppeteer fetch.`);
+        disableZenRowsKey(zenrowsKey, `Usage limit / Auth error (status ${status}) on key ${zenrowsKey.slice(0, 8)}... Falling back to alternate key or direct fetch.`);
       } else {
-        console.warn(`[ZenRows Gateway Notice] ${url}: Request failed${status ? ` (status ${status})` : ''}: ${detail}. Falling back to direct fetch.`);
+        console.warn(`[ZenRows Gateway Notice] ${url}: Request failed${status ? ` (status ${status})` : ''}: ${detail}.`);
       }
     }
   }

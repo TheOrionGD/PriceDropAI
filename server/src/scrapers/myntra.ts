@@ -1,5 +1,6 @@
 import { RawScrapedItem, Store, Availability } from '../types/index.js';
 import { fetchPageHtml } from '../utils/htmlFetcher.js';
+import { optimizeProductImageUrl } from './webFallback.js';
 
 export async function scrapeMyntra(query: string): Promise<RawScrapedItem[]> {
   try {
@@ -57,6 +58,10 @@ export async function scrapeMyntra(query: string): Promise<RawScrapedItem[]> {
         if (imageUrl.startsWith('//')) imageUrl = 'https:' + imageUrl;
         else if (imageUrl.startsWith('/')) imageUrl = `https://www.myntra.com${imageUrl}`;
         else imageUrl = `https://www.myntra.com/${imageUrl}`;
+      }
+
+      if (imageUrl) {
+        imageUrl = optimizeProductImageUrl(imageUrl) || imageUrl;
       }
 
       results.push({

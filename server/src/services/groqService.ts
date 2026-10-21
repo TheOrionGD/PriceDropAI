@@ -2,11 +2,12 @@ import axios from 'axios';
 import dotenv from 'dotenv';
 import { Store, Availability } from '../types/index.js';
 import { AiStoreAnalysis } from './geminiService.js';
+import { getGroqKey } from '../utils/keyManager.js';
 
 dotenv.config();
 
-function getGroqApiKey(): string {
-  return process.env.GROQ_API_KEY?.trim() || '';
+function getGroqApiKeys(): string[] {
+  return [getGroqKey(1), getGroqKey(2), process.env.GROQ_API_KEY?.trim() || ''].filter(Boolean);
 }
 
 // Stores handled by Groq (6 stores)
@@ -25,7 +26,6 @@ export async function analyzeStoresWithGroq(
   referencePrice: number,
   primaryTitle: string
 ): Promise<Record<string, AiStoreAnalysis>> {
-  const apiKey = getGroqApiKey();
   const result: Record<string, AiStoreAnalysis> = {};
 
   const deliveryTexts: Partial<Record<Store, string>> = {
@@ -46,7 +46,9 @@ export async function analyzeStoresWithGroq(
     [Store.EBAY]: 1.05,
   };
 
-  if (apiKey) {
+  const apiKeys = getGroqApiKeys();
+  for (const apiKey of apiKeys) {
+    if (Object.keys(result).length > 0) break;
     try {
       const prompt = `You are a market price comparison analyst for Indian and international retail stores: Croma, Reliance Digital, Tata CLiQ, Ajio, Nykaa, and eBay.
 Product: "${primaryTitle || query}"
@@ -103,7 +105,7 @@ Schema:
         }
       }
     } catch (e: any) {
-      console.warn(`[Groq AI Notice] ${e.message}. Using guaranteed local heuristics.`);
+      console.warn(`[Groq AI Notice] Key ${apiKey.slice(0, 10)}...: ${e.message}. Trying next or heuristics.`);
     }
   }
 
