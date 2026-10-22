@@ -82,14 +82,9 @@ class MultiStoreProductDataSource(
                 val validScraped = scrapedMap.values.filter { it.offer.price != null && it.offer.price > 10.0 }
                 val productId = cleanQuery.lowercase().replace("[^a-z0-9]+".toRegex(), "-").take(60)
 
-                // 1. Establish Title preserving full multi-word query
+                // 1. Establish Title directly from scraped results
                 val primaryScraped = validScraped.firstOrNull { !it.offer.deliveryInfo.isNullOrBlank() }
-                val queryWords = cleanQuery.lowercase().split(" ").filter { it.length > 2 }
-                val scrapedTitle = primaryScraped?.offer?.deliveryInfo?.takeIf { candidate: String ->
-                    candidate.isNotBlank() && (queryWords.isEmpty() || queryWords.any { kw: String -> candidate.lowercase().contains(kw) })
-                }
-                val rawTitle = scrapedTitle ?: cleanQuery
-                val title = rawTitle
+                val title = (primaryScraped?.offer?.deliveryInfo?.takeIf { it.isNotBlank() } ?: cleanQuery)
                     .split(" ")
                     .filter { it.isNotBlank() }
                     .joinToString(" ") { word -> word.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() } }
@@ -172,13 +167,10 @@ class MultiStoreProductDataSource(
                     }
                 }
 
-                // 3. Resolve Dynamic Live Product Image across all verified store scrapers
-                val storeImageCandidate = amazonScraped?.imageUrl?.takeIf { isValidImageUrl(it) }
-                    ?: flipkartScraped?.imageUrl?.takeIf { isValidImageUrl(it) }
-                    ?: meeshoScraped?.imageUrl?.takeIf { isValidImageUrl(it) }
-                    ?: myntraScraped?.imageUrl?.takeIf { isValidImageUrl(it) }
-                val dynamicImage = storeImageCandidate
-                    ?: resolveDynamicProductImage(query = cleanQuery, scrapedImageUrl = null)
+                // 3. Resolve Dynamic Live Product Image strictly from Amazon product
+                val amazonImageCandidate = amazonScraped?.imageUrl?.takeIf { isValidImageUrl(it) }
+                val dynamicImage = amazonImageCandidate
+                    ?: resolveDynamicProductImage(query = "$cleanQuery amazon", scrapedImageUrl = null)
 
                 // 4. Live Scraped Ratings & Reviews
                 val verifiedRating = validScraped.mapNotNull { it.rating }.firstOrNull()
@@ -188,21 +180,6 @@ class MultiStoreProductDataSource(
                     return@coroutineScope Result.failure(NoSuchElementException("No live offers found for '$cleanQuery'"))
                 }
 
-                val reviewSummary = ReviewSummary(
-                    sentimentScore = 91,
-                    pros = listOf(
-                        "Verified authentic product with manufacturer warranty across listed stores",
-                        "Competitive pricing tracked with verified multi-store availability",
-                        "High user satisfaction on delivery and packaging"
-                    ),
-                    cons = listOf(
-                        "Prices may fluctuate rapidly during promotional flash sales",
-                        "Delivery estimates vary depending on regional seller locations"
-                    ),
-                    totalAnalyzed = verifiedReviewCount ?: 1240,
-                    isAvailable = true
-                )
-
                 val product = Product(
                     id = productId,
                     title = title,
@@ -210,11 +187,11 @@ class MultiStoreProductDataSource(
                     imageUrl = dynamicImage,
                     category = detectCategory(cleanQuery),
                     brand = detectBrand(cleanQuery),
-                    rating = verifiedRating ?: 4.5,
-                    reviewCount = verifiedReviewCount ?: 1240,
+                    rating = verifiedRating,
+                    reviewCount = verifiedReviewCount,
                     variants = emptyList(),
                     stores = allStoreOffers,
-                    reviewSummary = reviewSummary,
+                    reviewSummary = ReviewSummary(isAvailable = false),
                     paymentOffers = emptyList(),
                     lastUpdated = System.currentTimeMillis()
                 )

@@ -63,10 +63,11 @@ fun GetStartedScreen(
                         .shimmerSweep(shimmerColor = Color.White.copy(alpha = 0.15f), durationMillis = 2000),
                     contentAlignment = Alignment.Center
                 ) {
-                    androidx.compose.foundation.Image(
-                        painter = androidx.compose.ui.res.painterResource(id = com.pricedropai.myapp.R.mipmap.ic_launcher),
-                        contentDescription = "PriceDrop AI Icon",
-                        modifier = Modifier.size(64.dp)
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.TrendingDown,
+                        contentDescription = "Get Started",
+                        tint = Color.White,
+                        modifier = Modifier.size(50.dp)
                     )
                 }
 

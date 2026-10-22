@@ -417,10 +417,11 @@ fun LoginScreen(
                     .shimmerSweep(shimmerColor = Color.White.copy(alpha = 0.15f), durationMillis = 2000),
                 contentAlignment = Alignment.Center
             ) {
-                androidx.compose.foundation.Image(
-                    painter = androidx.compose.ui.res.painterResource(id = R.mipmap.ic_launcher),
-                    contentDescription = "PriceDrop AI Logo",
-                    modifier = Modifier.size(54.dp)
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.TrendingDown,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(42.dp)
                 )
             }
 

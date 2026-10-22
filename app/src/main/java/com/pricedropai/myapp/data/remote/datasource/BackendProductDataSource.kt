@@ -139,11 +139,12 @@ class BackendProductDataSource(
         )?.trim()
 
         val sanitizedImageUrl: String? = when {
-            rawImageStr.isNullOrBlank() -> null
+            rawImageStr == null -> null
             rawImageStr.startsWith("//") -> "https:$rawImageStr"
-            else -> rawImageStr
+            rawImageStr.startsWith("http://") -> rawImageStr.replaceFirst("http://", "https://")
+            rawImageStr.startsWith("https://") -> rawImageStr
+            else -> null
         }
-
         val description = json.optString("description").takeIf { it.isNotBlank() }
         val brand = json.optString("brand").takeIf { it.isNotBlank() }
         val rating = if (json.has("rating") && !json.isNull("rating")) json.optDouble("rating") else null

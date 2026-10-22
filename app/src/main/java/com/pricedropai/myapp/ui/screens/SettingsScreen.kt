@@ -112,10 +112,11 @@ fun SettingsScreen(
                             ),
                         contentAlignment = Alignment.Center
                     ) {
-                        androidx.compose.foundation.Image(
-                            painter = androidx.compose.ui.res.painterResource(id = com.pricedropai.myapp.R.mipmap.ic_launcher_round),
-                            contentDescription = "User Profile Picture",
-                            modifier = Modifier.size(54.dp)
+                        Text(
+                            text = username.take(1).uppercase(),
+                            color = Color.White,
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.Bold
                         )
                     }
 

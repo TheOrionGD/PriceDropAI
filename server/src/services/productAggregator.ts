@@ -12,7 +12,7 @@ import { scrapeEbay } from '../scrapers/ebay.js';
 import { scrapeWalmart } from '../scrapers/walmart.js';
 import { scrapeTarget } from '../scrapers/target.js';
 import { fetchWebImageFallback, isValidImageUrl, optimizeProductImageUrl } from '../scrapers/webFallback.js';
-import { analyzeStorePricesWithGemini, GEMINI_STORES } from './geminiService.js';
+import { analyzeStorePricesWithGemini, GEMINI_STORES, generateProductReviewSummaryWithGemini } from './geminiService.js';
 import { analyzeStoresWithGroq, GROQ_STORES } from './groqService.js';
 
 function cleanTitle(title: string): string {
@@ -633,7 +633,7 @@ export async function aggregateSearchResults(query: string): Promise<Product[]> 
     // If still missing, explicitly query Amazon for this specific product title to fetch Amazon product image
     if (!highResImage) {
       try {
-        const cleanProductQuery = cleanTitle(cluster.title).replace(/[^a-zA-Z0-9 ]/g, ' ').slice(0, 50).trim();
+        const cleanProductQuery = cleanTitle(cluster.title).replace(/[^a-zA-Z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
         const liveAmazonResults = await scrapeAmazon(cleanProductQuery || cleanQ);
         const matchedAmazon = liveAmazonResults.find(i => isValidImageUrl(i.imageUrl));
         if (matchedAmazon?.imageUrl) {
@@ -652,9 +652,10 @@ export async function aggregateSearchResults(query: string): Promise<Product[]> 
       }
     }
 
-    // 3. Fallback to web search image
+    // 3. Fallback to live web search image using the full multi-word title
     if (!highResImage) {
-      const onlineSearchImg = await fetchWebImageFallback(`${cluster.title} amazon`) || await fetchWebImageFallback(`${cleanQ} amazon`);
+      const fullSearchQuery = cleanTitle(cluster.title).replace(/[^a-zA-Z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+      const onlineSearchImg = await fetchWebImageFallback(`${fullSearchQuery} amazon`) || await fetchWebImageFallback(fullSearchQuery) || await fetchWebImageFallback(cleanQ);
       if (onlineSearchImg && isValidImageUrl(onlineSearchImg)) {
         highResImage = optimizeProductImageUrl(onlineSearchImg);
       }
@@ -708,6 +709,15 @@ export async function aggregateSearchResults(query: string): Promise<Product[]> 
       }
     ];
 
+    // AI Review Summary generation across all queried stores
+    const availableStores = storeOffers.map(s => s.store);
+    const reviewSummary = await generateProductReviewSummaryWithGemini(
+      cluster.title,
+      availableStores,
+      avgRating,
+      totalReviews
+    );
+
     products.push({
       id: productId,
       title: cleanTitle(cluster.title),
@@ -719,13 +729,7 @@ export async function aggregateSearchResults(query: string): Promise<Product[]> 
       reviewCount: totalReviews,
       variants,
       stores: storeOffers,
-      reviewSummary: {
-        sentimentScore: avgRating ? Math.round(avgRating * 20) : null,
-        pros: ['Verified original listing', 'Best price tracked across top retailers'],
-        cons: [],
-        totalAnalyzed: totalReviews || 1,
-        isAvailable: avgRating !== null,
-      },
+      reviewSummary,
       paymentOffers,
       lastUpdated: Date.now(),
     });

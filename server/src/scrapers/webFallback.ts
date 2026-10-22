@@ -128,7 +128,7 @@ export async function fetchWebImageFallback(query: string): Promise<string | nul
     }
   } catch { }
 
-  // Tier 1: Bing Live Image Engine (High-Resolution Real Product Photo Scraping)
+  // Tier 1: Bing Live Image Engine (High-Resolution Real Product Photo Scraping with exact multi-word query)
   try {
     const bingUrl = `https://www.bing.com/images/search?q=${encoded}&FORM=HDRSC2`;
     const res = await axios.get(bingUrl, {
@@ -151,68 +151,22 @@ export async function fetchWebImageFallback(query: string): Promise<string | nul
     }
   } catch { }
 
-  // Tier 2: DuckDuckGo Instant Answers API
+  // Tier 2: DuckDuckGo Instant Answers API (only if exact image is directly related)
   try {
     const res = await axios.get(`https://api.duckduckgo.com/?q=${encoded}&format=json&no_redirect=1&no_html=1`, {
       headers: { 'User-Agent': userAgent },
       timeout: 4000,
     });
     if (res.data) {
-      if (res.data.Image && isValidImageUrl(res.data.Image)) {
+      if (res.data.Image && isValidImageUrl(res.data.Image) && !res.data.Image.includes('wikipedia')) {
         let img = res.data.Image;
         if (img.startsWith('/')) img = `https://duckduckgo.com${img}`;
         return optimizeProductImageUrl(img) || img;
       }
-      if (Array.isArray(res.data.RelatedTopics)) {
-        for (const topic of res.data.RelatedTopics) {
-          if (topic.Icon?.URL && isValidImageUrl(topic.Icon.URL)) {
-            let img = topic.Icon.URL;
-            if (img.startsWith('/')) img = `https://duckduckgo.com${img}`;
-            return optimizeProductImageUrl(img) || img;
-          }
-        }
-      }
     }
   } catch { }
 
-  // Tier 2: Wikipedia Search API
-  try {
-    const wikiUrl = `https://en.wikipedia.org/w/api.php?action=query&format=json&prop=pageimages&pithumbsize=800&generator=search&gsrsearch=${encoded}&gsrlimit=3`;
-    const res = await axios.get(wikiUrl, {
-      headers: { 'User-Agent': userAgent },
-      timeout: 4000,
-    });
-    const pages = res.data?.query?.pages;
-    if (pages) {
-      for (const key of Object.keys(pages)) {
-        const thumb = pages[key]?.thumbnail?.source;
-        if (isValidImageUrl(thumb)) {
-          return optimizeProductImageUrl(thumb) || thumb;
-        }
-      }
-    }
-  } catch { }
-
-  // Tier 3: Wikimedia Commons Media Search API
-  try {
-    const commonsUrl = `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=${encoded}&gsrnamespace=6&prop=imageinfo&iiprop=url&iiurlwidth=800&format=json&gsrlimit=3`;
-    const res = await axios.get(commonsUrl, {
-      headers: { 'User-Agent': userAgent },
-      timeout: 4000,
-    });
-    const pages = res.data?.query?.pages;
-    if (pages) {
-      for (const key of Object.keys(pages)) {
-        const info = pages[key]?.imageinfo?.[0];
-        const imgUrl = info?.thumburl || info?.url;
-        if (isValidImageUrl(imgUrl)) {
-          return optimizeProductImageUrl(imgUrl) || imgUrl;
-        }
-      }
-    }
-  } catch { }
-
-  // Tier 4: OpenLibrary API (for books/novels)
+  // Tier 3: OpenLibrary API (specifically for books/novels)
   if (/book|novel|author|edition/i.test(cleanQ)) {
     try {
       const openLibUrl = `https://openlibrary.org/search.json?q=${encoded}&limit=1`;
@@ -228,6 +182,7 @@ export async function fetchWebImageFallback(query: string): Promise<string | nul
     } catch { }
   }
 
-  // No synthetic image fallbacks: strictly return null if real product image could not be resolved
+  // Strictly return null if no real product image could be resolved — NO random static fallbacks
   return null;
 }
+

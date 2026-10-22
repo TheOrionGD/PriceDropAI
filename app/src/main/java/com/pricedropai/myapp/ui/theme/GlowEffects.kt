@@ -79,12 +79,12 @@ fun Modifier.neonGlow(
 }
 
 /**
- * Pulsing radial/linear back-glow for cards and highlights.
- * Renders an atmospheric blurred backlight behind the element.
+ * Pulsing atmospheric back-glow for cards and highlights.
+ * Wraps the exact card border contour smoothly instead of rendering an unbound circle.
  */
 fun Modifier.glowBackdrop(
     glowColor: Color = Color(0xFF6366F1),
-    maxRadius: Dp = 20.dp,
+    cornerRadius: Dp = 16.dp,
     minAlpha: Float = 0.15f,
     maxAlpha: Float = 0.45f,
     durationMillis: Int = 2400
@@ -101,25 +101,23 @@ fun Modifier.glowBackdrop(
     )
 
     this.drawBehind {
-        val cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.minDimension * 0.16f, size.minDimension * 0.16f)
-        val layers = 5
-        val maxSpreadPx = 18.dp.toPx()
-        
-        for (i in 1..layers) {
-            val spread = (maxSpreadPx / layers) * i
-            val layerAlpha = (alphaAnim / (i * 1.6f)).coerceIn(0f, 1f)
-            
-            drawRoundRect(
-                color = glowColor.copy(alpha = layerAlpha),
-                topLeft = Offset(-spread, -spread),
-                size = androidx.compose.ui.geometry.Size(size.width + spread * 2, size.height + spread * 2),
-                cornerRadius = androidx.compose.ui.geometry.CornerRadius(
-                    cornerRadius.x + spread,
-                    cornerRadius.y + spread
-                ),
-                style = Stroke(width = spread * 0.9f)
-            )
-        }
+        val cornerPx = cornerRadius.toPx()
+        val expandPx = 6.dp.toPx()
+        // Draw ambient atmospheric neon glow embracing the card's rounded border contour
+        drawRoundRect(
+            color = glowColor.copy(alpha = alphaAnim * 0.45f),
+            topLeft = Offset(-expandPx, -expandPx),
+            size = androidx.compose.ui.geometry.Size(size.width + expandPx * 2, size.height + expandPx * 2),
+            cornerRadius = androidx.compose.ui.geometry.CornerRadius(cornerPx + expandPx, cornerPx + expandPx)
+        )
+        // Subtle outer border highlight that traces card edge
+        drawRoundRect(
+            color = glowColor.copy(alpha = alphaAnim * 0.85f),
+            topLeft = Offset(0f, 0f),
+            size = size,
+            cornerRadius = androidx.compose.ui.geometry.CornerRadius(cornerPx, cornerPx),
+            style = Stroke(width = 1.5.dp.toPx())
+        )
     }
 }
 
