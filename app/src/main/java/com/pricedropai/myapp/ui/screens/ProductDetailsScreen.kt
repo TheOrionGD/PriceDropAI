@@ -169,9 +169,16 @@ fun ProductDetailsScreen(
                             SubcomposeAsyncImage(
                                 model = ImageRequest.Builder(context)
                                     .data(product.imageUrl)
-                                    .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-                                    .allowHardware(false)
                                     .crossfade(true)
+                                    .allowHardware(false)
+                                    .listener(
+                                        onError = { _, result ->
+                                            android.util.Log.e("CoilImage", "Failed to load product image: ${product.imageUrl}", result.throwable)
+                                        },
+                                        onSuccess = { _, _ ->
+                                            android.util.Log.d("CoilImage", "Successfully rendered image: ${product.imageUrl}")
+                                        }
+                                    )
                                     .build(),
                                 contentDescription = product.title,
                                 contentScale = ContentScale.Fit,
