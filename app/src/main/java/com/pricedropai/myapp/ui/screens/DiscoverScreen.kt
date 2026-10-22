@@ -306,6 +306,8 @@ fun DiscoverScreen(
                 ProductDetailsScreen(
                     product = state.product,
                     priceSnapshots = currentSnapshots,
+                    isRefreshing = isRefreshing,
+                    onRefresh = { viewModel.refresh(state.product.title) },
                     onSaveAlert = { target, store, img ->
                         viewModel.saveTargetAlert(
                             productTitle = state.product.title,

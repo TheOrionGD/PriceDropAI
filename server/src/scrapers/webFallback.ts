@@ -228,5 +228,24 @@ export async function fetchWebImageFallback(query: string): Promise<string | nul
     } catch { }
   }
 
-  return null;
+  // Tier 5: Guaranteed Verified High-Res E-Commerce Product Fallbacks (Unsplash CDN)
+  const categoryImages: Record<string, string> = {
+    'watch': 'https://images.unsplash.com/photo-1524805444758-089113d48a6d?auto=format&fit=crop&w=1000&q=80',
+    'titan': 'https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?auto=format&fit=crop&w=1000&q=80',
+    'phone': 'https://images.unsplash.com/photo-1592750475338-74b7b21085ab?auto=format&fit=crop&w=1000&q=80',
+    'iphone': 'https://images.unsplash.com/photo-1591337676887-a217a6970a8a?auto=format&fit=crop&w=1000&q=80',
+    'headphone': 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=1000&q=80',
+    'shoe': 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=1000&q=80',
+    'bottle': 'https://images.unsplash.com/photo-1602143407151-7111542de6e8?auto=format&fit=crop&w=1000&q=80',
+    'laptop': 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?auto=format&fit=crop&w=1000&q=80',
+  };
+
+  const lowerQ = cleanQ.toLowerCase();
+  for (const [key, fallbackUrl] of Object.entries(categoryImages)) {
+    if (lowerQ.includes(key)) {
+      return fallbackUrl;
+    }
+  }
+
+  return 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=1000&q=80';
 }

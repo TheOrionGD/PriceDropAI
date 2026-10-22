@@ -20,6 +20,8 @@ export const GROQ_STORES = [
   Store.EBAY,
 ];
 
+let groqCooldownUntil = 0;
+
 export async function analyzeStoresWithGroq(
   query: string,
   category: string,
@@ -45,6 +47,24 @@ export async function analyzeStoresWithGroq(
     [Store.NYKAA]: 1.0,
     [Store.EBAY]: 1.05,
   };
+
+  if (Date.now() < groqCooldownUntil) {
+    // In rate-limit cooldown; proceed directly to reliable heuristics
+    for (const store of GROQ_STORES) {
+      const key = store.toUpperCase();
+      const mult = defaultMultipliers[store] || 1.0;
+      const price = Math.round(referencePrice * mult);
+      const orig = Math.round(price * 1.25);
+      result[key] = {
+        price,
+        originalPrice: orig,
+        discountPercentage: Math.max(5, Math.round(((orig - price) / orig) * 100)),
+        availability: Availability.IN_STOCK,
+        deliveryInfo: deliveryTexts[store] || 'Verified Store Deal',
+      };
+    }
+    return result;
+  }
 
   const apiKeys = getGroqApiKeys();
   for (const apiKey of apiKeys) {
@@ -105,7 +125,11 @@ Schema:
         }
       }
     } catch (e: any) {
-      console.warn(`[Groq AI Notice] Key ${apiKey.slice(0, 10)}...: ${e.message}. Trying next or heuristics.`);
+      if (e.response?.status === 429) {
+        groqCooldownUntil = Date.now() + 60000; // 1-minute cooldown on 429 rate limit
+      }
+      console.warn(`[Groq AI Notice] Key ${apiKey.slice(0, 10)}...: ${e.message}. Using reliable fallback heuristics.`);
+      break;
     }
   }
 

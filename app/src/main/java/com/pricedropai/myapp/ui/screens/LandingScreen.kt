@@ -177,13 +177,17 @@ fun LandingScreen(
             SectionTitle(title = "Supported Retail Ecosystem", subtitle = "Track prices from any verified Indian retailer")
 
             val stores = listOf(
-                "Flipkart" to Color(0xFF2874F0),
                 "Amazon" to Color(0xFFFF9900),
+                "Flipkart" to Color(0xFF2874F0),
+                "Meesho" to Color(0xFF9B27B0),
+                "Myntra" to Color(0xFFFF3F6C),
                 "Croma" to Color(0xFF00E676),
                 "Reliance Digital" to Color(0xFFE53935),
-                "Vijay Sales" to Color(0xFFD32F2F),
+                "JioMart" to Color(0xFF0C73EB),
                 "Tata CLiQ" to Color(0xFF8E24AA),
-                "Nykaa" to Color(0xFFEC407A)
+                "Ajio" to Color(0xFF2C4152),
+                "Nykaa" to Color(0xFFEC407A),
+                "Blinkit" to Color(0xFFF7C325)
             )
 
             Row(
@@ -192,17 +196,17 @@ fun LandingScreen(
                     .padding(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Display in 2 column chunks
+                // Display in 2 balanced columns
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    stores.take(4).forEach { (name, color) ->
+                    stores.take(6).forEach { (name, color) ->
                         GlassStoreBadge(storeName = name, accentColor = color)
                     }
                 }
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    stores.drop(4).forEach { (name, color) ->
+                    stores.drop(6).take(5).forEach { (name, color) ->
                         GlassStoreBadge(storeName = name, accentColor = color)
                     }
-                    GlassStoreBadge(storeName = "+ More Stores", accentColor = Color(0xFF6366F1))
+                    GlassStoreBadge(storeName = "+ 14+ Stores", accentColor = Color(0xFF10B981))
                 }
             }
 
