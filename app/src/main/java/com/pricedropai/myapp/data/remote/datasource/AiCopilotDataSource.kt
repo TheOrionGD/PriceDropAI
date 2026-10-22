@@ -137,6 +137,8 @@ class AiCopilotDataSource(
 
         // 3. Fallback: Dynamic AI Contextual Response answering user's prompt directly
         val aiText = if (currentProduct != null && currentProduct.lowestPrice != null) {
+            val lowestOffer = currentProduct.stores.filter { it.price != null }.minByOrNull { it.price!! }
+            val storeMention = if (lowestOffer != null) " on ${lowestOffer.store.displayName}" else ""
             val historyMsg = if (priceHistory.size >= 2) {
                 val oldest = priceHistory.first().price
                 val newest = priceHistory.last().price
@@ -145,7 +147,7 @@ class AiCopilotDataSource(
                 else if (diff < 0) " (Price increased by ₹${"%,.0f".format(-diff)} recently)"
                 else ""
             } else ""
-            "For '${currentProduct.title}', the lowest verified price across Amazon, Flipkart, Meesho, and Myntra is ₹${"%,.0f".format(currentProduct.lowestPrice)}$historyMsg. Set a target price alert in your Watchlist to get notified when the price drops further!"
+            "For '${currentProduct.title}', the lowest verified price$storeMention is ₹${"%,.0f".format(currentProduct.lowestPrice)}$historyMsg. Set a target price alert in your Watchlist to get notified when the price drops further!"
         } else {
             "I've analyzed your query '$cleanPrompt'. You can search for any product name or paste an e-commerce link to compare live prices, discounts, and availability across Amazon, Flipkart, Meesho, and Myntra!"
         }

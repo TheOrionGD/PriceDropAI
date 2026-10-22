@@ -53,12 +53,26 @@ fun StoreOfferCard(
             .fillMaxWidth()
             .bounceClick(targetScale = 0.98f) {
                 try {
-                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(offer.productUrl)).apply {
+                    val rawUrl = offer.productUrl.trim()
+                    val targetUrl = when {
+                        rawUrl.startsWith("http://") || rawUrl.startsWith("https://") -> rawUrl
+                        rawUrl.startsWith("//") -> "https:$rawUrl"
+                        else -> "https://www.google.com/search?q=${java.net.URLEncoder.encode(offer.productId, "UTF-8")}+${offer.store.displayName}"
+                    }
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(targetUrl)).apply {
                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     }
                     context.startActivity(intent)
                 } catch (e: Exception) {
-                    Toast.makeText(context, "Cannot open store link: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
+                    try {
+                        val fallbackSearch = "https://www.google.com/search?q=${java.net.URLEncoder.encode(offer.productId, "UTF-8")}+${offer.store.displayName}"
+                        val fallbackIntent = Intent(Intent.ACTION_VIEW, Uri.parse(fallbackSearch)).apply {
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                        context.startActivity(fallbackIntent)
+                    } catch (_: Exception) {
+                        Toast.makeText(context, "Cannot open store: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
+                    }
                 }
             }
             .then(

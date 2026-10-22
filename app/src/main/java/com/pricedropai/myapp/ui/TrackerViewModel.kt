@@ -94,12 +94,31 @@ class TrackerViewModel(application: Application) : AndroidViewModel(application)
                 result.fold(
                     onSuccess = { product ->
                         _searchState.value = SearchUiState.Success(product)
-                        // Load historical price snapshots for this product
                         loadSnapshotsForProduct(product.id)
+
+                        // Real-time In-App Notification based on search completion
+                        val lowestPrice = product.lowestPrice
+                        val lowestPriceText = if (lowestPrice != null) "Lowest price: ₹${"%,.0f".format(lowestPrice)}" else "Prices compared"
+                        com.pricedropai.myapp.data.local.InAppNotificationManager.postNotification(
+                            title = "Search Complete: ${product.title.take(35)}...",
+                            description = "Found ${product.stores.size} verified store offers. $lowestPriceText.",
+                            category = com.pricedropai.myapp.data.local.InAppNotificationCategory.SEARCHES,
+                            iconType = com.pricedropai.myapp.data.local.NotificationIconType.SEARCH,
+                            accentColor = androidx.compose.ui.graphics.Color(0xFF38BDF8),
+                            severity = com.pricedropai.myapp.data.local.NotificationSeverity.INFO
+                        )
                     },
                     onFailure = { error ->
-                        _searchState.value = SearchUiState.Error(
-                            error.localizedMessage ?: "Unable to fetch live price data from stores. Please check connection and try again."
+                        val errorMsg = error.localizedMessage ?: "Unable to fetch live price data from stores. Please check connection and try again."
+                        _searchState.value = SearchUiState.Error(errorMsg)
+
+                        com.pricedropai.myapp.data.local.InAppNotificationManager.postNotification(
+                            title = "Search Failed for '$clean'",
+                            description = errorMsg,
+                            category = com.pricedropai.myapp.data.local.InAppNotificationCategory.SYSTEM,
+                            iconType = com.pricedropai.myapp.data.local.NotificationIconType.SYSTEM,
+                            accentColor = androidx.compose.ui.graphics.Color(0xFFEF4444),
+                            severity = com.pricedropai.myapp.data.local.NotificationSeverity.ALERT
                         )
                     }
                 )
@@ -134,24 +153,59 @@ class TrackerViewModel(application: Application) : AndroidViewModel(application)
                 store = store,
                 imageUrl = imageUrl
             )
+
+            // Real-time In-App Notification on user setting price alert
+            com.pricedropai.myapp.data.local.InAppNotificationManager.postNotification(
+                title = "Price Alert Armed",
+                description = "Tracking '${productTitle.take(32)}...'. We will alert you the moment price drops to or below ₹${"%,.0f".format(targetPrice)}.",
+                category = com.pricedropai.myapp.data.local.InAppNotificationCategory.ALERTS,
+                iconType = com.pricedropai.myapp.data.local.NotificationIconType.ALERT,
+                accentColor = androidx.compose.ui.graphics.Color(0xFF10B981),
+                severity = com.pricedropai.myapp.data.local.NotificationSeverity.INFO
+            )
         }
     }
 
     fun toggleTrackedEnabled(id: Long, enabled: Boolean) {
         viewModelScope.launch(Dispatchers.IO) {
             watchlistRepository.setEnabled(id, enabled)
+            val status = if (enabled) "Resumed" else "Paused"
+            com.pricedropai.myapp.data.local.InAppNotificationManager.postNotification(
+                title = "Alert Monitoring $status",
+                description = "Live tracking for item #$id is now $status.",
+                category = com.pricedropai.myapp.data.local.InAppNotificationCategory.ALERTS,
+                iconType = com.pricedropai.myapp.data.local.NotificationIconType.TUNING,
+                accentColor = androidx.compose.ui.graphics.Color(0xFFF59E0B),
+                severity = com.pricedropai.myapp.data.local.NotificationSeverity.INFO
+            )
         }
     }
 
     fun removeWatchlistItem(id: Long) {
         viewModelScope.launch(Dispatchers.IO) {
             watchlistRepository.deleteTracked(id)
+            com.pricedropai.myapp.data.local.InAppNotificationManager.postNotification(
+                title = "Watchlist Item Removed",
+                description = "Price drop tracker for item #$id has been removed from your watchlist.",
+                category = com.pricedropai.myapp.data.local.InAppNotificationCategory.ALERTS,
+                iconType = com.pricedropai.myapp.data.local.NotificationIconType.TRASH,
+                accentColor = androidx.compose.ui.graphics.Color(0xFF94A3B8),
+                severity = com.pricedropai.myapp.data.local.NotificationSeverity.INFO
+            )
         }
     }
 
     fun clearSearchHistory() {
         viewModelScope.launch(Dispatchers.IO) {
             productRepository.clearSearchHistory()
+            com.pricedropai.myapp.data.local.InAppNotificationManager.postNotification(
+                title = "Search History Cleared",
+                description = "All on-device recent search queries have been safely cleared.",
+                category = com.pricedropai.myapp.data.local.InAppNotificationCategory.SEARCHES,
+                iconType = com.pricedropai.myapp.data.local.NotificationIconType.HISTORY,
+                accentColor = androidx.compose.ui.graphics.Color(0xFF6366F1),
+                severity = com.pricedropai.myapp.data.local.NotificationSeverity.INFO
+            )
         }
     }
 
@@ -173,6 +227,16 @@ class TrackerViewModel(application: Application) : AndroidViewModel(application)
             )
             isBotTyping = false
             chatMessages.add(botReply)
+
+            // Real-time In-App Notification on AI Copilot consultation
+            com.pricedropai.myapp.data.local.InAppNotificationManager.postNotification(
+                title = "AI Copilot Response Ready",
+                description = "Evaluated '${prompt.take(30)}...': ${botReply.text.take(65)}...",
+                category = com.pricedropai.myapp.data.local.InAppNotificationCategory.COPILOT,
+                iconType = com.pricedropai.myapp.data.local.NotificationIconType.COPILOT,
+                accentColor = androidx.compose.ui.graphics.Color(0xFF8B5CF6),
+                severity = com.pricedropai.myapp.data.local.NotificationSeverity.INFO
+            )
         }
     }
 

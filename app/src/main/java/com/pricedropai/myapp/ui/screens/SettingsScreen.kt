@@ -44,6 +44,7 @@ fun SettingsScreen(
     val context = LocalContext.current
     val scrollState = rememberScrollState()
 
+    var showNotificationsCenter by remember { mutableStateOf(false) }
     var notificationsEnabled by remember { mutableStateOf(true) }
     var backgroundCheckFrequency by remember { mutableStateOf("Every 6 Hours") }
     var soundEnabled by remember { mutableStateOf(true) }
@@ -51,6 +52,13 @@ fun SettingsScreen(
     var showLogoutDialog by remember { mutableStateOf(false) }
 
     val username = remember { sessionManager.getUserName().ifBlank { "Smart Shopper" } }
+
+    if (showNotificationsCenter) {
+        NotificationsCenterScreen(
+            onBack = { showNotificationsCenter = false }
+        )
+        return
+    }
 
     Scaffold(
         topBar = {
@@ -150,16 +158,25 @@ fun SettingsScreen(
             // -------------------------------------------------------------
             SettingsGroupHeader(title = "Alerts & Notifications")
 
+            SettingsActionTile(
+                icon = Icons.Outlined.Notifications,
+                title = "In-App Notification Center",
+                subtitle = "Subsystem health, cloud cold-start & scraper notices",
+                onClick = {
+                    showNotificationsCenter = true
+                }
+            )
+
             SettingsSwitchTile(
                 icon = Icons.Outlined.NotificationsActive,
-                title = "Price Drop Notifications",
-                subtitle = "Receive alerts when tracked items drop in price",
+                title = "Price Drop Alerts",
+                subtitle = "Receive in-app alerts when tracked items drop in price",
                 checked = notificationsEnabled,
                 onCheckedChange = { notificationsEnabled = it }
             )
 
             SettingsSwitchTile(
-                icon = Icons.Filled.VolumeUp,
+                icon = Icons.Outlined.VolumeUp,
                 title = "Alert Sounds",
                 subtitle = "Play gentle notification tone on price drop",
                 checked = soundEnabled,
@@ -453,8 +470,27 @@ fun SettingsScreen(
                         }
                     },
                     confirmButton = {
-                        Button(onClick = { showPrivacyDialog = false }) {
-                            Text("Close")
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(
+                                onClick = {
+                                    try {
+                                        val intent = android.content.Intent(
+                                            android.content.Intent.ACTION_VIEW,
+                                            android.net.Uri.parse("https://pricedropai-backend.onrender.com/privacy-policy")
+                                        ).apply {
+                                            addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        }
+                                        context.startActivity(intent)
+                                    } catch (e: Exception) {
+                                        Toast.makeText(context, "Cannot open browser: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            ) {
+                                Text("Online Policy")
+                            }
+                            Button(onClick = { showPrivacyDialog = false }) {
+                                Text("Close")
+                            }
                         }
                     }
                 )
