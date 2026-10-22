@@ -28,8 +28,8 @@ class BackendProductDataSource(
 
         fun defaultHttpClient(): OkHttpClient {
             return OkHttpClient.Builder()
-                .connectTimeout(30, TimeUnit.SECONDS)
-                .readTimeout(30, TimeUnit.SECONDS)
+                .connectTimeout(60, TimeUnit.SECONDS)
+                .readTimeout(60, TimeUnit.SECONDS)
                 .followRedirects(true)
                 .retryOnConnectionFailure(true)
                 .build()
@@ -56,18 +56,23 @@ class BackendProductDataSource(
             val responseBody = response.body?.string()
 
             if (response.isSuccessful && !responseBody.isNullOrBlank()) {
-                val jsonArray = JSONArray(responseBody)
                 val products = mutableListOf<Product>()
-
-                for (i in 0 until jsonArray.length()) {
-                    val itemObj = jsonArray.optJSONObject(i) ?: continue
-                    val product = parseProductFromJson(itemObj)
-                    if (product != null) {
-                        products.add(product)
+                val trimmed = responseBody.trim()
+                if (trimmed.startsWith("[")) {
+                    val jsonArray = JSONArray(trimmed)
+                    for (i in 0 until jsonArray.length()) {
+                        val itemObj = jsonArray.optJSONObject(i) ?: continue
+                        val product = parseProductFromJson(itemObj)
+                        if (product != null) products.add(product)
                     }
+                } else if (trimmed.startsWith("{")) {
+                    val jsonObj = JSONObject(trimmed)
+                    val product = parseProductFromJson(jsonObj)
+                    if (product != null) products.add(product)
                 }
 
                 if (products.isNotEmpty()) {
+                    Log.d(TAG, "Backend returned ${products.size} products for '$cleanQuery'")
                     return@withContext Result.success(products)
                 }
             } else {

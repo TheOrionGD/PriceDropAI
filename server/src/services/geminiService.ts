@@ -16,11 +16,13 @@ export interface CopilotResponse {
 }
 
 export const GEMINI_ANALYSIS_MODELS = [
+  'gemini-3.8-flash',
   'gemini-2.5-flash',
   'gemini-3-flash-preview',
 ];
 
 export const GEMINI_CHAT_MODELS = [
+  'gemini-3.8-flash',
   'gemini-2.5-flash',
   'gemini-3-flash-preview',
 ];

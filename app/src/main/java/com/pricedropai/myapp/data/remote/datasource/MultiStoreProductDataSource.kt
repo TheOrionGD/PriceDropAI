@@ -104,7 +104,20 @@ class MultiStoreProductDataSource(
                     Store.BLINKIT,
                     Store.EBAY
                 )
-                val primaryPrice = validScraped.firstOrNull()?.offer?.price ?: 1299.0
+                val basePriceEstimate = when {
+                    cleanQuery.contains("macbook", ignoreCase = true) -> 82990.0
+                    cleanQuery.contains("iphone", ignoreCase = true) -> 64990.0
+                    cleanQuery.contains("laptop", ignoreCase = true) -> 49990.0
+                    cleanQuery.contains("samsung s", ignoreCase = true) -> 74990.0
+                    cleanQuery.contains("tv", ignoreCase = true) || cleanQuery.contains("television", ignoreCase = true) -> 28990.0
+                    cleanQuery.contains("headphone", ignoreCase = true) || cleanQuery.contains("sony wh", ignoreCase = true) -> 14990.0
+                    cleanQuery.contains("chair", ignoreCase = true) -> 4999.0
+                    cleanQuery.contains("shoe", ignoreCase = true) || cleanQuery.contains("sneaker", ignoreCase = true) -> 3499.0
+                    cleanQuery.contains("watch", ignoreCase = true) -> 2999.0
+                    cleanQuery.contains("bottle", ignoreCase = true) -> 699.0
+                    else -> 1999.0
+                }
+                val primaryPrice = validScraped.firstOrNull()?.offer?.price ?: basePriceEstimate
                 val encoded = try { URLEncoder.encode(cleanQuery, StandardCharsets.UTF_8.toString()) } catch (_: Exception) { cleanQuery }
 
                 val allStoreOffers = targetStores.map { store ->
@@ -315,7 +328,7 @@ class MultiStoreProductDataSource(
             logD(TAG, "Bing image fetch notice: ${e.message}")
         }
 
-        // Tier 2: DuckDuckGo Live Search API (Checks direct Image, RelatedTopics, and Results)
+        // Tier 2: DuckDuckGo Live Search API (Checks direct Image only if not an encyclopedia/static image)
         try {
             val ddgUrl = "https://api.duckduckgo.com/?q=$encoded&format=json&no_redirect=1&no_html=1"
             val request = Request.Builder().url(ddgUrl).header("User-Agent", USER_AGENT).build()
@@ -325,49 +338,10 @@ class MultiStoreProductDataSource(
                 response.close()
                 if (body.isNotEmpty()) {
                     val json = JSONObject(body)
-                    // Check direct Image
                     var img = json.optString("Image")
-                    if (img.isNotBlank()) {
+                    if (img.isNotBlank() && !img.contains("wikipedia")) {
                         if (img.startsWith("/")) img = "https://duckduckgo.com$img"
                         if (isValidImageUrl(img)) return img
-                    }
-
-                    // Check RelatedTopics array
-                    val relatedTopics = json.optJSONArray("RelatedTopics")
-                    if (relatedTopics != null && relatedTopics.length() > 0) {
-                        for (i in 0 until relatedTopics.length()) {
-                            val topic = relatedTopics.optJSONObject(i)
-                            var iconUrl = topic?.optJSONObject("Icon")?.optString("URL")
-                            if (!iconUrl.isNullOrBlank()) {
-                                if (iconUrl.startsWith("/")) iconUrl = "https://duckduckgo.com$iconUrl"
-                                if (isValidImageUrl(iconUrl)) return iconUrl
-                            }
-                            // Nested Topics
-                            val subTopics = topic?.optJSONArray("Topics")
-                            if (subTopics != null) {
-                                for (j in 0 until subTopics.length()) {
-                                    val subTopic = subTopics.optJSONObject(j)
-                                    var subIcon = subTopic?.optJSONObject("Icon")?.optString("URL")
-                                    if (!subIcon.isNullOrBlank()) {
-                                        if (subIcon.startsWith("/")) subIcon = "https://duckduckgo.com$subIcon"
-                                        if (isValidImageUrl(subIcon)) return subIcon
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // Check Results array
-                    val results = json.optJSONArray("Results")
-                    if (results != null && results.length() > 0) {
-                        for (i in 0 until results.length()) {
-                            val resObj = results.optJSONObject(i)
-                            var resIcon = resObj?.optJSONObject("Icon")?.optString("URL")
-                            if (!resIcon.isNullOrBlank()) {
-                                if (resIcon.startsWith("/")) resIcon = "https://duckduckgo.com$resIcon"
-                                if (isValidImageUrl(resIcon)) return resIcon
-                            }
-                        }
                     }
                 }
             } else {
@@ -377,63 +351,8 @@ class MultiStoreProductDataSource(
             logD(TAG, "DDG image fetch notice: ${e.message}")
         }
 
-        // Tier 2: Wikipedia / Wikimedia PageImages Live Search API (Top 5 matches)
-        try {
-            val wikiUrl = "https://en.wikipedia.org/w/api.php?action=query&format=json&prop=pageimages&pithumbsize=800&generator=search&gsrsearch=$encoded&gsrlimit=5"
-            val request = Request.Builder().url(wikiUrl).header("User-Agent", USER_AGENT).build()
-            val response = client.newCall(request).execute()
-            if (response.isSuccessful) {
-                val body = response.body?.string() ?: ""
-                response.close()
-                if (body.contains("\"thumbnail\":{") && body.contains("\"source\":\"http")) {
-                    val json = JSONObject(body)
-                    val pages = json.optJSONObject("query")?.optJSONObject("pages")
-                    if (pages != null) {
-                        for (key in pages.keys()) {
-                            val pageObj = pages.optJSONObject(key)
-                            val img = pageObj?.optJSONObject("thumbnail")?.optString("source")
-                            if (isValidImageUrl(img)) return img
-                        }
-                    }
-                }
-            } else {
-                response.close()
-            }
-        } catch (e: Exception) {
-            logD(TAG, "Wiki image fetch notice: ${e.message}")
-        }
-
-        // Tier 3: Wikimedia Commons Direct Image Search API
-        try {
-            val commonsUrl = "https://commons.wikimedia.org/w/api.php?action=query&format=json&generator=search&gsrsearch=$encoded&gsrlimit=3&prop=imageinfo&iiprop=url&iiurlwidth=800"
-            val request = Request.Builder().url(commonsUrl).header("User-Agent", USER_AGENT).build()
-            val response = client.newCall(request).execute()
-            if (response.isSuccessful) {
-                val body = response.body?.string() ?: ""
-                response.close()
-                if (body.contains("\"imageinfo\":[") && body.contains("\"url\":\"http")) {
-                    val json = JSONObject(body)
-                    val pages = json.optJSONObject("query")?.optJSONObject("pages")
-                    if (pages != null) {
-                        for (key in pages.keys()) {
-                            val pageObj = pages.optJSONObject(key)
-                            val imageInfos = pageObj?.optJSONArray("imageinfo")
-                            if (imageInfos != null && imageInfos.length() > 0) {
-                                val info = imageInfos.optJSONObject(0)
-                                val thumbUrl = info?.optString("thumburl")
-                                if (isValidImageUrl(thumbUrl)) return thumbUrl
-                                val directUrl = info?.optString("url")
-                                if (isValidImageUrl(directUrl)) return directUrl
-                            }
-                        }
-                    }
-                }
-            } else {
-                response.close()
-            }
-        } catch (e: Exception) {
-            logD(TAG, "Commons image fetch notice: ${e.message}")
-        }
+        // Strictly avoid Wikipedia/Wikimedia or random static picture lookups
+        // Return null if real product image could not be verified
 
         // Tier 4: OpenLibrary API for Books
         if (query.lowercase().contains("book") || query.lowercase().contains("novel") || query.lowercase().contains("author")) {

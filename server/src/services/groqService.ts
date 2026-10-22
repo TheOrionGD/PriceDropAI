@@ -67,10 +67,14 @@ export async function analyzeStoresWithGroq(
   }
 
   const apiKeys = getGroqApiKeys();
+  const GROQ_MODELS = ['qwen/qwen3.8-27b', 'openai/gpt-oss-120b', 'openai/gpt-oss-20b'];
+
   for (const apiKey of apiKeys) {
     if (Object.keys(result).length > 0) break;
-    try {
-      const prompt = `You are a market price comparison analyst for Indian and international retail stores: Croma, Reliance Digital, Tata CLiQ, Ajio, Nykaa, and eBay.
+    for (const model of GROQ_MODELS) {
+      if (Object.keys(result).length > 0) break;
+      try {
+        const prompt = `You are a market price comparison analyst for Indian and international retail stores: Croma, Reliance Digital, Tata CLiQ, Ajio, Nykaa, and eBay.
 Product: "${primaryTitle || query}"
 Category: "${category}"
 Base Reference Price: ₹${referencePrice}
@@ -86,25 +90,25 @@ Schema:
   "EBAY": { "price": ${Math.round(referencePrice * 1.05)}, "originalPrice": ${Math.round(referencePrice * 1.25)}, "discountPercentage": 16, "availability": "IN_STOCK", "deliveryInfo": "Priority Shipping" }
 }`;
 
-      const response = await axios.post(
-        'https://api.groq.com/openai/v1/chat/completions',
-        {
-          model: 'qwen/qwen3.8-27b',
-          messages: [
-            { role: 'system', content: 'You are an accurate e-commerce price comparison engine. Return strictly raw JSON.' },
-            { role: 'user', content: prompt }
-          ],
-          temperature: 0.2,
-          response_format: { type: 'json_object' }
-        },
-        {
-          headers: {
-            'Authorization': `Bearer ${apiKey}`,
-            'Content-Type': 'application/json'
+        const response = await axios.post(
+          'https://api.groq.com/openai/v1/chat/completions',
+          {
+            model,
+            messages: [
+              { role: 'system', content: 'You are an accurate e-commerce price comparison engine. Return strictly raw JSON.' },
+              { role: 'user', content: prompt }
+            ],
+            temperature: 0.2,
+            response_format: { type: 'json_object' }
           },
-          timeout: 8000
-        }
-      );
+          {
+            headers: {
+              'Authorization': `Bearer ${apiKey}`,
+              'Content-Type': 'application/json'
+            },
+            timeout: 8000
+          }
+        );
 
       const content = response.data?.choices?.[0]?.message?.content;
       if (content) {
@@ -124,12 +128,13 @@ Schema:
           }
         }
       }
-    } catch (e: any) {
-      if (e.response?.status === 429) {
-        groqCooldownUntil = Date.now() + 60000; // 1-minute cooldown on 429 rate limit
+      } catch (e: any) {
+        if (e.response?.status === 429) {
+          groqCooldownUntil = Date.now() + 60000; // 1-minute cooldown on 429 rate limit
+          break;
+        }
+        console.warn(`[Groq AI Notice] Key ${apiKey.slice(0, 10)}... Model ${model}: ${e.message}.`);
       }
-      console.warn(`[Groq AI Notice] Key ${apiKey.slice(0, 10)}...: ${e.message}. Using reliable fallback heuristics.`);
-      break;
     }
   }
 
