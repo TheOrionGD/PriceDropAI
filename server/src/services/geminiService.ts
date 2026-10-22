@@ -16,15 +16,15 @@ export interface CopilotResponse {
 }
 
 export const GEMINI_ANALYSIS_MODELS = [
-  'gemini-2.5-flash',
-  'gemini-2.5-flash-lite',
-  'gemini-flash-latest',
+  'gemini-flash-lite-latest',
+  'gemini-3.5-flash-lite',
+  'gemini-3.6-flash',
 ];
 
 export const GEMINI_CHAT_MODELS = [
-  'gemini-2.5-flash',
-  'gemini-2.5-flash-lite',
-  'gemini-flash-latest',
+  'gemini-flash-lite-latest',
+  'gemini-3.5-flash-lite',
+  'gemini-3.6-flash',
 ];
 
 import { getGeminiKey } from '../utils/keyManager.js';
@@ -127,7 +127,7 @@ async function callGeminiApi(prompt: string, modelsList: string[], expectJson: b
             headers: {
               'Content-Type': 'application/json'
             },
-            timeout: 3500
+            timeout: 6000
           }
         );
 
@@ -139,13 +139,9 @@ async function callGeminiApi(prompt: string, modelsList: string[], expectJson: b
       } catch (err: any) {
         const status = err.response?.status;
         if (status === 429) {
-          console.warn(`[Gemini API Notice] Rate limit (HTTP 429) on model ${model}. Pausing Gemini calls for 20s.`);
-          geminiCooldownUntil = Date.now() + 20000;
-          return null;
-        } else if (status === 503) {
-          console.warn(`[Gemini API Notice] Service overloaded (HTTP 503). Pausing Gemini calls for 15s.`);
+          console.warn(`[Gemini API Notice] Rate limit (HTTP 429) on model ${model} with key ${apiKey.slice(0, 8)}... Trying next.`);
           geminiCooldownUntil = Date.now() + 15000;
-          return null;
+          continue;
         } else if (status === 404 || status === 400) {
           continue;
         } else {
