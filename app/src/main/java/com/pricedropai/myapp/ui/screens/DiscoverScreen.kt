@@ -194,7 +194,7 @@ fun DiscoverScreen(
 
                 LaunchedEffect(Unit) {
                     while (currentStepIdx < steps.size - 1) {
-                        kotlinx.coroutines.delay(1600)
+                        kotlinx.coroutines.delay(4200)
                         currentStepIdx++
                         displayedChars = 0
                     }
@@ -203,12 +203,12 @@ fun DiscoverScreen(
                 val currentStep = steps[currentStepIdx]
                 val fullText = currentStep.first
 
-                // Typewriter effect ticker
+                // Typewriter effect ticker with smooth, comfortably readable typing speed
                 LaunchedEffect(currentStepIdx) {
                     displayedChars = 0
                     for (i in 1..fullText.length) {
                         displayedChars = i
-                        kotlinx.coroutines.delay(18)
+                        kotlinx.coroutines.delay(75)
                     }
                 }
 

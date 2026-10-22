@@ -44,9 +44,12 @@ fun LandingScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .statusBarsPadding()
                 .verticalScroll(scrollState)
                 .padding(bottom = 32.dp)
         ) {
+            Spacer(Modifier.height(8.dp))
+
             // -------------------------------------------------------------
             // SEGMENT 1: Hero Banner (Glassmorphism & Radial Neon Glow)
             // -------------------------------------------------------------

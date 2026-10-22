@@ -76,7 +76,7 @@ class MultiStoreLiveSearchTest {
         for (scrapedUrl in testLiveScrapedImages) {
             val resolvedImage = dataSource.resolveDynamicProductImage("Samsung Phone", scrapedUrl)
             assertNotNull("Resolved image must not be null for live scraped URL", resolvedImage)
-            assertEquals("Resolved image should match valid scraped candidate", scrapedUrl, resolvedImage)
+            assertEquals("Resolved image should match optimized candidate", dataSource.optimizeProductImageUrl(scrapedUrl), resolvedImage)
         }
 
         // Test isValidImageUrl validation

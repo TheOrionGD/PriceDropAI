@@ -572,13 +572,13 @@ export async function aggregateSearchResults(query: string): Promise<Product[]> 
       switch (store) {
         case Store.AMAZON: return `https://www.amazon.in/s?k=${encodedTitle}`;
         case Store.FLIPKART: return `https://www.flipkart.com/search?q=${encodedTitle}`;
-        case Store.MEESHO: return `https://www.meesho.com/search?q=${encodedTitle}`;
+        case Store.MEESHO: return `https://www.meesho.com/search?q=${encodedTitle}&searchType=manual&searchIdentifier=text_search`;
         case Store.MYNTRA: return `https://www.myntra.com/${encodedTitle.replace(/%20|\+/g, '-')}`;
-        case Store.JIOMART: return `https://www.jiomart.com/search/${encodedTitle}`;
+        case Store.JIOMART: return `https://www.jiomart.com/products?q=${cleanSearchTerm.replace(/\s+/g, '+')}`;
         case Store.BLINKIT: return `https://blinkit.com/s/?q=${encodedTitle}`;
         case Store.CROMA: return `https://www.croma.com/searchB?q=${encodedTitle}%3Arelevance`;
-        case Store.RELIANCE_DIGITAL: return `https://www.reliancedigital.in/search?q=${encodedTitle}:relevance`;
-        case Store.TATACLIQ: return `https://www.tatacliq.com/search/?searchCategory=all&text=${encodedTitle}`;
+        case Store.RELIANCE_DIGITAL: return `https://www.reliancedigital.in/products?q=${encodedTitle}`;
+        case Store.TATACLIQ: return `https://www.tatacliq.com/search/page-1?q=${encodedTitle}%3Arelevance`;
         case Store.AJIO: return `https://www.ajio.com/search/?text=${encodedTitle}`;
         case Store.NYKAA: return `https://www.nykaa.com/search/result/?q=${encodedTitle}&root=search`;
         case Store.EBAY: return `https://www.ebay.com/sch/i.html?_nkw=${encodedTitle}`;
@@ -633,16 +633,46 @@ export async function aggregateSearchResults(query: string): Promise<Product[]> 
     }
 
 
-    // 1. FIRST: Use direct scraped product listing image from store items (Amazon, Flipkart, Meesho, Myntra)
+    // 1. STRICTLY prioritize product image from Amazon product listing
     let highResImage: string | null = null;
-    const candidateScraped = cluster.items.map(i => i.imageUrl).find(img => isValidImageUrl(img));
-    if (candidateScraped) {
-      highResImage = optimizeProductImageUrl(candidateScraped);
+    const amazonItem = cluster.items.find(i => i.store === Store.AMAZON && isValidImageUrl(i.imageUrl));
+    if (amazonItem?.imageUrl) {
+      highResImage = optimizeProductImageUrl(amazonItem.imageUrl);
     }
 
-    // 2. SECOND: If no store listing image found, fallback to online image search APIs (ZenRows, DuckDuckGo, Wikipedia)
+    // If cluster doesn't have an Amazon image, check all scraped items for an Amazon item with image
     if (!highResImage) {
-      const onlineSearchImg = await fetchWebImageFallback(cluster.title) || await fetchWebImageFallback(cleanQ);
+      const globalAmazonItem = allItems.find(i => i.store === Store.AMAZON && isValidImageUrl(i.imageUrl));
+      if (globalAmazonItem?.imageUrl) {
+        highResImage = optimizeProductImageUrl(globalAmazonItem.imageUrl);
+      }
+    }
+
+    // If still missing, explicitly query Amazon for this specific product title to fetch Amazon product image
+    if (!highResImage) {
+      try {
+        const cleanProductQuery = cleanTitle(cluster.title).replace(/[^a-zA-Z0-9 ]/g, ' ').slice(0, 50).trim();
+        const liveAmazonResults = await scrapeAmazon(cleanProductQuery || cleanQ);
+        const matchedAmazon = liveAmazonResults.find(i => isValidImageUrl(i.imageUrl));
+        if (matchedAmazon?.imageUrl) {
+          highResImage = optimizeProductImageUrl(matchedAmazon.imageUrl);
+        }
+      } catch (err: any) {
+        console.warn(`[Amazon Image Query Error] Could not fetch live Amazon image: ${err.message}`);
+      }
+    }
+
+    // 2. Fallback to other scraped store items if Amazon did not yield an image
+    if (!highResImage) {
+      const candidateScraped = cluster.items.map(i => i.imageUrl).find(img => isValidImageUrl(img));
+      if (candidateScraped) {
+        highResImage = optimizeProductImageUrl(candidateScraped);
+      }
+    }
+
+    // 3. Fallback to web search image
+    if (!highResImage) {
+      const onlineSearchImg = await fetchWebImageFallback(`${cluster.title} amazon`) || await fetchWebImageFallback(`${cleanQ} amazon`);
       if (onlineSearchImg && isValidImageUrl(onlineSearchImg)) {
         highResImage = optimizeProductImageUrl(onlineSearchImg);
       }

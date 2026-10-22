@@ -115,7 +115,7 @@ class ProductModelTest {
 
     @Test
     fun testFourStoreComparisonIntegrity() {
-        val fourStores = Store.entries.map { store ->
+        val fourStores = listOf(Store.AMAZON, Store.FLIPKART, Store.MEESHO, Store.MYNTRA).map { store ->
             StoreOffer(
                 id = "p1_${store.name.lowercase()}",
                 productId = "p1",
@@ -126,6 +126,7 @@ class ProductModelTest {
                     Store.FLIPKART -> 1149.0
                     Store.MEESHO -> 1089.0
                     Store.MYNTRA -> 1199.0
+                    else -> 1250.0
                 },
                 originalPrice = 1449.0,
                 discountPercentage = 20.0,

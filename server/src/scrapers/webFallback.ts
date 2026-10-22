@@ -91,8 +91,8 @@ export function optimizeProductImageUrl(url: string | null | undefined): string 
 
   // 2. Amazon high-res upscaling: replace small thumbnail suffix with high-res standard
   if (optimized.includes('media-amazon.com') || optimized.includes('images-amazon.com')) {
-    optimized = optimized.replace(/\._AC_[A-Z0-9,]+_\.jpg/i, '._AC_SL1000_.jpg');
-    optimized = optimized.replace(/\._[A-Z0-9,]+_\.jpg/i, '._AC_SL1000_.jpg');
+    optimized = optimized.replace(/\._[A-Za-z0-9_,-]+_\.jpg/i, '._AC_SL1000_.jpg');
+    optimized = optimized.replace(/\._AC_[A-Za-z0-9_,-]+_\.jpg/i, '._AC_SL1000_.jpg');
   }
 
   // 3. Flipkart high-res upscaling: upgrade thumbnail dimensions (312/312 -> 832/832)

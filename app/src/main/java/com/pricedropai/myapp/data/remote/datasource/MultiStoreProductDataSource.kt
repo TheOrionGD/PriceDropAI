@@ -105,6 +105,7 @@ class MultiStoreProductDataSource(
                     Store.EBAY
                 )
                 val primaryPrice = validScraped.firstOrNull()?.offer?.price ?: 1299.0
+                val encoded = try { URLEncoder.encode(cleanQuery, StandardCharsets.UTF_8.toString()) } catch (_: Exception) { cleanQuery }
 
                 val allStoreOffers = targetStores.map { store ->
                     val existingScraped = validScraped.firstOrNull { it.offer.store == store }
@@ -114,17 +115,16 @@ class MultiStoreProductDataSource(
                             productId = productId
                         )
                     } else {
-                        val encoded = try { URLEncoder.encode(cleanQuery, StandardCharsets.UTF_8.toString()) } catch (_: Exception) { cleanQuery }
                         val hyphenatedQuery = cleanQuery.replace("\\s+".toRegex(), "-").lowercase()
                         val storeUrl = when (store) {
                             Store.AMAZON -> "https://www.amazon.in/s?k=$encoded"
                             Store.FLIPKART -> "https://www.flipkart.com/search?q=$encoded"
-                            Store.MEESHO -> "https://www.meesho.com/search?q=$encoded"
+                            Store.MEESHO -> "https://www.meesho.com/search?q=$encoded&searchType=manual&searchIdentifier=text_search"
                             Store.MYNTRA -> "https://www.myntra.com/$hyphenatedQuery"
                             Store.CROMA -> "https://www.croma.com/searchB?q=${encoded}%3Arelevance"
-                            Store.RELIANCE_DIGITAL -> "https://www.reliancedigital.in/search?q=${encoded}:relevance"
-                            Store.JIOMART -> "https://www.jiomart.com/search/$encoded"
-                            Store.TATACLIQ -> "https://www.tatacliq.com/search/?searchCategory=all&text=$encoded"
+                            Store.RELIANCE_DIGITAL -> "https://www.reliancedigital.in/products?q=$encoded"
+                            Store.JIOMART -> "https://www.jiomart.com/products?q=${cleanQuery.replace(" ", "+")}"
+                            Store.TATACLIQ -> "https://www.tatacliq.com/search/page-1?q=$encoded%3Arelevance"
                             Store.AJIO -> "https://www.ajio.com/search/?text=$encoded"
                             Store.NYKAA -> "https://www.nykaa.com/search/result/?q=${encoded}&root=search"
                             Store.BLINKIT -> "https://blinkit.com/s/?q=$encoded"
@@ -167,13 +167,11 @@ class MultiStoreProductDataSource(
                     }
                 }
 
-
-                // 3. Resolve Dynamic Live Product Image directly from web
-                val scrapedImageCandidate = validScraped.mapNotNull { it.imageUrl }.firstOrNull { isValidImageUrl(it) }
-                val dynamicImage = resolveDynamicProductImage(
-                    query = cleanQuery,
-                    scrapedImageUrl = scrapedImageCandidate
-                ) ?: com.pricedropai.myapp.LocalPriceEngine.resolveFallbackImage(cleanQuery)
+                // 3. Resolve Dynamic Live Product Image strictly from Amazon product
+                val amazonImageCandidate = amazonScraped?.imageUrl?.takeIf { isValidImageUrl(it) }
+                val dynamicImage = amazonImageCandidate
+                    ?: resolveDynamicProductImage(query = "$cleanQuery amazon", scrapedImageUrl = null)
+                    ?: com.pricedropai.myapp.LocalPriceEngine.resolveFallbackImage(cleanQuery)
 
                 // 4. Live Scraped Ratings & Reviews
                 val verifiedRating = validScraped.mapNotNull { it.rating }.firstOrNull()
@@ -251,16 +249,33 @@ class MultiStoreProductDataSource(
         return isImageExtension || isImageHost
     }
 
+    fun optimizeProductImageUrl(url: String?): String? {
+        if (url.isNullOrBlank() || !isValidImageUrl(url)) return null
+        var optimized = url.trim()
+        if (optimized.startsWith("http://")) {
+            optimized = optimized.replaceFirst("http://", "https://")
+        }
+        if (optimized.contains("media-amazon.com") || optimized.contains("images-amazon.com")) {
+            optimized = optimized.replace(Regex("\\._[A-Za-z0-9_,-]+_\\.jpg", RegexOption.IGNORE_CASE), "._AC_SL1000_.jpg")
+            optimized = optimized.replace(Regex("\\._AC_[A-Za-z0-9_,-]+_\\.jpg", RegexOption.IGNORE_CASE), "._AC_SL1000_.jpg")
+        } else if (optimized.contains("flixcart.com")) {
+            optimized = optimized.replace(Regex("/image/[0-9]+/[0-9]+/", RegexOption.IGNORE_CASE), "/image/832/832/")
+        } else if (optimized.contains("meesho.com") || optimized.contains("meeshosupply.com")) {
+            optimized = optimized.replace(Regex("/(128|256)/", RegexOption.IGNORE_CASE), "/512/")
+        }
+        return optimized
+    }
+
     fun resolveDynamicProductImage(query: String, scrapedImageUrl: String? = null): String? {
         // 1. Prioritize direct scraped product image from store listing
         if (!scrapedImageUrl.isNullOrBlank() && isValidImageUrl(scrapedImageUrl)) {
-            return scrapedImageUrl
+            return optimizeProductImageUrl(scrapedImageUrl) ?: scrapedImageUrl
         }
 
         // 2. Fallback to live web search image engines if no scraped image is available
         val webImage = fetchDynamicImageFromWeb(query)
         if (!webImage.isNullOrBlank() && isValidImageUrl(webImage)) {
-            return webImage
+            return optimizeProductImageUrl(webImage) ?: webImage
         }
 
         return null

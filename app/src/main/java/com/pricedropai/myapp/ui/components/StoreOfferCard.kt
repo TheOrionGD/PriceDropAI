@@ -62,17 +62,13 @@ fun StoreOfferCard(
             },
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (isLowest) {
-                storeColor.copy(alpha = 0.08f)
-            } else {
-                MaterialTheme.colorScheme.surface
-            }
+            containerColor = MaterialTheme.colorScheme.surface
         ),
         border = BorderStroke(
-            width = if (isLowest) 2.dp else 1.5.dp,
-            color = if (isLowest) storeColor else storeColor.copy(alpha = 0.55f)
+            width = if (isLowest) 1.5.dp else 1.dp,
+            color = if (isLowest) storeColor else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = if (isLowest) 4.dp else 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
             modifier = Modifier
