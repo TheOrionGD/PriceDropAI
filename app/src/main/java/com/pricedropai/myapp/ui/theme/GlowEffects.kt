@@ -101,17 +101,25 @@ fun Modifier.glowBackdrop(
     )
 
     this.drawBehind {
-        drawCircle(
-            brush = Brush.radialGradient(
-                colors = listOf(
-                    glowColor.copy(alpha = alphaAnim),
-                    glowColor.copy(alpha = alphaAnim * 0.4f),
-                    Color.Transparent
+        val cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.minDimension * 0.16f, size.minDimension * 0.16f)
+        val layers = 5
+        val maxSpreadPx = 18.dp.toPx()
+        
+        for (i in 1..layers) {
+            val spread = (maxSpreadPx / layers) * i
+            val layerAlpha = (alphaAnim / (i * 1.6f)).coerceIn(0f, 1f)
+            
+            drawRoundRect(
+                color = glowColor.copy(alpha = layerAlpha),
+                topLeft = Offset(-spread, -spread),
+                size = androidx.compose.ui.geometry.Size(size.width + spread * 2, size.height + spread * 2),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(
+                    cornerRadius.x + spread,
+                    cornerRadius.y + spread
                 ),
-                center = center,
-                radius = size.maxDimension / 1.7f
+                style = Stroke(width = spread * 0.9f)
             )
-        )
+        }
     }
 }
 

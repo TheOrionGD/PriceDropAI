@@ -330,11 +330,10 @@ fun LandingScreen(
                             .glowBackdrop(glowColor = MaterialTheme.colorScheme.primary, minAlpha = 0.3f, maxAlpha = 0.8f),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.TrendingDown,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(32.dp)
+                        androidx.compose.foundation.Image(
+                            painter = androidx.compose.ui.res.painterResource(id = com.pricedropai.myapp.R.mipmap.ic_launcher),
+                            contentDescription = "PriceDrop AI Icon",
+                            modifier = Modifier.size(42.dp)
                         )
                     }
                     Spacer(Modifier.height(14.dp))
@@ -527,7 +526,7 @@ fun GlassStoreBadge(storeName: String, accentColor: Color) {
             Text(
                 text = storeName,
                 fontSize = 13.sp,
-                fontWeight = FontWeight.Medium,
+                fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface
             )
         }

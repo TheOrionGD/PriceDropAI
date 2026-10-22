@@ -235,11 +235,11 @@ object UrlProductParser {
             .replace(Regex("\\s+"), " ")
             .trim()
 
-        if (cleaned.length < 3) {
+        if (cleaned.length < 2) {
             return ""
         }
 
-        return cleaned.take(70).split(" ").filter { it.isNotBlank() }.joinToString(" ") { word ->
+        return cleaned.take(160).split(" ").filter { it.isNotBlank() }.joinToString(" ") { word ->
             word.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
         }
     }

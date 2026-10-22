@@ -125,11 +125,10 @@ fun SplashScreen(
                     .shimmerSweep(shimmerColor = Color.White.copy(alpha = 0.2f), durationMillis = 1800),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.TrendingDown,
+                androidx.compose.foundation.Image(
+                    painter = androidx.compose.ui.res.painterResource(id = com.pricedropai.myapp.R.mipmap.ic_launcher),
                     contentDescription = "PriceDrop AI Logo",
-                    tint = Color.White,
-                    modifier = Modifier.size(54.dp)
+                    modifier = Modifier.size(68.dp)
                 )
             }
 

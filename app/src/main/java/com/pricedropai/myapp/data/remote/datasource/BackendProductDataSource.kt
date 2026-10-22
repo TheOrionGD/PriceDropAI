@@ -138,26 +138,12 @@ class BackendProductDataSource(
                 ?: json.optString("thumbnail").takeIf { it.isNotBlank() && it != "null" && it != "undefined" }
         )?.trim()
 
-        var sanitizedImageUrl: String? = when {
-            rawImageStr == null -> null
+        val sanitizedImageUrl: String? = when {
+            rawImageStr.isNullOrBlank() -> null
             rawImageStr.startsWith("//") -> "https:$rawImageStr"
-            rawImageStr.startsWith("http://") -> rawImageStr.replaceFirst("http://", "https://")
-            rawImageStr.startsWith("https://") -> rawImageStr
-            else -> null
+            else -> rawImageStr
         }
 
-        // If backend returns a direct URL that might encounter hotlink protection or CORS issues,
-        // we can utilize the backend image proxy: $baseUrl/api/image-proxy?url=...
-        if (!sanitizedImageUrl.isNullOrBlank() && !sanitizedImageUrl.contains("/api/image-proxy")) {
-            // Check if it's from a site that aggressively hotlink-blocks mobile apps
-            val lower = sanitizedImageUrl.lowercase()
-            if (lower.contains("flipkart") || lower.contains("meesho") || lower.contains("myntra") || lower.contains("croma")) {
-                try {
-                    val encodedImg = URLEncoder.encode(sanitizedImageUrl, StandardCharsets.UTF_8.toString())
-                    sanitizedImageUrl = "$baseUrl/api/image-proxy?url=$encodedImg"
-                } catch (_: Exception) {}
-            }
-        }
         val description = json.optString("description").takeIf { it.isNotBlank() }
         val brand = json.optString("brand").takeIf { it.isNotBlank() }
         val rating = if (json.has("rating") && !json.isNull("rating")) json.optDouble("rating") else null
