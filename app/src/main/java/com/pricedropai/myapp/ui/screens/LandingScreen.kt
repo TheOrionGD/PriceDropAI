@@ -221,7 +221,7 @@ fun LandingScreen(
                     stores.drop(6).take(5).forEach { (name, color) ->
                         GlassStoreBadge(storeName = name, accentColor = color)
                     }
-                    GlassStoreBadge(storeName = "+ 14+ Stores", accentColor = Color(0xFF10B981))
+                    GlassStoreBadge(storeName = "+ 12+ Stores", accentColor = Color(0xFF10B981))
                 }
             }
 

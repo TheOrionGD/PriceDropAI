@@ -9,6 +9,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.TrendingDown
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -85,9 +86,9 @@ fun SplashScreen(
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        Color(0xFF0F172A),
-                        Color(0xFF1E1B4B),
-                        Color(0xFF090D16)
+                        MaterialTheme.colorScheme.background,
+                        MaterialTheme.colorScheme.surface,
+                        MaterialTheme.colorScheme.background
                     )
                 )
             ),
@@ -136,7 +137,7 @@ fun SplashScreen(
 
             Text(
                 text = "PriceDrop AI",
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onBackground,
                 fontSize = 32.sp,
                 fontWeight = FontWeight.ExtraBold,
                 letterSpacing = 1.sp
@@ -146,7 +147,7 @@ fun SplashScreen(
 
             Text(
                 text = "Real-Time Multi-Store Price Tracking & AI Engine",
-                color = Color(0xFF94A3B8),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Medium
             )
@@ -158,15 +159,15 @@ fun SplashScreen(
                     .width(160.dp)
                     .height(4.dp)
                     .clip(CircleShape),
-                color = Color(0xFF6366F1),
-                trackColor = Color(0xFF334155)
+                color = MaterialTheme.colorScheme.primary,
+                trackColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
             )
 
             Spacer(Modifier.height(14.dp))
 
             Text(
                 text = backendStatus,
-                color = Color(0xFF818CF8),
+                color = MaterialTheme.colorScheme.primary,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Medium
             )
@@ -174,7 +175,7 @@ fun SplashScreen(
 
         Text(
             text = "v2.1.7 • Powered by Render & Local AI Cache",
-            color = Color(0xFF64748B),
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
             fontSize = 11.sp,
             modifier = Modifier
                 .align(Alignment.BottomCenter)

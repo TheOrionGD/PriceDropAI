@@ -201,13 +201,16 @@ fun MainAppContainer(
 
     AnimatedContent(
         targetState = screenState,
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background),
         transitionSpec = {
             if (targetState.ordinal > initialState.ordinal) {
-                (slideInHorizontally(animationSpec = tween(450)) { width -> width } + fadeIn(animationSpec = tween(450)))
-                    .togetherWith(slideOutHorizontally(animationSpec = tween(450)) { width -> -width } + fadeOut(animationSpec = tween(450)))
+                (slideInHorizontally(animationSpec = tween(400)) { width -> width } + fadeIn(animationSpec = tween(400)))
+                    .togetherWith(slideOutHorizontally(animationSpec = tween(400)) { width -> -width } + fadeOut(animationSpec = tween(400)))
             } else {
-                (slideInHorizontally(animationSpec = tween(450)) { width -> -width } + fadeIn(animationSpec = tween(450)))
-                    .togetherWith(slideOutHorizontally(animationSpec = tween(450)) { width -> width } + fadeOut(animationSpec = tween(450)))
+                (slideInHorizontally(animationSpec = tween(400)) { width -> -width } + fadeIn(animationSpec = tween(400)))
+                    .togetherWith(slideOutHorizontally(animationSpec = tween(400)) { width -> width } + fadeOut(animationSpec = tween(400)))
             }
         },
         label = "screen_navigation_anim"
@@ -328,10 +331,14 @@ fun MainAppContainer(
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()
+                                    .background(MaterialTheme.colorScheme.background)
                                     .padding(padding)
                             ) {
                                 AnimatedContent(
                                     targetState = selectedTab,
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(MaterialTheme.colorScheme.background),
                                     transitionSpec = {
                                         if (targetState > initialState) {
                                             (slideInHorizontally(animationSpec = tween(350)) { width -> width } + fadeIn(animationSpec = tween(350)))
