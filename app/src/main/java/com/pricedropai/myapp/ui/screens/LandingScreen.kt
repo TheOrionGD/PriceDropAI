@@ -1,5 +1,6 @@
 package com.pricedropai.myapp.ui.screens
 
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -26,16 +27,27 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.pricedropai.myapp.ui.theme.*
 
 /**
  * High-aesthetic landing page featuring:
- * 7 distinct segments with skeuomorphic embossed cards and glassmorphic translucent layouts.
+ * 7 distinct segments with glowing cards, animated neon edges, breathing typography, and glassmorphic micro-animations.
  */
 @Composable
 fun LandingScreen(
     onNavigateToAuth: () -> Unit
 ) {
     val scrollState = rememberScrollState()
+    val heroBreathingColor = rememberBreathingColor(
+        baseColor = Color(0xFFA5B4FC),
+        pulseColor = Color(0xFF38BDF8),
+        durationMillis = 2000
+    )
+    val accentGlowColor = rememberBreathingColor(
+        baseColor = Color(0xFF818CF8),
+        pulseColor = Color(0xFFC084FC),
+        durationMillis = 2400
+    )
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -51,33 +63,33 @@ fun LandingScreen(
             Spacer(Modifier.height(8.dp))
 
             // -------------------------------------------------------------
-            // SEGMENT 1: Hero Banner (Glassmorphism & Radial Neon Glow)
+            // SEGMENT 1: Hero Banner (Glassmorphism & Pulsing Neon Aura)
             // -------------------------------------------------------------
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(16.dp)
-                    .clip(RoundedCornerShape(28.dp))
+                    .glowBackdrop(glowColor = Color(0xFF6366F1), minAlpha = 0.2f, maxAlpha = 0.55f)
+                    .neonGlow(
+                        color = Color(0xFF6366F1),
+                        secondaryColor = Color(0xFF38BDF8),
+                        shape = RoundedCornerShape(28.dp),
+                        borderWidth = 1.5.dp
+                    )
                     .background(
                         Brush.verticalGradient(
                             listOf(Color(0xFF1E1B4B), Color(0xFF0F172A))
                         )
                     )
-                    .border(
-                        1.dp,
-                        Brush.linearGradient(
-                            listOf(Color(0xFF818CF8).copy(alpha = 0.6f), Color.Transparent)
-                        ),
-                        RoundedCornerShape(28.dp)
-                    )
+                    .shimmerSweep(shimmerColor = Color.White.copy(alpha = 0.12f), durationMillis = 2600)
                     .padding(24.dp)
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    // Pill badge
+                    // Pill badge with breathing dot
                     Surface(
                         shape = RoundedCornerShape(20.dp),
                         color = Color(0xFF312E81).copy(alpha = 0.7f),
-                        border = BorderStroke(1.dp, Color(0xFF6366F1))
+                        border = BorderStroke(1.dp, accentGlowColor)
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -88,13 +100,14 @@ fun LandingScreen(
                                     .size(8.dp)
                                     .clip(CircleShape)
                                     .background(Color(0xFF10B981))
+                                    .glowBackdrop(glowColor = Color(0xFF10B981), minAlpha = 0.4f, maxAlpha = 0.9f)
                             )
                             Spacer(Modifier.width(8.dp))
                             Text(
                                 text = "NEXT-GEN SHOPPING INTELLIGENCE",
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFFA5B4FC),
+                                color = heroBreathingColor,
                                 letterSpacing = 1.sp
                             )
                         }
@@ -130,6 +143,8 @@ fun LandingScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(52.dp)
+                            .bounceClick(targetScale = 0.97f) { onNavigateToAuth() }
+                            .glowBackdrop(glowColor = Color(0xFF4F46E5), minAlpha = 0.25f, maxAlpha = 0.6f)
                     ) {
                         Text("Get Started Free", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White)
                         Spacer(Modifier.width(8.dp))
@@ -290,7 +305,15 @@ fun LandingScreen(
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
+                    .padding(horizontal = 16.dp)
+                    .glowBackdrop(glowColor = MaterialTheme.colorScheme.primary, minAlpha = 0.15f, maxAlpha = 0.45f)
+                    .neonGlow(
+                        color = MaterialTheme.colorScheme.primary,
+                        secondaryColor = Color(0xFF38BDF8),
+                        shape = RoundedCornerShape(24.dp),
+                        borderWidth = 1.2.dp
+                    )
+                    .shimmerSweep(shimmerColor = Color.White.copy(alpha = 0.1f), durationMillis = 2800),
                 shape = RoundedCornerShape(24.dp),
                 color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f))
@@ -299,13 +322,22 @@ fun LandingScreen(
                     modifier = Modifier.padding(24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.TrendingDown,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(36.dp)
-                    )
-                    Spacer(Modifier.height(12.dp))
+                    Box(
+                        modifier = Modifier
+                            .size(54.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
+                            .glowBackdrop(glowColor = MaterialTheme.colorScheme.primary, minAlpha = 0.3f, maxAlpha = 0.8f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.TrendingDown,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(32.dp)
+                        )
+                    }
+                    Spacer(Modifier.height(14.dp))
                     Text(
                         text = "Ready to start saving?",
                         fontSize = 20.sp,
@@ -325,7 +357,9 @@ fun LandingScreen(
                         shape = RoundedCornerShape(14.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(50.dp)
+                            .height(52.dp)
+                            .bounceClick(targetScale = 0.97f) { onNavigateToAuth() }
+                            .glowBackdrop(glowColor = MaterialTheme.colorScheme.primary, minAlpha = 0.25f, maxAlpha = 0.6f)
                     ) {
                         Text("Continue to Login / Register", fontWeight = FontWeight.Bold, fontSize = 15.sp)
                     }
@@ -374,10 +408,14 @@ fun SkeuomorphicDealCard(
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(4.dp, RoundedCornerShape(18.dp), ambientColor = Color.Black.copy(alpha = 0.2f)),
+            .bounceClick(targetScale = 0.98f)
+            .shadow(6.dp, RoundedCornerShape(18.dp), ambientColor = storeBadgeColor.copy(alpha = 0.25f))
+            .glowBackdrop(glowColor = storeBadgeColor, minAlpha = 0.08f, maxAlpha = 0.28f)
+            .neonGlow(color = storeBadgeColor, secondaryColor = Color(0xFF6366F1), shape = RoundedCornerShape(18.dp), borderWidth = 1.dp)
+            .shimmerSweep(shimmerColor = Color.White.copy(alpha = 0.08f), durationMillis = 2400),
         shape = RoundedCornerShape(18.dp),
         color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+        border = BorderStroke(1.dp, storeBadgeColor.copy(alpha = 0.35f))
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
@@ -388,7 +426,7 @@ fun SkeuomorphicDealCard(
                 Surface(
                     shape = RoundedCornerShape(6.dp),
                     color = storeBadgeColor.copy(alpha = 0.15f),
-                    border = BorderStroke(1.dp, storeBadgeColor.copy(alpha = 0.4f))
+                    border = BorderStroke(1.dp, storeBadgeColor.copy(alpha = 0.6f))
                 ) {
                     Text(
                         text = store,
@@ -422,11 +460,16 @@ fun SkeuomorphicDealCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.Bottom) {
+                    val pricePulseColor = rememberBreathingColor(
+                        baseColor = MaterialTheme.colorScheme.primary,
+                        pulseColor = Color(0xFF10B981),
+                        durationMillis = 1800
+                    )
                     Text(
                         text = currentPrice,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.ExtraBold,
-                        color = MaterialTheme.colorScheme.primary
+                        color = pricePulseColor
                     )
                     Spacer(Modifier.width(8.dp))
                     Text(
@@ -441,7 +484,9 @@ fun SkeuomorphicDealCard(
 
                 Surface(
                     shape = RoundedCornerShape(8.dp),
-                    color = Color(0xFF10B981).copy(alpha = 0.15f)
+                    color = Color(0xFF10B981).copy(alpha = 0.18f),
+                    border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.5f)),
+                    modifier = Modifier.glowBackdrop(glowColor = Color(0xFF10B981), minAlpha = 0.15f, maxAlpha = 0.45f)
                 ) {
                     Text(
                         text = dropAmount,
@@ -459,10 +504,13 @@ fun SkeuomorphicDealCard(
 @Composable
 fun GlassStoreBadge(storeName: String, accentColor: Color) {
     Surface(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .bounceClick(targetScale = 0.96f)
+            .glowBackdrop(glowColor = accentColor, minAlpha = 0.05f, maxAlpha = 0.25f),
         shape = RoundedCornerShape(12.dp),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-        border = BorderStroke(1.dp, accentColor.copy(alpha = 0.35f))
+        border = BorderStroke(1.dp, accentColor.copy(alpha = 0.45f))
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
@@ -473,6 +521,7 @@ fun GlassStoreBadge(storeName: String, accentColor: Color) {
                     .size(8.dp)
                     .clip(CircleShape)
                     .background(accentColor)
+                    .glowBackdrop(glowColor = accentColor, minAlpha = 0.3f, maxAlpha = 0.8f)
             )
             Spacer(Modifier.width(8.dp))
             Text(
@@ -493,10 +542,13 @@ fun GlassFeatureCard(
     description: String
 ) {
     Surface(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .bounceClick(targetScale = 0.98f)
+            .glowBackdrop(glowColor = iconTint, minAlpha = 0.06f, maxAlpha = 0.28f)
+            .border(1.dp, iconTint.copy(alpha = 0.35f), RoundedCornerShape(18.dp)),
         shape = RoundedCornerShape(18.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
     ) {
         Row(
             modifier = Modifier.padding(16.dp),
@@ -506,7 +558,8 @@ fun GlassFeatureCard(
                 modifier = Modifier
                     .size(44.dp)
                     .clip(RoundedCornerShape(12.dp))
-                    .background(iconTint.copy(alpha = 0.15f)),
+                    .background(iconTint.copy(alpha = 0.15f))
+                    .glowBackdrop(glowColor = iconTint, minAlpha = 0.2f, maxAlpha = 0.6f),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(24.dp))
@@ -535,12 +588,19 @@ fun GlassFeatureCard(
 fun SkeuomorphicSavingsCard() {
     var trackerSlider by remember { mutableFloatStateOf(45000f) }
     val estimatedSavings = (trackerSlider * 0.22f).toInt()
+    val savingGlow = rememberBreathingColor(
+        baseColor = Color(0xFF10B981),
+        pulseColor = Color(0xFF34D399),
+        durationMillis = 1800
+    )
 
     Surface(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp)
-            .shadow(6.dp, RoundedCornerShape(20.dp)),
+            .shadow(8.dp, RoundedCornerShape(20.dp), ambientColor = Color(0xFF10B981).copy(alpha = 0.3f))
+            .glowBackdrop(glowColor = Color(0xFF10B981), minAlpha = 0.1f, maxAlpha = 0.35f)
+            .neonGlow(color = Color(0xFF10B981), secondaryColor = Color(0xFF059669), shape = RoundedCornerShape(20.dp), borderWidth = 1.2.dp),
         shape = RoundedCornerShape(20.dp),
         color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
@@ -577,9 +637,11 @@ fun SkeuomorphicSavingsCard() {
 
             Surface(
                 shape = RoundedCornerShape(12.dp),
-                color = Color(0xFF10B981).copy(alpha = 0.12f),
-                border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.3f)),
-                modifier = Modifier.fillMaxWidth()
+                color = Color(0xFF10B981).copy(alpha = 0.15f),
+                border = BorderStroke(1.dp, savingGlow),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .glowBackdrop(glowColor = Color(0xFF10B981), minAlpha = 0.15f, maxAlpha = 0.45f)
             ) {
                 Row(
                     modifier = Modifier.padding(14.dp),
@@ -596,7 +658,7 @@ fun SkeuomorphicSavingsCard() {
                             text = "₹$estimatedSavings",
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF10B981)
+                            color = savingGlow
                         )
                     }
                     Text(
@@ -613,11 +675,19 @@ fun SkeuomorphicSavingsCard() {
 
 @Composable
 fun StatBadge(number: String, label: String, modifier: Modifier = Modifier) {
+    val statGlow = rememberBreathingColor(
+        baseColor = MaterialTheme.colorScheme.primary,
+        pulseColor = Color(0xFF38BDF8),
+        durationMillis = 2200
+    )
+
     Surface(
-        modifier = modifier,
+        modifier = modifier
+            .bounceClick(targetScale = 0.95f)
+            .glowBackdrop(glowColor = MaterialTheme.colorScheme.primary, minAlpha = 0.05f, maxAlpha = 0.22f),
         shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+        border = BorderStroke(1.dp, statGlow.copy(alpha = 0.4f))
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
@@ -627,7 +697,7 @@ fun StatBadge(number: String, label: String, modifier: Modifier = Modifier) {
                 text = number,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Black,
-                color = MaterialTheme.colorScheme.primary
+                color = statGlow
             )
             Spacer(Modifier.height(4.dp))
             Text(

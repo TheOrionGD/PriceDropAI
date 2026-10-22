@@ -21,6 +21,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pricedropai.myapp.data.remote.datasource.BackendProductDataSource
+import com.pricedropai.myapp.ui.theme.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -99,11 +100,18 @@ fun SplashScreen(
                 .scale(scaleAnim.value)
                 .padding(32.dp)
         ) {
-            // Glowing skeuomorphic icon badge
+            // Glowing skeuomorphic icon badge with radiant breathing aura
             Box(
                 modifier = Modifier
                     .size(96.dp)
+                    .glowBackdrop(glowColor = Color(0xFF6366F1), minAlpha = 0.35f, maxAlpha = 0.85f)
                     .clip(RoundedCornerShape(28.dp))
+                    .neonGlow(
+                        color = Color(0xFF818CF8),
+                        secondaryColor = Color(0xFF38BDF8),
+                        shape = RoundedCornerShape(28.dp),
+                        borderWidth = 2.dp
+                    )
                     .background(
                         Brush.radialGradient(
                             colors = listOf(
@@ -112,7 +120,8 @@ fun SplashScreen(
                                 Color(0xFF312E81)
                             )
                         )
-                    ),
+                    )
+                    .shimmerSweep(shimmerColor = Color.White.copy(alpha = 0.2f), durationMillis = 1800),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(

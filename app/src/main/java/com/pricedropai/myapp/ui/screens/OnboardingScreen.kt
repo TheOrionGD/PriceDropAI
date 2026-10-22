@@ -23,6 +23,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.pricedropai.myapp.ui.theme.*
 import kotlinx.coroutines.delay
 
 data class OnboardingStep(
@@ -206,14 +207,22 @@ fun OnboardingScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
-                    // Feature Icon Box
+                    // Feature Icon Box with vibrant glowBackdrop and neon border
                     Box(
                         modifier = Modifier
                             .size(112.dp)
+                            .glowBackdrop(glowColor = step.accentColors.first(), minAlpha = 0.3f, maxAlpha = 0.8f)
                             .clip(RoundedCornerShape(32.dp))
+                            .neonGlow(
+                                color = step.accentColors.first(),
+                                secondaryColor = step.accentColors.last(),
+                                shape = RoundedCornerShape(32.dp),
+                                borderWidth = 1.5.dp
+                            )
                             .background(
                                 Brush.linearGradient(colors = step.accentColors)
-                            ),
+                            )
+                            .shimmerSweep(shimmerColor = Color.White.copy(alpha = 0.15f), durationMillis = 2000),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
@@ -296,6 +305,11 @@ fun OnboardingScreen(
                             modifier = Modifier
                                 .height(6.dp)
                                 .width(if (i == currentStepIndex) 26.dp else 7.dp)
+                                .then(
+                                    if (i == currentStepIndex) {
+                                        Modifier.glowBackdrop(glowColor = currentStep.accentColors.first(), minAlpha = 0.3f, maxAlpha = 0.8f)
+                                    } else Modifier
+                                )
                                 .clip(CircleShape)
                                 .background(
                                     if (i == currentStepIndex)

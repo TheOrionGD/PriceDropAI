@@ -18,10 +18,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pricedropai.myapp.ui.TrackerViewModel
+import com.pricedropai.myapp.ui.theme.*
 import kotlinx.coroutines.launch
 
 @Composable
@@ -40,18 +42,34 @@ fun CopilotScreen(
         "Summarize customer reviews"
     )
 
+    val copilotGlow = rememberBreathingColor(
+        baseColor = MaterialTheme.colorScheme.primary,
+        pulseColor = Color(0xFF38BDF8),
+        durationMillis = 2000
+    )
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                imageVector = Icons.Default.SmartToy,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary
-            )
-            Spacer(Modifier.width(8.dp))
+            Box(
+                modifier = Modifier
+                    .size(38.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primaryContainer)
+                    .glowBackdrop(glowColor = MaterialTheme.colorScheme.primary, minAlpha = 0.25f, maxAlpha = 0.7f),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.SmartToy,
+                    contentDescription = null,
+                    tint = copilotGlow,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+            Spacer(Modifier.width(10.dp))
             Column {
                 Text(
                     text = "PriceDrop AI Copilot",
@@ -80,7 +98,13 @@ fun CopilotScreen(
                         viewModel.sendChatMessage(chipText)
                         scope.launch { listState.animateScrollToItem(viewModel.chatMessages.size) }
                     },
-                    label = { Text(chipText, fontSize = 12.sp) }
+                    label = { Text(chipText, fontSize = 12.sp) },
+                    modifier = Modifier
+                        .bounceClick(targetScale = 0.94f) {
+                            viewModel.sendChatMessage(chipText)
+                            scope.launch { listState.animateScrollToItem(viewModel.chatMessages.size) }
+                        }
+                        .glowBackdrop(glowColor = MaterialTheme.colorScheme.primary, minAlpha = 0.05f, maxAlpha = 0.22f)
                 )
             }
         }
@@ -107,7 +131,15 @@ fun CopilotScreen(
                             bottomStart = if (msg.isUser) 16.dp else 2.dp,
                             bottomEnd = if (msg.isUser) 2.dp else 16.dp
                         ),
-                        modifier = Modifier.widthIn(max = 300.dp)
+                        modifier = Modifier
+                            .widthIn(max = 300.dp)
+                            .then(
+                                if (msg.isUser) {
+                                    Modifier.glowBackdrop(glowColor = MaterialTheme.colorScheme.primary, minAlpha = 0.15f, maxAlpha = 0.4f)
+                                } else {
+                                    Modifier.glowBackdrop(glowColor = MaterialTheme.colorScheme.surfaceVariant, minAlpha = 0.05f, maxAlpha = 0.18f)
+                                }
+                            )
                     ) {
                         Text(
                             text = msg.text,
@@ -122,7 +154,10 @@ fun CopilotScreen(
                         Spacer(Modifier.height(6.dp))
                         AssistChip(
                             onClick = { onProductSelect(msg.suggestedSearchQuery) },
-                            label = { Text("Compare prices for: ${msg.suggestedSearchQuery}", fontSize = 11.sp) }
+                            label = { Text("Compare prices for: ${msg.suggestedSearchQuery}", fontSize = 11.sp) },
+                            modifier = Modifier
+                                .bounceClick(targetScale = 0.94f) { onProductSelect(msg.suggestedSearchQuery) }
+                                .glowBackdrop(glowColor = Color(0xFF10B981), minAlpha = 0.1f, maxAlpha = 0.35f)
                         )
                     }
                 }
@@ -169,7 +204,16 @@ fun CopilotScreen(
                 modifier = Modifier
                     .size(48.dp)
                     .clip(CircleShape)
+                    .bounceClick(targetScale = 0.90f) {
+                        if (inputText.isNotBlank()) {
+                            val text = inputText
+                            inputText = ""
+                            viewModel.sendChatMessage(text)
+                            scope.launch { listState.animateScrollToItem(viewModel.chatMessages.size) }
+                        }
+                    }
                     .background(MaterialTheme.colorScheme.primary)
+                    .glowBackdrop(glowColor = MaterialTheme.colorScheme.primary, minAlpha = 0.25f, maxAlpha = 0.7f)
             ) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.Send,

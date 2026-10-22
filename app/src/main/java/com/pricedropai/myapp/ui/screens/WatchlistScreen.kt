@@ -32,6 +32,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.pricedropai.myapp.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -122,13 +123,34 @@ fun WatchlistScreen(
         } else {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 items(watchlistItems, key = { it.id }) { item ->
+                    val isFirstItem = item == watchlistItems.firstOrNull()
+
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { onProductSelect(item.productTitle) },
+                            .bounceClick(targetScale = 0.98f) { onProductSelect(item.productTitle) }
+                            .then(
+                                if (isFirstItem) {
+                                    Modifier
+                                        .glowBackdrop(glowColor = Color(0xFF10B981), minAlpha = 0.12f, maxAlpha = 0.35f)
+                                        .neonGlow(
+                                            color = Color(0xFF10B981),
+                                            secondaryColor = MaterialTheme.colorScheme.primary,
+                                            shape = RoundedCornerShape(16.dp),
+                                            borderWidth = 1.2.dp
+                                        )
+                                        .shimmerSweep(shimmerColor = Color.White.copy(alpha = 0.08f), durationMillis = 2400)
+                                } else {
+                                    Modifier.glowBackdrop(glowColor = MaterialTheme.colorScheme.primary, minAlpha = 0.04f, maxAlpha = 0.18f)
+                                }
+                            ),
                         shape = RoundedCornerShape(16.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.surfaceVariant)
+                        border = BorderStroke(
+                            1.dp,
+                            if (isFirstItem) Color(0xFF10B981).copy(alpha = 0.6f)
+                            else MaterialTheme.colorScheme.surfaceVariant
+                        )
                     ) {
                         Row(
                             modifier = Modifier

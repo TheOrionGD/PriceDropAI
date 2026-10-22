@@ -29,6 +29,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pricedropai.myapp.SessionManager
+import com.pricedropai.myapp.ui.theme.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -56,7 +57,10 @@ fun SettingsScreen(
             TopAppBar(
                 title = { Text("Settings & Profile", fontWeight = FontWeight.Bold, fontSize = 18.sp) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(
+                        onClick = onBack,
+                        modifier = Modifier.bounceClick(targetScale = 0.92f) { onBack() }
+                    ) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
@@ -75,13 +79,22 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // -------------------------------------------------------------
-            // Profile Card (Local Account Data)
+            // Profile Card (Local Account Data with Glowing Avatar & Card)
             // -------------------------------------------------------------
             Surface(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .glowBackdrop(glowColor = MaterialTheme.colorScheme.primary, minAlpha = 0.08f, maxAlpha = 0.26f)
+                    .neonGlow(
+                        color = MaterialTheme.colorScheme.primary,
+                        secondaryColor = Color(0xFF10B981),
+                        shape = RoundedCornerShape(20.dp),
+                        borderWidth = 1.2.dp
+                    )
+                    .shimmerSweep(shimmerColor = Color.White.copy(alpha = 0.06f), durationMillis = 2600),
                 shape = RoundedCornerShape(20.dp),
                 color = MaterialTheme.colorScheme.surface,
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f))
             ) {
                 Row(
                     modifier = Modifier.padding(18.dp),
@@ -90,6 +103,7 @@ fun SettingsScreen(
                     Box(
                         modifier = Modifier
                             .size(54.dp)
+                            .glowBackdrop(glowColor = Color(0xFF6366F1), minAlpha = 0.3f, maxAlpha = 0.75f)
                             .clip(CircleShape)
                             .background(
                                 Brush.linearGradient(
@@ -561,7 +575,8 @@ fun SettingsActionTile(
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick),
+            .bounceClick(targetScale = 0.98f) { onClick() }
+            .glowBackdrop(glowColor = MaterialTheme.colorScheme.primary, minAlpha = 0.03f, maxAlpha = 0.16f),
         shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))

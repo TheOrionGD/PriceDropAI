@@ -22,6 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.pricedropai.myapp.ui.theme.*
 
 /**
  * Dedicated Get Started Bridge Screen.
@@ -51,12 +52,15 @@ fun GetStartedScreen(
                 Box(
                     modifier = Modifier
                         .size(90.dp)
+                        .glowBackdrop(glowColor = Color(0xFF6366F1), minAlpha = 0.3f, maxAlpha = 0.8f)
                         .clip(RoundedCornerShape(26.dp))
+                        .neonGlow(color = Color(0xFF6366F1), secondaryColor = Color(0xFF38BDF8), shape = RoundedCornerShape(26.dp), borderWidth = 1.5.dp)
                         .background(
                             Brush.linearGradient(
                                 listOf(Color(0xFF6366F1), Color(0xFF4F46E5))
                             )
-                        ),
+                        )
+                        .shimmerSweep(shimmerColor = Color.White.copy(alpha = 0.15f), durationMillis = 2000),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
@@ -123,6 +127,8 @@ fun GetStartedScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(54.dp)
+                        .bounceClick(targetScale = 0.96f) { onNavigateToLogin() }
+                        .glowBackdrop(glowColor = MaterialTheme.colorScheme.primary, minAlpha = 0.25f, maxAlpha = 0.65f)
                 ) {
                     Text(
                         text = "Get Started",

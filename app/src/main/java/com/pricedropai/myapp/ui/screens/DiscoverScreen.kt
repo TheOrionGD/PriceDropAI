@@ -2,6 +2,7 @@ package com.pricedropai.myapp.ui.screens
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -11,6 +12,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -43,10 +46,11 @@ import com.pricedropai.myapp.core.model.Product
 import com.pricedropai.myapp.ui.TrackerViewModel
 import com.pricedropai.myapp.ui.state.SearchUiState
 
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
-import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import com.pricedropai.myapp.ui.theme.*
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.core.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -99,7 +103,8 @@ fun DiscoverScreen(
                     Icon(
                         imageVector = Icons.Default.Search,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.glowBackdrop(glowColor = MaterialTheme.colorScheme.primary, minAlpha = 0.2f, maxAlpha = 0.7f)
                     )
                 },
                 trailingIcon = {
@@ -118,12 +123,19 @@ fun DiscoverScreen(
                                     focusManager.clearFocus()
                                     viewModel.search(searchQuery)
                                 }
+                            },
+                            modifier = Modifier.bounceClick(targetScale = 0.92f) {
+                                if (searchQuery.isNotBlank()) {
+                                    focusManager.clearFocus()
+                                    viewModel.search(searchQuery)
+                                }
                             }
                         ) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                                 contentDescription = "Search",
-                                tint = MaterialTheme.colorScheme.primary
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.glowBackdrop(glowColor = MaterialTheme.colorScheme.primary, minAlpha = 0.2f, maxAlpha = 0.8f)
                             )
                         }
                     }
@@ -139,7 +151,9 @@ fun DiscoverScreen(
                         }
                     }
                 ),
-                modifier = Modifier.weight(1f)
+                modifier = Modifier
+                    .weight(1f)
+                    .glowBackdrop(glowColor = MaterialTheme.colorScheme.primary, minAlpha = 0.04f, maxAlpha = 0.16f)
             )
 
             if (onOpenSettings != null) {
@@ -149,7 +163,9 @@ fun DiscoverScreen(
                     modifier = Modifier
                         .size(44.dp)
                         .clip(RoundedCornerShape(12.dp))
+                        .bounceClick(targetScale = 0.92f) { onOpenSettings() }
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                        .glowBackdrop(glowColor = MaterialTheme.colorScheme.primary, minAlpha = 0.05f, maxAlpha = 0.25f)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Settings,
@@ -230,6 +246,11 @@ fun DiscoverScreen(
                         modifier = Modifier.padding(horizontal = 24.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
+                            Box(
+                                modifier = Modifier
+                                    .size(80.dp)
+                                    .glowBackdrop(glowColor = MaterialTheme.colorScheme.primary, minAlpha = 0.25f, maxAlpha = 0.65f)
+                            )
                             CircularProgressIndicator(
                                 progress = { animatedProgress },
                                 color = MaterialTheme.colorScheme.primary,
@@ -248,7 +269,9 @@ fun DiscoverScreen(
 
                         Surface(
                             color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.65f),
-                            shape = RoundedCornerShape(12.dp)
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)),
+                            modifier = Modifier.glowBackdrop(glowColor = MaterialTheme.colorScheme.primary, minAlpha = 0.15f, maxAlpha = 0.45f)
                         ) {
                             Text(
                                 text = "LIVE MULTI-STORE ENGINE ACTIVE",
@@ -391,6 +414,11 @@ private fun HomeDiscoveryContent(
     onClearHistory: () -> Unit
 ) {
     val context = LocalContext.current
+    val recentHeadingGlow = rememberBreathingColor(
+        baseColor = MaterialTheme.colorScheme.onSurface,
+        pulseColor = MaterialTheme.colorScheme.primary,
+        durationMillis = 2400
+    )
 
     LazyColumn(
         verticalArrangement = Arrangement.spacedBy(18.dp),
@@ -406,11 +434,21 @@ private fun HomeDiscoveryContent(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.History, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                            Icon(
+                                Icons.Default.History,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier
+                                    .size(18.dp)
+                                    .glowBackdrop(glowColor = MaterialTheme.colorScheme.primary, minAlpha = 0.2f, maxAlpha = 0.7f)
+                            )
                             Spacer(Modifier.width(6.dp))
                             Text("Recent Searches", fontSize = 14.sp, fontWeight = FontWeight.Bold)
                         }
-                        TextButton(onClick = onClearHistory) {
+                        TextButton(
+                            onClick = onClearHistory,
+                            modifier = Modifier.bounceClick(targetScale = 0.94f) { onClearHistory() }
+                        ) {
                             Text("Clear", fontSize = 11.sp, color = MaterialTheme.colorScheme.error)
                         }
                     }
@@ -426,7 +464,10 @@ private fun HomeDiscoveryContent(
                         recentSearches.forEach { query ->
                             SuggestionChip(
                                 onClick = { onSearchSelect(query) },
-                                label = { Text(query, fontSize = 12.sp) }
+                                label = { Text(query, fontSize = 12.sp) },
+                                modifier = Modifier
+                                    .bounceClick(targetScale = 0.95f) { onSearchSelect(query) }
+                                    .glowBackdrop(glowColor = MaterialTheme.colorScheme.primary, minAlpha = 0.05f, maxAlpha = 0.22f)
                             )
                         }
                     }
@@ -434,39 +475,119 @@ private fun HomeDiscoveryContent(
             }
         }
 
-        // Recently Checked Products
+        // Recently Checked Products (Home Page Glowing Cards for New Products)
         if (recentProducts.isNotEmpty()) {
             item {
-                Text("Recently Checked Products", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Recently Checked Products",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = recentHeadingGlow
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color(0xFF10B981).copy(alpha = 0.15f),
+                        border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.5f)),
+                        modifier = Modifier.glowBackdrop(glowColor = Color(0xFF10B981), minAlpha = 0.2f, maxAlpha = 0.6f)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(6.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFF10B981))
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text(
+                                text = "LIVE TRACKING",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Black,
+                                color = Color(0xFF10B981)
+                            )
+                        }
+                    }
+                }
                 Spacer(Modifier.height(8.dp))
             }
 
             items(recentProducts) { product ->
+                // The newest added product gets an intense glowing border and shimmer sweep
+                val isLatestProduct = product == recentProducts.firstOrNull()
+
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { onSearchSelect(product.title) },
+                        .bounceClick(targetScale = 0.98f) { onSearchSelect(product.title) }
+                        .then(
+                            if (isLatestProduct) {
+                                Modifier
+                                    .glowBackdrop(glowColor = MaterialTheme.colorScheme.primary, minAlpha = 0.15f, maxAlpha = 0.45f)
+                                    .neonGlow(
+                                        color = MaterialTheme.colorScheme.primary,
+                                        secondaryColor = Color(0xFF10B981),
+                                        shape = RoundedCornerShape(16.dp),
+                                        borderWidth = 1.4.dp
+                                    )
+                                    .shimmerSweep(shimmerColor = Color.White.copy(alpha = 0.12f), durationMillis = 2200)
+                            } else {
+                                Modifier
+                                    .glowBackdrop(glowColor = MaterialTheme.colorScheme.primary, minAlpha = 0.05f, maxAlpha = 0.2f)
+                            }
+                        ),
                     shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.surfaceVariant)
+                    border = BorderStroke(
+                        1.dp,
+                        if (isLatestProduct) MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
+                        else MaterialTheme.colorScheme.surfaceVariant
+                    )
                 ) {
                     Row(
                         modifier = Modifier.padding(12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         if (!product.imageUrl.isNullOrBlank()) {
-                            AsyncImage(
-                                model = ImageRequest.Builder(context)
-                                    .data(product.imageUrl)
-                                    .allowHardware(false)
-                                    .crossfade(true)
-                                    .build(),
-                                contentDescription = product.title,
-                                modifier = Modifier
-                                    .size(64.dp)
-                                    .clip(RoundedCornerShape(12.dp)),
-                                contentScale = ContentScale.Crop
-                            )
+                            Box {
+                                AsyncImage(
+                                    model = ImageRequest.Builder(context)
+                                        .data(product.imageUrl)
+                                        .allowHardware(false)
+                                        .crossfade(true)
+                                        .build(),
+                                    contentDescription = product.title,
+                                    modifier = Modifier
+                                        .size(68.dp)
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), RoundedCornerShape(12.dp)),
+                                    contentScale = ContentScale.Crop
+                                )
+                                if (isLatestProduct) {
+                                    Surface(
+                                        shape = RoundedCornerShape(6.dp),
+                                        color = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier
+                                            .align(Alignment.TopStart)
+                                            .padding(3.dp)
+                                            .glowBackdrop(glowColor = MaterialTheme.colorScheme.primary, minAlpha = 0.3f, maxAlpha = 0.7f)
+                                    ) {
+                                        Text(
+                                            text = "NEW",
+                                            fontSize = 8.sp,
+                                            fontWeight = FontWeight.Black,
+                                            color = Color.White,
+                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                        )
+                                    }
+                                }
+                            }
                             Spacer(Modifier.width(12.dp))
                         }
 
@@ -481,9 +602,17 @@ private fun HomeDiscoveryContent(
                             Spacer(Modifier.height(4.dp))
                             val lowest = product.lowestPrice
                             if (lowest != null) {
+                                val lowestColor = if (isLatestProduct) {
+                                    rememberBreathingColor(
+                                        baseColor = Color(0xFF10B981),
+                                        pulseColor = Color(0xFF34D399),
+                                        durationMillis = 1600
+                                    )
+                                } else Color(0xFF10B981)
+
                                 Text(
                                     text = "Lowest: ₹${"%,.0f".format(lowest)}",
-                                    color = Color(0xFF10B981),
+                                    color = lowestColor,
                                     fontWeight = FontWeight.Black,
                                     fontSize = 13.sp
                                 )

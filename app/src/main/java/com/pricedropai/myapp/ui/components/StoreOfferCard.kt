@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pricedropai.myapp.core.model.Availability
 import com.pricedropai.myapp.core.model.StoreOffer
+import com.pricedropai.myapp.ui.theme.*
 
 @Composable
 fun StoreOfferCard(
@@ -50,7 +51,7 @@ fun StoreOfferCard(
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .clickable {
+            .bounceClick(targetScale = 0.98f) {
                 try {
                     val intent = Intent(Intent.ACTION_VIEW, Uri.parse(offer.productUrl)).apply {
                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -59,14 +60,29 @@ fun StoreOfferCard(
                 } catch (e: Exception) {
                     Toast.makeText(context, "Cannot open store link: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
                 }
-            },
+            }
+            .then(
+                if (isLowest) {
+                    Modifier
+                        .glowBackdrop(glowColor = Color(0xFF10B981), minAlpha = 0.12f, maxAlpha = 0.38f)
+                        .neonGlow(
+                            color = Color(0xFF10B981),
+                            secondaryColor = storeColor,
+                            shape = RoundedCornerShape(16.dp),
+                            borderWidth = 1.3.dp
+                        )
+                        .shimmerSweep(shimmerColor = Color.White.copy(alpha = 0.08f), durationMillis = 2000)
+                } else {
+                    Modifier.glowBackdrop(glowColor = storeColor, minAlpha = 0.04f, maxAlpha = 0.18f)
+                }
+            ),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         ),
         border = BorderStroke(
             width = if (isLowest) 1.5.dp else 1.dp,
-            color = if (isLowest) storeColor else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+            color = if (isLowest) Color(0xFF10B981) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {

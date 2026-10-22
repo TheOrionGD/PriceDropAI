@@ -31,6 +31,8 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
 import com.pricedropai.myapp.core.parser.UrlProductParser
 import com.pricedropai.myapp.notification.NotificationHelper
 import com.pricedropai.myapp.ui.TrackerViewModel
@@ -42,6 +44,7 @@ import com.pricedropai.myapp.ui.screens.OnboardingScreen
 import com.pricedropai.myapp.ui.screens.SettingsScreen
 import com.pricedropai.myapp.ui.screens.SplashScreen
 import com.pricedropai.myapp.ui.screens.WatchlistScreen
+import com.pricedropai.myapp.ui.theme.*
 
 class MainActivity : ComponentActivity() {
 
@@ -196,115 +199,175 @@ fun MainAppContainer(
     var selectedTab by remember { mutableIntStateOf(0) }
     var showSettingsScreen by remember { mutableStateOf(false) }
 
-    when (screenState) {
-        AppScreenState.SPLASH -> {
-            SplashScreen(
-                onSplashFinished = {
-                    if (sessionManager.isLoggedIn()) {
-                        screenState = AppScreenState.MAIN_HUB
-                    } else {
-                        screenState = AppScreenState.ONBOARDING
+    AnimatedContent(
+        targetState = screenState,
+        transitionSpec = {
+            if (targetState.ordinal > initialState.ordinal) {
+                (slideInHorizontally(animationSpec = tween(450)) { width -> width } + fadeIn(animationSpec = tween(450)))
+                    .togetherWith(slideOutHorizontally(animationSpec = tween(450)) { width -> -width } + fadeOut(animationSpec = tween(450)))
+            } else {
+                (slideInHorizontally(animationSpec = tween(450)) { width -> -width } + fadeIn(animationSpec = tween(450)))
+                    .togetherWith(slideOutHorizontally(animationSpec = tween(450)) { width -> width } + fadeOut(animationSpec = tween(450)))
+            }
+        },
+        label = "screen_navigation_anim"
+    ) { currentScreen ->
+        when (currentScreen) {
+            AppScreenState.SPLASH -> {
+                SplashScreen(
+                    onSplashFinished = {
+                        if (sessionManager.isLoggedIn()) {
+                            screenState = AppScreenState.MAIN_HUB
+                        } else {
+                            screenState = AppScreenState.ONBOARDING
+                        }
                     }
-                }
-            )
-        }
-        AppScreenState.ONBOARDING -> {
-            OnboardingScreen(
-                onFinishOnboarding = {
-                    screenState = AppScreenState.LANDING
-                }
-            )
-        }
-        AppScreenState.LANDING -> {
-            LandingScreen(
-                onNavigateToAuth = {
-                    screenState = AppScreenState.GET_STARTED
-                }
-            )
-        }
-        AppScreenState.GET_STARTED -> {
-            GetStartedScreen(
-                onNavigateToLogin = {
-                    screenState = AppScreenState.AUTH
-                }
-            )
-        }
-        AppScreenState.AUTH -> {
-            LoginScreen(
-                sessionManager = sessionManager,
-                onLoginSuccess = {
-                    screenState = AppScreenState.MAIN_HUB
-                }
-            )
-        }
-        AppScreenState.MAIN_HUB -> {
-            if (showSettingsScreen) {
-                SettingsScreen(
-                    sessionManager = sessionManager,
-                    onBack = { showSettingsScreen = false },
-                    onLogout = {
-                        showSettingsScreen = false
+                )
+            }
+            AppScreenState.ONBOARDING -> {
+                OnboardingScreen(
+                    onFinishOnboarding = {
+                        screenState = AppScreenState.LANDING
+                    }
+                )
+            }
+            AppScreenState.LANDING -> {
+                LandingScreen(
+                    onNavigateToAuth = {
+                        screenState = AppScreenState.GET_STARTED
+                    }
+                )
+            }
+            AppScreenState.GET_STARTED -> {
+                GetStartedScreen(
+                    onNavigateToLogin = {
                         screenState = AppScreenState.AUTH
                     }
                 )
-            } else {
-                Scaffold(
-                    bottomBar = {
-                        NavigationBar(
-                            containerColor = MaterialTheme.colorScheme.surface,
-                            tonalElevation = 8.dp
-                        ) {
-                            NavigationBarItem(
-                                selected = selectedTab == 0,
-                                onClick = {
-                                    selectedTab = 0
-                                    viewModel.resetToHome()
-                                },
-                                icon = { Icon(Icons.Default.Explore, contentDescription = "Discover") },
-                                label = { Text("Discover", fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal) }
-                            )
-                            NavigationBarItem(
-                                selected = selectedTab == 1,
-                                onClick = { selectedTab = 1 },
-                                icon = { Icon(Icons.Default.SmartToy, contentDescription = "AI Copilot") },
-                                label = { Text("AI Copilot", fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal) }
-                            )
-                            NavigationBarItem(
-                                selected = selectedTab == 2,
-                                onClick = { selectedTab = 2 },
-                                icon = { Icon(Icons.Default.Notifications, contentDescription = "Watchlist") },
-                                label = { Text("Watchlist", fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.Normal) }
-                            )
-                        }
+            }
+            AppScreenState.AUTH -> {
+                LoginScreen(
+                    sessionManager = sessionManager,
+                    onLoginSuccess = {
+                        screenState = AppScreenState.MAIN_HUB
                     }
-                ) { padding ->
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(padding)
-                    ) {
-                        when (selectedTab) {
-                            0 -> DiscoverScreen(
-                                viewModel = viewModel,
-                                onOpenSettings = { showSettingsScreen = true }
-                            )
-                            1 -> CopilotScreen(
-                                viewModel = viewModel,
-                                onProductSelect = { query ->
-                                    selectedTab = 0
-                                    viewModel.search(query)
+                )
+            }
+            AppScreenState.MAIN_HUB -> {
+                AnimatedContent(
+                    targetState = showSettingsScreen,
+                    transitionSpec = {
+                        if (targetState) {
+                            (slideInVertically(animationSpec = tween(400)) { height -> height } + fadeIn(animationSpec = tween(400)))
+                                .togetherWith(slideOutVertically(animationSpec = tween(400)) { height -> -height / 3 } + fadeOut(animationSpec = tween(400)))
+                        } else {
+                            (slideInVertically(animationSpec = tween(400)) { height -> -height / 3 } + fadeIn(animationSpec = tween(400)))
+                                .togetherWith(slideOutVertically(animationSpec = tween(400)) { height -> height } + fadeOut(animationSpec = tween(400)))
+                        }
+                    },
+                    label = "settings_modal_anim"
+                ) { isSettingsOpen ->
+                    if (isSettingsOpen) {
+                        SettingsScreen(
+                            sessionManager = sessionManager,
+                            onBack = { showSettingsScreen = false },
+                            onLogout = {
+                                showSettingsScreen = false
+                                screenState = AppScreenState.AUTH
+                            }
+                        )
+                    } else {
+                        Scaffold(
+                            bottomBar = {
+                                NavigationBar(
+                                    containerColor = MaterialTheme.colorScheme.surface,
+                                    tonalElevation = 8.dp
+                                ) {
+                                    NavigationBarItem(
+                                        selected = selectedTab == 0,
+                                        onClick = {
+                                            selectedTab = 0
+                                            viewModel.resetToHome()
+                                        },
+                                        icon = {
+                                            Icon(
+                                                Icons.Default.Explore,
+                                                contentDescription = "Discover",
+                                                modifier = if (selectedTab == 0) Modifier.glowBackdrop(glowColor = MaterialTheme.colorScheme.primary, minAlpha = 0.2f, maxAlpha = 0.7f) else Modifier
+                                            )
+                                        },
+                                        label = { Text("Discover", fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal) }
+                                    )
+                                    NavigationBarItem(
+                                        selected = selectedTab == 1,
+                                        onClick = { selectedTab = 1 },
+                                        icon = {
+                                            Icon(
+                                                Icons.Default.SmartToy,
+                                                contentDescription = "AI Copilot",
+                                                modifier = if (selectedTab == 1) Modifier.glowBackdrop(glowColor = MaterialTheme.colorScheme.primary, minAlpha = 0.2f, maxAlpha = 0.7f) else Modifier
+                                            )
+                                        },
+                                        label = { Text("AI Copilot", fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal) }
+                                    )
+                                    NavigationBarItem(
+                                        selected = selectedTab == 2,
+                                        onClick = { selectedTab = 2 },
+                                        icon = {
+                                            Icon(
+                                                Icons.Default.Notifications,
+                                                contentDescription = "Watchlist",
+                                                modifier = if (selectedTab == 2) Modifier.glowBackdrop(glowColor = MaterialTheme.colorScheme.primary, minAlpha = 0.2f, maxAlpha = 0.7f) else Modifier
+                                            )
+                                        },
+                                        label = { Text("Watchlist", fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.Normal) }
+                                    )
                                 }
-                            )
-                            2 -> WatchlistScreen(
-                                viewModel = viewModel,
-                                onProductSelect = { query ->
-                                    selectedTab = 0
-                                    viewModel.search(query)
-                                },
-                                onOpenSettings = {
-                                    showSettingsScreen = true
+                            }
+                        ) { padding ->
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(padding)
+                            ) {
+                                AnimatedContent(
+                                    targetState = selectedTab,
+                                    transitionSpec = {
+                                        if (targetState > initialState) {
+                                            (slideInHorizontally(animationSpec = tween(350)) { width -> width } + fadeIn(animationSpec = tween(350)))
+                                                .togetherWith(slideOutHorizontally(animationSpec = tween(350)) { width -> -width } + fadeOut(animationSpec = tween(350)))
+                                        } else {
+                                            (slideInHorizontally(animationSpec = tween(350)) { width -> -width } + fadeIn(animationSpec = tween(350)))
+                                                .togetherWith(slideOutHorizontally(animationSpec = tween(350)) { width -> width } + fadeOut(animationSpec = tween(350)))
+                                        }
+                                    },
+                                    label = "tab_switch_anim"
+                                ) { tab ->
+                                    when (tab) {
+                                        0 -> DiscoverScreen(
+                                            viewModel = viewModel,
+                                            onOpenSettings = { showSettingsScreen = true }
+                                        )
+                                        1 -> CopilotScreen(
+                                            viewModel = viewModel,
+                                            onProductSelect = { query ->
+                                                selectedTab = 0
+                                                viewModel.search(query)
+                                            }
+                                        )
+                                        2 -> WatchlistScreen(
+                                            viewModel = viewModel,
+                                            onProductSelect = { query ->
+                                                selectedTab = 0
+                                                viewModel.search(query)
+                                            },
+                                            onOpenSettings = {
+                                                showSettingsScreen = true
+                                            }
+                                        )
+                                    }
                                 }
-                            )
+                            }
                         }
                     }
                 }
@@ -336,12 +399,15 @@ fun LoginScreen(
             Box(
                 modifier = Modifier
                     .size(76.dp)
+                    .glowBackdrop(glowColor = Color(0xFF6366F1), minAlpha = 0.3f, maxAlpha = 0.8f)
                     .clip(CircleShape)
+                    .neonGlow(color = Color(0xFF6366F1), secondaryColor = Color(0xFF38BDF8), shape = CircleShape, borderWidth = 1.5.dp)
                     .background(
                         Brush.linearGradient(
                             listOf(Color(0xFF6366F1), Color(0xFF4F46E5))
                         )
-                    ),
+                    )
+                    .shimmerSweep(shimmerColor = Color.White.copy(alpha = 0.15f), durationMillis = 2000),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
@@ -415,7 +481,20 @@ fun LoginScreen(
                 },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(52.dp),
+                    .height(52.dp)
+                    .bounceClick(targetScale = 0.96f) {
+                        if (username.isBlank() || password.length < 4) {
+                            errorMsg = "Please enter a valid username and a 4+ character password."
+                        } else {
+                            val success = sessionManager.loginOrRegister(username, password)
+                            if (success) {
+                                onLoginSuccess()
+                            } else {
+                                errorMsg = "Incorrect password for this user profile."
+                            }
+                        }
+                    }
+                    .glowBackdrop(glowColor = MaterialTheme.colorScheme.primary, minAlpha = 0.25f, maxAlpha = 0.65f),
                 shape = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
             ) {

@@ -39,6 +39,7 @@ import com.pricedropai.myapp.ui.components.InteractivePriceChart
 import com.pricedropai.myapp.ui.components.PaymentOfferCalculator
 import com.pricedropai.myapp.ui.components.ReviewSummarySection
 import com.pricedropai.myapp.ui.components.StoreOfferCard
+import com.pricedropai.myapp.ui.theme.*
 
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -152,7 +153,16 @@ fun ProductDetailsScreen(
         item {
             Card(
                 shape = RoundedCornerShape(20.dp),
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .glowBackdrop(glowColor = MaterialTheme.colorScheme.primary, minAlpha = 0.08f, maxAlpha = 0.28f)
+                    .neonGlow(
+                        color = MaterialTheme.colorScheme.primary,
+                        secondaryColor = Color(0xFF10B981),
+                        shape = RoundedCornerShape(20.dp),
+                        borderWidth = 1.2.dp
+                    )
+                    .shimmerSweep(shimmerColor = Color.White.copy(alpha = 0.07f), durationMillis = 2800),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
@@ -278,7 +288,9 @@ fun ProductDetailsScreen(
                                 modifier = Modifier
                                     .size(40.dp)
                                     .clip(CircleShape)
+                                    .bounceClick(targetScale = 0.90f) { showAlertDialog = true }
                                     .background(MaterialTheme.colorScheme.primaryContainer)
+                                    .glowBackdrop(glowColor = MaterialTheme.colorScheme.primary, minAlpha = 0.2f, maxAlpha = 0.65f)
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.NotificationsActive,
