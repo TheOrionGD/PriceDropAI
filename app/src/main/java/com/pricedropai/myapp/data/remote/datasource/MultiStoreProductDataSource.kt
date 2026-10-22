@@ -171,7 +171,6 @@ class MultiStoreProductDataSource(
                 val amazonImageCandidate = amazonScraped?.imageUrl?.takeIf { isValidImageUrl(it) }
                 val dynamicImage = amazonImageCandidate
                     ?: resolveDynamicProductImage(query = "$cleanQuery amazon", scrapedImageUrl = null)
-                    ?: com.pricedropai.myapp.LocalPriceEngine.resolveFallbackImage(cleanQuery)
 
                 // 4. Live Scraped Ratings & Reviews
                 val verifiedRating = validScraped.mapNotNull { it.rating }.firstOrNull()

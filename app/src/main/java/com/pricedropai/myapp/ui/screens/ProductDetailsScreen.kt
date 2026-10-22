@@ -185,35 +185,23 @@ fun ProductDetailsScreen(
                                     }
                                 },
                                 error = {
-                                    val fallbackImg = com.pricedropai.myapp.LocalPriceEngine.resolveFallbackImage(product.title)
-                                    SubcomposeAsyncImage(
-                                        model = ImageRequest.Builder(context)
-                                            .data(fallbackImg)
-                                            .crossfade(true)
-                                            .build(),
-                                        contentDescription = product.title,
-                                        contentScale = ContentScale.Fit,
-                                        modifier = Modifier.fillMaxSize(),
-                                        error = {
-                                            Column(
-                                                horizontalAlignment = Alignment.CenterHorizontally,
-                                                verticalArrangement = Arrangement.Center
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Outlined.ShoppingBag,
-                                                    contentDescription = null,
-                                                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
-                                                    modifier = Modifier.size(54.dp)
-                                                )
-                                                Spacer(Modifier.height(6.dp))
-                                                Text(
-                                                    text = product.category ?: "Product Image",
-                                                    fontSize = 12.sp,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                )
-                                            }
-                                        }
-                                    )
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Outlined.ShoppingBag,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
+                                            modifier = Modifier.size(54.dp)
+                                        )
+                                        Spacer(Modifier.height(6.dp))
+                                        Text(
+                                            text = product.category ?: "Product Image",
+                                            fontSize = 12.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
                                 }
                             )
                         } else {

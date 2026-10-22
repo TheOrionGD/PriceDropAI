@@ -444,25 +444,7 @@ export async function aggregateSearchResults(query: string): Promise<Product[]> 
   }
 
   if (allItems.length === 0) {
-    // Attempt fallback single synthetic card with dynamic web knowledge
-    const fallbackImg = await fetchWebImageFallback(cleanQ);
-    return [
-      {
-        id: cleanQ.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 60),
-        title: cleanQ.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
-        description: `Product query for ${cleanQ}. No direct live store inventory matched at this moment.`,
-        imageUrl: fallbackImg,
-        category: detectCategory(cleanQ),
-        brand: detectBrand(cleanQ),
-        rating: null,
-        reviewCount: null,
-        variants: [],
-        stores: [],
-        reviewSummary: { sentimentScore: null, pros: [], cons: [], totalAnalyzed: 0, isAvailable: false },
-        paymentOffers: [],
-        lastUpdated: Date.now(),
-      }
-    ];
+    return [];
   }
 
   // Filter items by relevance to the search query to eliminate irrelevant cross-category items (e.g. fashion on phone queries)

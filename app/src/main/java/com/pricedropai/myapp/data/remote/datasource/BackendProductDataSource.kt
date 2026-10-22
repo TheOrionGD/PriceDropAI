@@ -158,10 +158,6 @@ class BackendProductDataSource(
                 } catch (_: Exception) {}
             }
         }
-
-        if (sanitizedImageUrl.isNullOrBlank()) {
-            sanitizedImageUrl = com.pricedropai.myapp.LocalPriceEngine.resolveFallbackImage(title)
-        }
         val description = json.optString("description").takeIf { it.isNotBlank() }
         val brand = json.optString("brand").takeIf { it.isNotBlank() }
         val rating = if (json.has("rating") && !json.isNull("rating")) json.optDouble("rating") else null
