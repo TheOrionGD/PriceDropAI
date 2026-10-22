@@ -21,8 +21,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pricedropai.myapp.data.remote.datasource.BackendProductDataSource
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -44,24 +46,16 @@ fun SplashScreen(
         label = "scale"
     )
 
-    // Splash timer: exactly 5 seconds total. At 3rd second, trigger cold start ping to Render backend.
+    // Splash timer: Strictly 3 seconds max, never blocking UI on backend network
     LaunchedEffect(Unit) {
         startAnimation = true
 
-        // 1st to 2nd second: local warming
-        delay(1000)
-        backendStatus = "Loading local engine..."
-        delay(1000)
-        backendStatus = "Preparing multi-store connections..."
-        delay(1000)
-
-        // 3rd second: Ping Render backend asynchronously to wake up the cold instance
-        backendStatus = "Warming up cloud AI backend..."
-        withContext(Dispatchers.IO) {
+        // Fire asynchronous, non-blocking cold boot ping to Render backend immediately
+        kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
             try {
                 val client = OkHttpClient.Builder()
-                    .connectTimeout(55, TimeUnit.SECONDS)
-                    .readTimeout(55, TimeUnit.SECONDS)
+                    .connectTimeout(60, TimeUnit.SECONDS)
+                    .readTimeout(60, TimeUnit.SECONDS)
                     .build()
                 val request = Request.Builder()
                     .url("${BackendProductDataSource.BASE_URL}/api/health")
@@ -69,13 +63,16 @@ fun SplashScreen(
                     .build()
                 client.newCall(request).execute().close()
             } catch (_: Exception) {
-                // Ping sent; cold boot continues in background even if timeout or network delay
+                // Background warm-up ping sent; backend wakes up concurrently during onboarding
             }
         }
 
-        // 4th to 5th second: complete 5 second duration
+        // Quick 3-second visual progression
+        backendStatus = "Loading local engine..."
         delay(1000)
-        backendStatus = "Finalizing..."
+        backendStatus = "Preparing multi-store connections..."
+        delay(1000)
+        backendStatus = "Ready!"
         delay(1000)
 
         onSplashFinished()

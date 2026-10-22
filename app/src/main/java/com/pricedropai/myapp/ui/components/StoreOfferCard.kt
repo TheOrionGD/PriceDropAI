@@ -30,6 +30,23 @@ fun StoreOfferCard(
 ) {
     val context = LocalContext.current
 
+    val storeColor = when (offer.store) {
+        com.pricedropai.myapp.core.model.Store.AMAZON -> Color(0xFFFF9900)
+        com.pricedropai.myapp.core.model.Store.FLIPKART -> Color(0xFF2874F0)
+        com.pricedropai.myapp.core.model.Store.MEESHO -> Color(0xFFE40066)
+        com.pricedropai.myapp.core.model.Store.MYNTRA -> Color(0xFFFF3F6C)
+        com.pricedropai.myapp.core.model.Store.CROMA -> Color(0xFF00E676)
+        com.pricedropai.myapp.core.model.Store.RELIANCE_DIGITAL -> Color(0xFFE42529)
+        com.pricedropai.myapp.core.model.Store.JIOMART -> Color(0xFF0F3E99)
+        com.pricedropai.myapp.core.model.Store.TATACLIQ -> Color(0xFF8B5CF6)
+        com.pricedropai.myapp.core.model.Store.AJIO -> Color(0xFF0284C7)
+        com.pricedropai.myapp.core.model.Store.NYKAA -> Color(0xFFFC2779)
+        com.pricedropai.myapp.core.model.Store.BLINKIT -> Color(0xFFF59E0B)
+        com.pricedropai.myapp.core.model.Store.EBAY -> Color(0xFFE53238)
+        com.pricedropai.myapp.core.model.Store.WALMART -> Color(0xFF0071DC)
+        com.pricedropai.myapp.core.model.Store.TARGET -> Color(0xFFCC0000)
+    }
+
     Card(
         modifier = modifier
             .fillMaxWidth()
@@ -45,10 +62,17 @@ fun StoreOfferCard(
             },
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (isLowest) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f) else MaterialTheme.colorScheme.surface
+            containerColor = if (isLowest) {
+                storeColor.copy(alpha = 0.08f)
+            } else {
+                MaterialTheme.colorScheme.surface
+            }
         ),
-        border = if (isLowest) BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary) else BorderStroke(1.dp, MaterialTheme.colorScheme.surfaceVariant),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        border = BorderStroke(
+            width = if (isLowest) 2.dp else 1.5.dp,
+            color = if (isLowest) storeColor else storeColor.copy(alpha = 0.55f)
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isLowest) 4.dp else 2.dp)
     ) {
         Row(
             modifier = Modifier
@@ -59,23 +83,6 @@ fun StoreOfferCard(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    val storeColor = when (offer.store) {
-                        com.pricedropai.myapp.core.model.Store.AMAZON -> Color(0xFFFF9900)
-                        com.pricedropai.myapp.core.model.Store.FLIPKART -> Color(0xFF2874F0)
-                        com.pricedropai.myapp.core.model.Store.MEESHO -> Color(0xFFE40066)
-                        com.pricedropai.myapp.core.model.Store.MYNTRA -> Color(0xFFFF3F6C)
-                        com.pricedropai.myapp.core.model.Store.CROMA -> Color(0xFF00E676)
-                        com.pricedropai.myapp.core.model.Store.RELIANCE_DIGITAL -> Color(0xFFE42529)
-                        com.pricedropai.myapp.core.model.Store.JIOMART -> Color(0xFF0F3E99)
-                        com.pricedropai.myapp.core.model.Store.TATACLIQ -> Color(0xFF000000)
-                        com.pricedropai.myapp.core.model.Store.AJIO -> Color(0xFF2C4152)
-                        com.pricedropai.myapp.core.model.Store.NYKAA -> Color(0xFFFC2779)
-                        com.pricedropai.myapp.core.model.Store.BLINKIT -> Color(0xFFF8CB46)
-                        com.pricedropai.myapp.core.model.Store.EBAY -> Color(0xFFE53238)
-                        com.pricedropai.myapp.core.model.Store.WALMART -> Color(0xFF0071DC)
-                        com.pricedropai.myapp.core.model.Store.TARGET -> Color(0xFFCC0000)
-                    }
-
                     Surface(
                         color = storeColor.copy(alpha = 0.15f),
                         shape = RoundedCornerShape(6.dp),
@@ -85,7 +92,7 @@ fun StoreOfferCard(
                             text = offer.store.displayName,
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp,
-                            color = storeColor,
+                            color = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                         )
                     }

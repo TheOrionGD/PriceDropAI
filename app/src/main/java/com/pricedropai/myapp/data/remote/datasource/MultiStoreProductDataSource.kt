@@ -273,7 +273,35 @@ class MultiStoreProductDataSource(
             return null
         }
 
-        // Tier 1: DuckDuckGo Live Search API (Checks direct Image, RelatedTopics, and Results)
+        // Tier 1: Bing Live Image Engine (Direct High-Resolution Web Product Scraper)
+        try {
+            val bingUrl = "https://www.bing.com/images/search?q=$encoded&FORM=HDRSC2"
+            val request = Request.Builder()
+                .url(bingUrl)
+                .header("User-Agent", USER_AGENT)
+                .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
+                .header("Accept-Language", "en-IN,en-US;q=0.9,en;q=0.8")
+                .build()
+            val response = client.newCall(request).execute()
+            if (response.isSuccessful) {
+                val body = response.body?.string() ?: ""
+                response.close()
+                val regex = Regex("""murl&quot;:&quot;(https?:[^&]+)&quot;""")
+                val match = regex.find(body)
+                if (match != null) {
+                    val candidate = match.groupValues[1]
+                    if (isValidImageUrl(candidate) && !candidate.contains("placeholder")) {
+                        return candidate
+                    }
+                }
+            } else {
+                response.close()
+            }
+        } catch (e: Exception) {
+            logD(TAG, "Bing image fetch notice: ${e.message}")
+        }
+
+        // Tier 2: DuckDuckGo Live Search API (Checks direct Image, RelatedTopics, and Results)
         try {
             val ddgUrl = "https://api.duckduckgo.com/?q=$encoded&format=json&no_redirect=1&no_html=1"
             val request = Request.Builder().url(ddgUrl).header("User-Agent", USER_AGENT).build()

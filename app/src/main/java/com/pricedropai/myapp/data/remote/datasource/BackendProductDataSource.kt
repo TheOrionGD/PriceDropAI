@@ -146,6 +146,19 @@ class BackendProductDataSource(
             else -> null
         }
 
+        // If backend returns a direct URL that might encounter hotlink protection or CORS issues,
+        // we can utilize the backend image proxy: $baseUrl/api/image-proxy?url=...
+        if (!sanitizedImageUrl.isNullOrBlank() && !sanitizedImageUrl.contains("/api/image-proxy")) {
+            // Check if it's from a site that aggressively hotlink-blocks mobile apps
+            val lower = sanitizedImageUrl.lowercase()
+            if (lower.contains("flipkart") || lower.contains("meesho") || lower.contains("myntra") || lower.contains("croma")) {
+                try {
+                    val encodedImg = URLEncoder.encode(sanitizedImageUrl, StandardCharsets.UTF_8.toString())
+                    sanitizedImageUrl = "$baseUrl/api/image-proxy?url=$encodedImg"
+                } catch (_: Exception) {}
+            }
+        }
+
         if (sanitizedImageUrl.isNullOrBlank()) {
             sanitizedImageUrl = com.pricedropai.myapp.LocalPriceEngine.resolveFallbackImage(title)
         }

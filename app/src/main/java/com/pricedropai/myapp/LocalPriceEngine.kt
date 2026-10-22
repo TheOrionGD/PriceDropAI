@@ -181,9 +181,9 @@ object LocalPriceEngine {
             q.contains("book") || q.contains("novel") ->
                 "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=600&auto=format&fit=crop&q=80"
 
-            // Default Reliable High-Res Product Image
+            // Generic Retail Product Placeholder (Clean packaging illustration instead of camera)
             else ->
-                "https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=600&auto=format&fit=crop&q=80"
+                "https://images.unsplash.com/photo-1549465220-1a8b9238cd48?w=600&auto=format&fit=crop&q=80"
         }
     }
 

@@ -1,6 +1,7 @@
 package com.pricedropai.myapp.ui.screens
 
 import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -20,6 +21,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -76,6 +79,8 @@ fun ProductDetailsScreen(
         }
     }
 
+    var showRewardAnimation by remember { mutableStateOf(false) }
+
     if (showAlertDialog) {
         AlertDialog(
             onDismissRequest = { showAlertDialog = false },
@@ -118,7 +123,7 @@ fun ProductDetailsScreen(
                         if (p != null && p > 0) {
                             onSaveAlert(p, lowestOffer?.store, product.imageUrl)
                             showAlertDialog = false
-                            Toast.makeText(context, "Price alert saved for ₹${"%,.0f".format(p)}", Toast.LENGTH_SHORT).show()
+                            showRewardAnimation = true
                         }
                     }
                 ) {
@@ -128,6 +133,14 @@ fun ProductDetailsScreen(
             dismissButton = {
                 TextButton(onClick = { showAlertDialog = false }) { Text("Cancel") }
             }
+        )
+    }
+
+    if (showRewardAnimation) {
+        RewardSuccessModal(
+            title = "Price Drop Tracker Activated! 🎉",
+            subtitle = "You earned +50 PriceDrop Points! We're monitoring 12+ stores around the clock for your discount.",
+            onDismiss = { showRewardAnimation = false }
         )
     }
 
@@ -218,21 +231,38 @@ fun ProductDetailsScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            if (!product.category.isNullOrBlank()) {
-                                Surface(
-                                    color = MaterialTheme.colorScheme.primaryContainer,
-                                    shape = RoundedCornerShape(6.dp)
-                                ) {
-                                    Text(
-                                        text = product.category,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                    )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                if (!product.category.isNullOrBlank()) {
+                                    Surface(
+                                        color = MaterialTheme.colorScheme.primaryContainer,
+                                        shape = RoundedCornerShape(6.dp)
+                                    ) {
+                                        Text(
+                                            text = product.category,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                        )
+                                    }
                                 }
-                            } else {
-                                Spacer(Modifier.width(1.dp))
+                                if (!product.brand.isNullOrBlank()) {
+                                    Surface(
+                                        color = MaterialTheme.colorScheme.secondaryContainer,
+                                        shape = RoundedCornerShape(6.dp)
+                                    ) {
+                                        Text(
+                                            text = product.brand,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                        )
+                                    }
+                                }
                             }
 
                             IconButton(
@@ -393,4 +423,93 @@ fun ProductDetailsScreen(
         }
     }
 }
+}
+
+@Composable
+fun RewardSuccessModal(
+    title: String,
+    subtitle: String,
+    onDismiss: () -> Unit
+) {
+    val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition(label = "pulse")
+    val scale by infiniteTransition.animateFloat(
+        initialValue = 0.92f,
+        targetValue = 1.08f,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+            animation = androidx.compose.animation.core.tween(700, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+            repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+        ),
+        label = "rewardScale"
+    )
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(80.dp)
+                        .clip(CircleShape)
+                        .background(
+                            androidx.compose.ui.graphics.Brush.radialGradient(
+                                listOf(Color(0xFFFBBF24), Color(0xFFF59E0B), Color(0xFFD97706))
+                            )
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "🏆",
+                        fontSize = 38.sp,
+                        modifier = Modifier.scale(scale)
+                    )
+                }
+                Spacer(Modifier.height(14.dp))
+                Text(
+                    text = title,
+                    fontWeight = FontWeight.Black,
+                    fontSize = 18.sp,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Surface(
+                    color = Color(0xFFFEF3C7),
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, Color(0xFFF59E0B))
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                    ) {
+                        Text(text = "⭐ +50 POINTS EARNED", fontWeight = FontWeight.Black, color = Color(0xFFB45309), fontSize = 12.sp)
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    text = subtitle,
+                    fontSize = 13.sp,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    lineHeight = 18.sp
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text("Claim Reward & Continue", fontWeight = FontWeight.Bold)
+            }
+        }
+    )
 }

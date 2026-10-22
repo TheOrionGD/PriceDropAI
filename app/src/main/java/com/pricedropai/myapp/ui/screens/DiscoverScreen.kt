@@ -19,6 +19,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.ShoppingBag
 import androidx.compose.material3.*
@@ -49,7 +50,10 @@ import androidx.compose.runtime.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DiscoverScreen(viewModel: TrackerViewModel) {
+fun DiscoverScreen(
+    viewModel: TrackerViewModel,
+    onOpenSettings: (() -> Unit)? = null
+) {
     var searchQuery by remember { mutableStateOf("") }
     val focusManager = LocalFocusManager.current
     val searchState by viewModel.searchState.collectAsState()
@@ -137,6 +141,23 @@ fun DiscoverScreen(viewModel: TrackerViewModel) {
                 ),
                 modifier = Modifier.weight(1f)
             )
+
+            if (onOpenSettings != null) {
+                Spacer(Modifier.width(8.dp))
+                IconButton(
+                    onClick = onOpenSettings,
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Settings,
+                        contentDescription = "Settings",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
         }
 
         Spacer(Modifier.height(12.dp))
@@ -169,15 +190,36 @@ fun DiscoverScreen(viewModel: TrackerViewModel) {
                     )
                 }
                 var currentStepIdx by remember { mutableIntStateOf(0) }
+                var displayedChars by remember { mutableIntStateOf(0) }
 
                 LaunchedEffect(Unit) {
                     while (currentStepIdx < steps.size - 1) {
-                        kotlinx.coroutines.delay(1200)
+                        kotlinx.coroutines.delay(1600)
                         currentStepIdx++
+                        displayedChars = 0
                     }
                 }
 
                 val currentStep = steps[currentStepIdx]
+                val fullText = currentStep.first
+
+                // Typewriter effect ticker
+                LaunchedEffect(currentStepIdx) {
+                    displayedChars = 0
+                    for (i in 1..fullText.length) {
+                        displayedChars = i
+                        kotlinx.coroutines.delay(18)
+                    }
+                }
+
+                val animatedProgress by androidx.compose.animation.core.animateFloatAsState(
+                    targetValue = currentStep.second,
+                    animationSpec = androidx.compose.animation.core.tween(
+                        durationMillis = 600,
+                        easing = androidx.compose.animation.core.FastOutSlowInEasing
+                    ),
+                    label = "loaderProgress"
+                )
 
                 Box(
                     modifier = Modifier.fillMaxSize(),
@@ -187,42 +229,61 @@ fun DiscoverScreen(viewModel: TrackerViewModel) {
                         horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier.padding(horizontal = 24.dp)
                     ) {
-                        CircularProgressIndicator(
-                            color = MaterialTheme.colorScheme.primary,
-                            strokeWidth = 3.5.dp,
-                            modifier = Modifier.size(54.dp)
-                        )
-                        Spacer(Modifier.height(20.dp))
+                        Box(contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(
+                                progress = { animatedProgress },
+                                color = MaterialTheme.colorScheme.primary,
+                                strokeWidth = 4.dp,
+                                modifier = Modifier.size(72.dp),
+                                trackColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                            )
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(28.dp)
+                            )
+                        }
+                        Spacer(Modifier.height(24.dp))
 
                         Surface(
-                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
+                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.65f),
                             shape = RoundedCornerShape(12.dp)
                         ) {
                             Text(
-                                text = "SCANNING 12+ E-COMMERCE PLATFORMS",
+                                text = "LIVE MULTI-STORE ENGINE ACTIVE",
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Black,
                                 letterSpacing = 1.3.sp,
                                 color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
                             )
                         }
-                        Spacer(Modifier.height(10.dp))
-
-                        Text(
-                            text = currentStep.first,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            textAlign = TextAlign.Center,
-                            lineHeight = 20.sp,
-                            modifier = Modifier.height(44.dp)
-                        )
                         Spacer(Modifier.height(14.dp))
+
+                        // Typewriter text box with cursor
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(56.dp)
+                                .padding(horizontal = 8.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = fullText.take(displayedChars) + if (displayedChars < fullText.length) "▋" else "",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                textAlign = TextAlign.Center,
+                                lineHeight = 20.sp
+                            )
+                        }
+                        Spacer(Modifier.height(16.dp))
 
                         // Linear progress visualizer
                         LinearProgressIndicator(
-                            progress = { currentStep.second },
+                            progress = { animatedProgress },
                             modifier = Modifier
                                 .fillMaxWidth(0.85f)
                                 .height(6.dp)
@@ -230,10 +291,10 @@ fun DiscoverScreen(viewModel: TrackerViewModel) {
                             color = MaterialTheme.colorScheme.primary,
                             trackColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
                         )
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(10.dp))
 
                         Text(
-                            text = "Phase ${currentStepIdx + 1} of ${steps.size} • ${(currentStep.second * 100).toInt()}% Complete",
+                            text = "Phase ${currentStepIdx + 1} of ${steps.size} • ${(animatedProgress * 100).toInt()}% Complete",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Medium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant

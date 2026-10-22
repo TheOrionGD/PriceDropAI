@@ -18,12 +18,32 @@ class SessionManager(context: Context) {
         private const val KEY_USER_NAME = "user_name"
         private const val KEY_PASSWORD_HASH = "pwd_hash_"
         private const val SALT_PREFIX = "pricedrop_salt_v1_"
+        private const val KEY_THEME_MODE = "theme_mode" // "SYSTEM", "LIGHT", "DARK"
+        private const val KEY_ACCENT_COLOR = "accent_color" // hex e.g. "#6366F1"
     }
 
     private fun hashPassword(username: String, rawPassword: String): String {
         val input = "$SALT_PREFIX${username.lowercase().trim()}_$rawPassword"
         val bytes = MessageDigest.getInstance("SHA-256").digest(input.toByteArray(StandardCharsets.UTF_8))
         return bytes.joinToString("") { "%02x".format(it) }
+    }
+
+    /**
+     * Theme mode: "SYSTEM", "LIGHT", "DARK"
+     */
+    fun getThemeMode(): String = prefs.getString(KEY_THEME_MODE, "SYSTEM") ?: "SYSTEM"
+
+    fun setThemeMode(mode: String) {
+        prefs.edit().putString(KEY_THEME_MODE, mode).apply()
+    }
+
+    /**
+     * Accent color hex: e.g. "#6366F1" (Indigo), "#10B981" (Emerald), "#EC4899" (Pink), "#F59E0B" (Amber), "#3B82F6" (Ocean Blue), "#8B5CF6" (Violet), "#06B6D4" (Cyan)
+     */
+    fun getAccentColorHex(): String = prefs.getString(KEY_ACCENT_COLOR, "#6366F1") ?: "#6366F1"
+
+    fun setAccentColorHex(hex: String) {
+        prefs.edit().putString(KEY_ACCENT_COLOR, hex).apply()
     }
 
     /**

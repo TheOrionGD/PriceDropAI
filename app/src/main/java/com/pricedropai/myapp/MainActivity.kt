@@ -56,22 +56,64 @@ class MainActivity : ComponentActivity() {
         handleIncomingIntent(intent)
 
         setContent {
-            val isDark = isSystemInDarkTheme()
+            val systemDark = isSystemInDarkTheme()
+            var currentThemeMode by remember { mutableStateOf(sessionManager.getThemeMode()) }
+            var currentAccentHex by remember { mutableStateOf(sessionManager.getAccentColorHex()) }
+
+            // Polling preference updates when returning to screens
+            LaunchedEffect(Unit) {
+                while (true) {
+                    kotlinx.coroutines.delay(400)
+                    val newMode = sessionManager.getThemeMode()
+                    val newHex = sessionManager.getAccentColorHex()
+                    if (newMode != currentThemeMode) currentThemeMode = newMode
+                    if (newHex != currentAccentHex) currentAccentHex = newHex
+                }
+            }
+
+            val isDark = when (currentThemeMode) {
+                "LIGHT" -> false
+                "DARK" -> true
+                else -> systemDark
+            }
+
+            val accentColor = remember(currentAccentHex) {
+                try {
+                    Color(android.graphics.Color.parseColor(currentAccentHex))
+                } catch (e: Exception) {
+                    if (isDark) Color(0xFF6366F1) else Color(0xFF4F46E5)
+                }
+            }
+
+            // Status bar configuration for Android screens
+            val view = androidx.compose.ui.platform.LocalView.current
+            if (!view.isInEditMode) {
+                SideEffect {
+                    val window = (view.context as? android.app.Activity)?.window
+                    if (window != null) {
+                        window.statusBarColor = if (isDark) android.graphics.Color.parseColor("#0F172A") else android.graphics.Color.parseColor("#F8FAFC")
+                        androidx.core.view.WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !isDark
+                    }
+                }
+            }
+
             MaterialTheme(
                 colorScheme = if (isDark) darkColorScheme(
-                    primary = Color(0xFF6366F1),
+                    primary = accentColor,
                     secondary = Color(0xFF10B981),
                     background = Color(0xFF0F172A),
                     surface = Color(0xFF1E293B),
                     surfaceVariant = Color(0xFF334155),
+                    primaryContainer = accentColor.copy(alpha = 0.25f),
                     onBackground = Color(0xFFF8FAFC),
                     onSurface = Color(0xFFF8FAFC)
                 ) else lightColorScheme(
-                    primary = Color(0xFF4F46E5),
+                    primary = accentColor,
                     secondary = Color(0xFF059669),
                     background = Color(0xFFF8FAFC),
                     surface = Color(0xFFFFFFFF),
                     surfaceVariant = Color(0xFFF1F5F9),
+                    primaryContainer = accentColor.copy(alpha = 0.15f),
                     onBackground = Color(0xFF0F172A),
                     onSurface = Color(0xFF0F172A)
                 )
@@ -242,7 +284,10 @@ fun MainAppContainer(
                             .padding(padding)
                     ) {
                         when (selectedTab) {
-                            0 -> DiscoverScreen(viewModel = viewModel)
+                            0 -> DiscoverScreen(
+                                viewModel = viewModel,
+                                onOpenSettings = { showSettingsScreen = true }
+                            )
                             1 -> CopilotScreen(
                                 viewModel = viewModel,
                                 onProductSelect = { query ->
