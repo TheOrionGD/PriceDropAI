@@ -17,14 +17,12 @@ export interface CopilotResponse {
 
 export const GEMINI_ANALYSIS_MODELS = [
   'gemini-2.5-flash',
-  'gemini-2.5-flash-lite',
-  'gemini-flash-latest',
+  'gemini-3-flash-preview',
 ];
 
 export const GEMINI_CHAT_MODELS = [
   'gemini-2.5-flash',
-  'gemini-2.5-flash-lite',
-  'gemini-flash-latest',
+  'gemini-3-flash-preview',
 ];
 
 import { getGeminiKey } from '../utils/keyManager.js';
