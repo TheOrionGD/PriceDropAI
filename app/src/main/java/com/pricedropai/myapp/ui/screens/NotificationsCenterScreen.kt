@@ -30,6 +30,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.activity.compose.BackHandler
 import com.pricedropai.myapp.data.local.InAppNotificationCategory
 import com.pricedropai.myapp.data.local.InAppNotificationItem
 import com.pricedropai.myapp.data.local.InAppNotificationManager
@@ -43,6 +44,10 @@ import com.pricedropai.myapp.ui.theme.rememberBreathingColor
 fun NotificationsCenterScreen(
     onBack: () -> Unit
 ) {
+    BackHandler(enabled = true) {
+        onBack()
+    }
+
     val context = LocalContext.current
     var selectedCategory by remember { mutableStateOf(InAppNotificationCategory.ALL) }
 

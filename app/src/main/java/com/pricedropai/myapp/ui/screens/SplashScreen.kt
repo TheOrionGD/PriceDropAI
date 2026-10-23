@@ -83,15 +83,7 @@ fun SplashScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(
-                        MaterialTheme.colorScheme.background,
-                        MaterialTheme.colorScheme.surface,
-                        MaterialTheme.colorScheme.background
-                    )
-                )
-            ),
+            .background(Color(0xFF0F172A)),
         contentAlignment = Alignment.Center
     ) {
         Column(

@@ -55,7 +55,14 @@ object InAppNotificationManager {
     private val _notifications = MutableStateFlow<List<InAppNotificationItem>>(emptyList())
     val notifications: StateFlow<List<InAppNotificationItem>> = _notifications.asStateFlow()
 
+    private val _activeBanner = MutableStateFlow<InAppNotificationItem?>(null)
+    val activeBanner: StateFlow<InAppNotificationItem?> = _activeBanner.asStateFlow()
+
     private val timeFormat = SimpleDateFormat("h:mm a", Locale.getDefault())
+
+    fun dismissBanner() {
+        _activeBanner.value = null
+    }
 
     fun postNotification(
         title: String,
@@ -77,6 +84,9 @@ object InAppNotificationManager {
             isRead = false,
             severity = severity
         )
+
+        // Show immediately as top center banner
+        _activeBanner.value = newItem
 
         // Prepend to show newest on top, keep up to 40 recent real user activity events
         _notifications.value = listOf(newItem) + _notifications.value.take(39)

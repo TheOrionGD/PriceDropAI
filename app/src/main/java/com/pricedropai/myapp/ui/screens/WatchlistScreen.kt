@@ -1,14 +1,17 @@
 package com.pricedropai.myapp.ui.screens
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.NotificationsNone
 import androidx.compose.material3.*
@@ -39,7 +42,8 @@ import com.pricedropai.myapp.ui.theme.*
 fun WatchlistScreen(
     viewModel: TrackerViewModel,
     onProductSelect: (String) -> Unit,
-    onOpenSettings: (() -> Unit)? = null
+    onOpenSettings: (() -> Unit)? = null,
+    onOpenNotifications: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val watchlistItems by viewModel.watchlist.collectAsState()
@@ -78,8 +82,31 @@ fun WatchlistScreen(
                 Badge {
                     Text("${watchlistItems.size}")
                 }
+                if (onOpenNotifications != null) {
+                    val notifications by com.pricedropai.myapp.data.local.InAppNotificationManager.notifications.collectAsState()
+                    val unreadCount = notifications.count { !it.isRead }
+                    Spacer(Modifier.width(6.dp))
+                    IconButton(onClick = onOpenNotifications) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.Notifications,
+                                contentDescription = "Notifications",
+                                tint = if (unreadCount > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            if (unreadCount > 0) {
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .size(8.dp)
+                                        .clip(CircleShape)
+                                        .background(MaterialTheme.colorScheme.error)
+                                    )
+                            }
+                        }
+                    }
+                }
                 if (onOpenSettings != null) {
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(4.dp))
                     IconButton(onClick = onOpenSettings) {
                         Icon(
                             imageVector = Icons.Default.Settings,

@@ -21,6 +21,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.ErrorOutline
@@ -40,6 +41,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.activity.compose.BackHandler
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.pricedropai.myapp.core.model.Product
@@ -56,7 +58,8 @@ import androidx.compose.animation.core.*
 @Composable
 fun DiscoverScreen(
     viewModel: TrackerViewModel,
-    onOpenSettings: (() -> Unit)? = null
+    onOpenSettings: (() -> Unit)? = null,
+    onOpenNotifications: (() -> Unit)? = null
 ) {
     var searchQuery by remember { mutableStateOf("") }
     val focusManager = LocalFocusManager.current
@@ -65,6 +68,12 @@ fun DiscoverScreen(
     val recentProducts by viewModel.recentProducts.collectAsState()
     val currentSnapshots by viewModel.currentSnapshots.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
+
+    // Intercept phone back button: If viewing search results or error, return to discover home instead of closing app
+    BackHandler(enabled = searchState !is SearchUiState.Idle) {
+        viewModel.resetToHome()
+        searchQuery = ""
+    }
 
     PullToRefreshBox(
         isRefreshing = isRefreshing,
@@ -156,8 +165,40 @@ fun DiscoverScreen(
                     .glowBackdrop(glowColor = MaterialTheme.colorScheme.primary, minAlpha = 0.04f, maxAlpha = 0.16f)
             )
 
+            if (onOpenNotifications != null) {
+                val notifications by com.pricedropai.myapp.data.local.InAppNotificationManager.notifications.collectAsState()
+                val unreadCount = notifications.count { !it.isRead }
+                Spacer(Modifier.width(6.dp))
+                IconButton(
+                    onClick = onOpenNotifications,
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .bounceClick(targetScale = 0.92f) { onOpenNotifications() }
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                        .glowBackdrop(glowColor = MaterialTheme.colorScheme.primary, minAlpha = 0.05f, maxAlpha = 0.25f)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.Notifications,
+                            contentDescription = "Notifications",
+                            tint = if (unreadCount > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        if (unreadCount > 0) {
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .size(8.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.error)
+                            )
+                        }
+                    }
+                }
+            }
+
             if (onOpenSettings != null) {
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(6.dp))
                 IconButton(
                     onClick = onOpenSettings,
                     modifier = Modifier

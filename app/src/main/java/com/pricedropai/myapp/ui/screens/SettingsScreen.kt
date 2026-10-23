@@ -39,12 +39,13 @@ import kotlinx.coroutines.withContext
 fun SettingsScreen(
     sessionManager: SessionManager,
     onBack: () -> Unit,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    startInNotificationsCenter: Boolean = false
 ) {
     val context = LocalContext.current
     val scrollState = rememberScrollState()
 
-    var showNotificationsCenter by remember { mutableStateOf(false) }
+    var showNotificationsCenter by remember { mutableStateOf(startInNotificationsCenter) }
     var notificationsEnabled by remember { mutableStateOf(true) }
     var backgroundCheckFrequency by remember { mutableStateOf("Every 6 Hours") }
     var soundEnabled by remember { mutableStateOf(true) }
@@ -52,6 +53,14 @@ fun SettingsScreen(
     var showLogoutDialog by remember { mutableStateOf(false) }
 
     val username = remember { sessionManager.getUserName().ifBlank { "Smart Shopper" } }
+
+    androidx.activity.compose.BackHandler(enabled = true) {
+        if (showNotificationsCenter) {
+            showNotificationsCenter = false
+        } else {
+            onBack()
+        }
+    }
 
     if (showNotificationsCenter) {
         NotificationsCenterScreen(
