@@ -122,7 +122,7 @@ router.get('/image-proxy', async (req: Request, res: Response) => {
         'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
         'Referer': '',
       },
-      timeout: 8000,
+      timeout: 15000,
     });
 
     const contentType = String(response.headers['content-type'] || 'image/jpeg');

@@ -66,7 +66,7 @@ export async function fetchPageHtml(url: string, optionsOrReferer?: string | Fet
       if (options.jsRender && !zenrowsUrl.includes('mode=auto')) zenrowsUrl += `&js_render=true`;
 
       const response = await axios.get(zenrowsUrl, {
-        timeout: 15000,
+        timeout: 30000,
         maxContentLength: 8 * 1024 * 1024,
         maxBodyLength: 8 * 1024 * 1024,
         validateStatus: (status) => status === 200,
@@ -92,7 +92,7 @@ export async function fetchPageHtml(url: string, optionsOrReferer?: string | Fet
   try {
     const response = await axios.get(url, {
       headers: getBrowserHeaders(options.referer || 'https://www.google.com/'),
-      timeout: 12000,
+      timeout: 20000,
       maxContentLength: 5 * 1024 * 1024,
       maxBodyLength: 5 * 1024 * 1024,
       validateStatus: (status) => status < 400,
@@ -113,7 +113,7 @@ export async function fetchPageHtml(url: string, optionsOrReferer?: string | Fet
   try {
     const puppeteerHtml = await scrapePage(url, async (page) => {
       return await page.content();
-    }, { timeout: 20000, waitUntil: 'domcontentloaded' });
+    }, { timeout: 35000, waitUntil: 'domcontentloaded' });
 
     if (puppeteerHtml && puppeteerHtml.length > 500) {
       return puppeteerHtml;

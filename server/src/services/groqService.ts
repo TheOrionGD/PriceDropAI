@@ -106,7 +106,7 @@ Schema:
               'Authorization': `Bearer ${apiKey}`,
               'Content-Type': 'application/json'
             },
-            timeout: 8000
+            timeout: 20000
           }
         );
 

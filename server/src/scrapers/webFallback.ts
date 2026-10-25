@@ -25,7 +25,7 @@ export async function fetchZenRowsProductImage(query: string): Promise<string | 
 
     try {
       const res = await axios.get(zenrowsUrl, {
-        timeout: 12000,
+        timeout: 25000,
         headers: { 'Accept': 'text/html' }
       });
 
@@ -146,7 +146,7 @@ export async function fetchWebImageFallback(query: string): Promise<string | nul
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
         'Accept-Language': 'en-IN,en-US;q=0.9,en;q=0.8'
       },
-      timeout: 5000,
+      timeout: 10000,
     });
     if (res.data) {
       const matches = [...res.data.matchAll(/murl&quot;:&quot;(https?:[^&]+)&quot;/g)];
@@ -164,7 +164,7 @@ export async function fetchWebImageFallback(query: string): Promise<string | nul
   try {
     const res = await axios.get(`https://api.duckduckgo.com/?q=${encoded}&format=json&no_redirect=1&no_html=1`, {
       headers: { 'User-Agent': userAgent },
-      timeout: 4000,
+      timeout: 8000,
     });
     if (res.data) {
       if (res.data.Image && isValidImageUrl(res.data.Image) && !res.data.Image.includes('wikipedia')) {
@@ -181,7 +181,7 @@ export async function fetchWebImageFallback(query: string): Promise<string | nul
       const openLibUrl = `https://openlibrary.org/search.json?q=${encoded}&limit=1`;
       const res = await axios.get(openLibUrl, {
         headers: { 'User-Agent': userAgent },
-        timeout: 4000,
+        timeout: 8000,
       });
       const doc = res.data?.docs?.[0];
       if (doc?.cover_i) {

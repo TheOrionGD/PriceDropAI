@@ -127,7 +127,7 @@ async function callGeminiApi(prompt: string, modelsList: string[], expectJson: b
             headers: {
               'Content-Type': 'application/json'
             },
-            timeout: 7000
+            timeout: 25000
           }
         );
 
