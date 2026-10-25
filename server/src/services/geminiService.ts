@@ -16,15 +16,15 @@ export interface CopilotResponse {
 }
 
 export const GEMINI_ANALYSIS_MODELS = [
-  'gemini-3.8-flash',
   'gemini-2.5-flash',
-  'gemini-3-flash-preview',
+  'gemini-2.5-flash-lite',
+  'gemini-3.8-flash',
 ];
 
 export const GEMINI_CHAT_MODELS = [
-  'gemini-3.8-flash',
   'gemini-2.5-flash',
-  'gemini-3-flash-preview',
+  'gemini-2.5-flash-lite',
+  'gemini-3.8-flash',
 ];
 
 import { getGeminiKey } from '../utils/keyManager.js';
@@ -127,7 +127,7 @@ async function callGeminiApi(prompt: string, modelsList: string[], expectJson: b
             headers: {
               'Content-Type': 'application/json'
             },
-            timeout: 12000
+            timeout: 7000
           }
         );
 
