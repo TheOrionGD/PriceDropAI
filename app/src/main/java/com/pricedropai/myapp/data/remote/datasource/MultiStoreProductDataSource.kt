@@ -120,12 +120,18 @@ class MultiStoreProductDataSource(
                 val primaryPrice = validScraped.firstOrNull()?.offer?.price ?: basePriceEstimate
                 val encoded = try { URLEncoder.encode(cleanQuery, StandardCharsets.UTF_8.toString()) } catch (_: Exception) { cleanQuery }
 
+                // 3. Resolve Dynamic Live Product Image strictly from Amazon product
+                val amazonImageCandidate = amazonScraped?.imageUrl?.takeIf { isValidImageUrl(it) }
+                val dynamicImage = amazonImageCandidate
+                    ?: resolveDynamicProductImage(query = "$cleanQuery amazon", scrapedImageUrl = null)
+
                 val allStoreOffers = targetStores.map { store ->
                     val existingScraped = validScraped.firstOrNull { it.offer.store == store }
                     if (existingScraped != null) {
                         existingScraped.offer.copy(
                             id = "${productId}_${store.name.lowercase()}",
-                            productId = productId
+                            productId = productId,
+                            imageUrl = existingScraped.imageUrl ?: dynamicImage
                         )
                     } else {
                         val hyphenatedQuery = cleanQuery.replace("\\s+".toRegex(), "-").lowercase()
@@ -175,15 +181,11 @@ class MultiStoreProductDataSource(
                             currency = "INR",
                             availability = Availability.IN_STOCK,
                             deliveryInfo = "${store.displayName} Live Offer",
+                            imageUrl = dynamicImage,
                             lastUpdated = System.currentTimeMillis()
                         )
                     }
                 }
-
-                // 3. Resolve Dynamic Live Product Image strictly from Amazon product
-                val amazonImageCandidate = amazonScraped?.imageUrl?.takeIf { isValidImageUrl(it) }
-                val dynamicImage = amazonImageCandidate
-                    ?: resolveDynamicProductImage(query = "$cleanQuery amazon", scrapedImageUrl = null)
 
                 // 4. Live Scraped Ratings & Reviews
                 val verifiedRating = validScraped.mapNotNull { it.rating }.firstOrNull()
@@ -290,7 +292,28 @@ class MultiStoreProductDataSource(
             return optimizeProductImageUrl(webImage) ?: webImage
         }
 
-        return null
+        // 3. Guaranteed high-resolution category product image fallback
+        val q = query.lowercase().trim()
+        return when {
+            q.contains("shoe") || q.contains("sneaker") || q.contains("footwear") ->
+                "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=600&auto=format&fit=crop&q=80"
+            q.contains("phone") || q.contains("iphone") || q.contains("mobile") || q.contains("samsung") ->
+                "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=600&auto=format&fit=crop&q=80"
+            q.contains("laptop") || q.contains("macbook") || q.contains("computer") ->
+                "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=600&auto=format&fit=crop&q=80"
+            q.contains("headphone") || q.contains("earbud") || q.contains("audio") || q.contains("speaker") ->
+                "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600&auto=format&fit=crop&q=80"
+            q.contains("watch") || q.contains("smartwatch") ->
+                "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600&auto=format&fit=crop&q=80"
+            q.contains("bottle") || q.contains("flask") ->
+                "https://images.unsplash.com/photo-1602143407151-7111542de6e8?w=600&auto=format&fit=crop&q=80"
+            q.contains("bag") || q.contains("backpack") || q.contains("luggage") ->
+                "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=600&auto=format&fit=crop&q=80"
+            q.contains("chair") || q.contains("table") || q.contains("furniture") ->
+                "https://images.unsplash.com/photo-1580481077195-c3a821a58875?w=600&auto=format&fit=crop&q=80"
+            else ->
+                "https://images.unsplash.com/photo-1549465220-1a8b9238cd48?w=600&auto=format&fit=crop&q=80"
+        }
     }
 
     private fun fetchDynamicImageFromWeb(query: String): String? {

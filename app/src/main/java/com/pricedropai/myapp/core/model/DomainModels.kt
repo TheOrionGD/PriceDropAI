@@ -67,6 +67,7 @@ data class StoreOffer(
     val currency: String = "INR",
     val availability: Availability = Availability.IN_STOCK,
     val deliveryInfo: String? = null,
+    val imageUrl: String? = null,
     val lastUpdated: Long = System.currentTimeMillis()
 )
 

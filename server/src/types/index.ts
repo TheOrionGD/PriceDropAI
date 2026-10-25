@@ -40,6 +40,7 @@ export interface StoreOffer {
   currency: string;
   availability: Availability;
   deliveryInfo: string | null;
+  imageUrl?: string | null;
   lastUpdated: number;
 }
 

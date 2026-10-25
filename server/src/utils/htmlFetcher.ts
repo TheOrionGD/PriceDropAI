@@ -41,16 +41,32 @@ export async function fetchPageHtml(url: string, optionsOrReferer?: string | Fet
     : (optionsOrReferer || {});
 
   const detectedStore = options.storeName || detectStoreFromUrl(url);
-  const zenrowsKey = getZenRowsKeyForStore(detectedStore);
+  const isAmazonUrl = detectedStore === 'AMAZON' || url.toLowerCase().includes('amazon.');
+  
+  // Tier 1: Anti-bot gateway with automatic failover between available ZenRows keys
+  const candidateKeys = [
+    getZenRowsKeyForStore(detectedStore),
+    process.env.ZENROWS_KEY1?.trim(),
+    process.env.ZENROWS_KEY2?.trim(),
+    process.env.ZENROWS_KEY?.trim()
+  ].filter((k): k is string => !!k && !isZenRowsKeyDisabled(k));
+  
+  // Deduplicate keys preserving priority order
+  const uniqueKeys = Array.from(new Set(candidateKeys));
 
-  // Tier 1: If ZenRows API Key is provided and active, use anti-bot gateway
-  if (zenrowsKey && !isZenRowsKeyDisabled(zenrowsKey)) {
+  for (const zenrowsKey of uniqueKeys) {
     try {
-      let zenrowsUrl = `https://api.zenrows.com/v1/?apikey=${zenrowsKey}&url=${encodeURIComponent(url)}&mode=auto`;
+      let zenrowsUrl: string;
+      if (isAmazonUrl || options.premiumProxy) {
+        zenrowsUrl = `https://api.zenrows.com/v1/?apikey=${zenrowsKey}&url=${encodeURIComponent(url)}&premium_proxy=true&antibot=true`;
+      } else {
+        zenrowsUrl = `https://api.zenrows.com/v1/?apikey=${zenrowsKey}&url=${encodeURIComponent(url)}&mode=auto`;
+      }
       if (options.proxyCountry) zenrowsUrl += `&proxy_country=${options.proxyCountry}`;
+      if (options.jsRender && !zenrowsUrl.includes('mode=auto')) zenrowsUrl += `&js_render=true`;
 
       const response = await axios.get(zenrowsUrl, {
-        timeout: 12000,
+        timeout: 15000,
         maxContentLength: 8 * 1024 * 1024,
         maxBodyLength: 8 * 1024 * 1024,
         validateStatus: (status) => status === 200,
@@ -63,9 +79,9 @@ export async function fetchPageHtml(url: string, optionsOrReferer?: string | Fet
       const status = err.response?.status;
       const respData = err.response?.data;
       const detail = respData ? (typeof respData === 'object' ? JSON.stringify(respData) : respData) : err.message;
-      
+
       if (status === 402 || status === 401 || status === 403) {
-        disableZenRowsKey(zenrowsKey, `Usage limit / Auth error (status ${status}) on key ${zenrowsKey.slice(0, 8)}... Falling back to alternate key or direct fetch.`);
+        disableZenRowsKey(zenrowsKey, `Usage limit / Auth error (status ${status}) on key ${zenrowsKey.slice(0, 8)}... Trying alternate key.`);
       } else {
         console.warn(`[ZenRows Gateway Notice] ${url}: Request failed${status ? ` (status ${status})` : ''}: ${detail}.`);
       }

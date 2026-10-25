@@ -8,52 +8,61 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 export async function fetchZenRowsProductImage(query: string): Promise<string | null> {
-  const zenrowsKey = getZenRowsKeyForStore('AMAZON');
-  if (!zenrowsKey || isZenRowsKeyDisabled(zenrowsKey)) return null;
-
   const cleanQ = query.trim();
   const searchUrl = `https://www.amazon.in/s?k=${encodeURIComponent(cleanQ)}`;
-  const zenrowsUrl = `https://api.zenrows.com/v1/?apikey=${zenrowsKey}&url=${encodeURIComponent(searchUrl)}&js_render=true&antibot=true&premium_proxy=true`;
 
-  try {
-    const res = await axios.get(zenrowsUrl, {
-      timeout: 15000,
-      headers: { 'Accept': 'text/html' }
-    });
+  const candidateKeys = [
+    getZenRowsKeyForStore('AMAZON'),
+    process.env.ZENROWS_KEY1?.trim(),
+    process.env.ZENROWS_KEY2?.trim(),
+    process.env.ZENROWS_KEY?.trim()
+  ].filter((k): k is string => !!k && !isZenRowsKeyDisabled(k));
 
-    if (res.status === 200 && res.data) {
-      const $ = cheerio.load(res.data);
-      let foundUrl: string | null = null;
+  const uniqueKeys = Array.from(new Set(candidateKeys));
 
-      $('div[data-component-type="s-search-result"]').each((_, el) => {
-        if (foundUrl) return;
-        const imgEl = $(el).find('img.s-image, img.a-dynamic-image').first();
-        let src = imgEl.attr('src') || imgEl.attr('data-image-src');
+  for (const zenrowsKey of uniqueKeys) {
+    const zenrowsUrl = `https://api.zenrows.com/v1/?apikey=${zenrowsKey}&url=${encodeURIComponent(searchUrl)}&antibot=true&premium_proxy=true`;
 
-        if (!src || src.includes('grey-pixel') || src.includes('transparent-pixel')) {
-          const srcset = imgEl.attr('srcset') || imgEl.attr('data-image-srcset');
-          if (srcset) {
-            const parts = srcset.split(',').map(s => s.trim().split(' ')[0]).filter(p => p && !p.includes('grey-pixel'));
-            if (parts.length > 0) src = parts[parts.length - 1];
-          }
-        }
-
-        if (src && isValidImageUrl(src)) {
-          foundUrl = optimizeProductImageUrl(src);
-        }
+    try {
+      const res = await axios.get(zenrowsUrl, {
+        timeout: 12000,
+        headers: { 'Accept': 'text/html' }
       });
 
-      if (foundUrl) {
-        console.log(`[ZenRows Image Gateway] Successfully resolved image for "${cleanQ}": ${foundUrl}`);
-        return foundUrl;
+      if (res.status === 200 && res.data) {
+        const $ = cheerio.load(res.data);
+        let foundUrl: string | null = null;
+
+        $('div[data-component-type="s-search-result"]').each((_, el) => {
+          if (foundUrl) return;
+          const imgEl = $(el).find('img.s-image, img.a-dynamic-image').first();
+          let src = imgEl.attr('src') || imgEl.attr('data-image-src');
+
+          if (!src || src.includes('grey-pixel') || src.includes('transparent-pixel')) {
+            const srcset = imgEl.attr('srcset') || imgEl.attr('data-image-srcset');
+            if (srcset) {
+              const parts = srcset.split(',').map(s => s.trim().split(' ')[0]).filter(p => p && !p.includes('grey-pixel'));
+              if (parts.length > 0) src = parts[parts.length - 1];
+            }
+          }
+
+          if (src && isValidImageUrl(src)) {
+            foundUrl = optimizeProductImageUrl(src);
+          }
+        });
+
+        if (foundUrl) {
+          console.log(`[ZenRows Image Gateway] Successfully resolved image for "${cleanQ}": ${foundUrl}`);
+          return foundUrl;
+        }
       }
-    }
-  } catch (err: any) {
-    const status = err.response?.status;
-    if (status === 402 || status === 401 || status === 403) {
-      disableZenRowsKey(zenrowsKey, `Usage limit / Auth error (status ${status}) during image search.`);
-    } else {
-      console.warn(`[ZenRows Image Gateway Notice] Unable to fetch dynamic image for "${cleanQ}":`, err.message);
+    } catch (err: any) {
+      const status = err.response?.status;
+      if (status === 402 || status === 401 || status === 403) {
+        disableZenRowsKey(zenrowsKey, `Usage limit / Auth error (status ${status}) during image search. Trying alternate key.`);
+      } else {
+        console.warn(`[ZenRows Image Gateway Notice] Unable to fetch dynamic image for "${cleanQ}":`, err.message);
+      }
     }
   }
 

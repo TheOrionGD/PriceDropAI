@@ -180,6 +180,18 @@ class BackendProductDataSource(
                 }
                 val deliveryInfo = storeObj.optString("deliveryInfo").takeIf { it.isNotBlank() }
 
+                val offerRawImg = (
+                    storeObj.optString("imageUrl").takeIf { it.isNotBlank() && it != "null" && it != "undefined" }
+                        ?: storeObj.optString("image").takeIf { it.isNotBlank() && it != "null" && it != "undefined" }
+                )?.trim()
+                val offerImg = when {
+                    offerRawImg == null -> null
+                    offerRawImg.startsWith("//") -> "https:$offerRawImg"
+                    offerRawImg.startsWith("http://") -> offerRawImg.replaceFirst("http://", "https://")
+                    offerRawImg.startsWith("https://") -> offerRawImg
+                    else -> null
+                }
+
                 storesList.add(
                     StoreOffer(
                         id = storeObj.optString("id", "${id}_${storeEnum.name.lowercase()}"),
@@ -192,6 +204,7 @@ class BackendProductDataSource(
                         currency = storeObj.optString("currency", "INR"),
                         availability = availEnum,
                         deliveryInfo = deliveryInfo,
+                        imageUrl = offerImg,
                         lastUpdated = storeObj.optLong("lastUpdated", System.currentTimeMillis())
                     )
                 )
@@ -272,11 +285,14 @@ class BackendProductDataSource(
             ReviewSummary(isAvailable = false)
         }
 
+        val resolvedProductImage = sanitizedImageUrl
+            ?: storesList.firstOrNull { !it.imageUrl.isNullOrBlank() }?.imageUrl
+
         return Product(
             id = id,
             title = title,
             description = description,
-            imageUrl = sanitizedImageUrl,
+            imageUrl = resolvedProductImage,
             category = category,
             brand = brand,
             rating = rating,

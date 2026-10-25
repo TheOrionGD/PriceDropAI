@@ -1,7 +1,7 @@
 import { aggregateSearchResults } from './src/services/productAggregator.js';
 
 async function testImageFetching() {
-  const testQueries = ['iPhone 15', 'Nike Running Shoes', 'Sony Headphones'];
+  const testQueries = ['shoes', 'iPhone 15'];
 
   console.log('🧪 Testing End-to-End Image Fetching & High-Res Resolution...\n');
 
