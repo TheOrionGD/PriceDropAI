@@ -11,7 +11,7 @@ import { scrapeNykaa } from '../scrapers/nykaa.js';
 import { scrapeEbay } from '../scrapers/ebay.js';
 import { scrapeWalmart } from '../scrapers/walmart.js';
 import { scrapeTarget } from '../scrapers/target.js';
-import { fetchWebImageFallback, isValidImageUrl, optimizeProductImageUrl } from '../scrapers/webFallback.js';
+import { fetchZenRowsProductImage, fetchWebImageFallback, isValidImageUrl, optimizeProductImageUrl } from '../scrapers/webFallback.js';
 import { analyzeStorePricesWithGemini, GEMINI_STORES, generateProductReviewSummaryWithGemini } from './geminiService.js';
 import { analyzeStoresWithGroq, GROQ_STORES } from './groqService.js';
 
@@ -415,15 +415,39 @@ export async function aggregateSearchResults(query: string): Promise<Product[]> 
   const cleanQ = query.trim();
   if (!cleanQ) return [];
 
-  // 1. Scrape Amazon FIRST as primary source of genuine items, prices, and high-res images
+  // =========================================================================
+  // STEP 1: Dedicated ZenRows request to fetch primary product image & Amazon listing FIRST (Concurrency = 1)
+  // =========================================================================
+  let primaryImage: string | null = null;
   let amazonItems: RawScrapedItem[] = [];
+
   try {
     amazonItems = await scrapeAmazon(cleanQ);
+    const validFirst = amazonItems.find(i => isValidImageUrl(i.imageUrl));
+    if (validFirst?.imageUrl) {
+      primaryImage = optimizeProductImageUrl(validFirst.imageUrl) || validFirst.imageUrl;
+      console.log(`[Step 1 - ZenRows Image Fetch] Resolved primary Amazon image for "${cleanQ}": ${primaryImage}`);
+    }
   } catch (err: any) {
     console.warn(`[Amazon Scraper Notice] ${err.message}`);
   }
 
-  // 2. Fetch other fast stores in parallel without overloading ZenRows concurrency
+  // If Amazon listing didn't return an image, query ZenRows Image Gateway before calling other stores
+  if (!primaryImage) {
+    try {
+      const zenrowsImg = await fetchZenRowsProductImage(cleanQ);
+      if (zenrowsImg && isValidImageUrl(zenrowsImg)) {
+        primaryImage = optimizeProductImageUrl(zenrowsImg) || zenrowsImg;
+        console.log(`[Step 1 - ZenRows Gateway] Resolved fallback Amazon image for "${cleanQ}": ${primaryImage}`);
+      }
+    } catch (err: any) {
+      console.warn(`[ZenRows Direct Image Notice] ${err.message}`);
+    }
+  }
+
+  // =========================================================================
+  // STEP 2: Only after ZenRows image request completes, fetch other store values for the product
+  // =========================================================================
   const otherTasks: Array<() => Promise<RawScrapedItem[]>> = [
     () => scrapeFlipkart(cleanQ),
     () => scrapeMeesho(cleanQ),
@@ -440,8 +464,6 @@ export async function aggregateSearchResults(query: string): Promise<Product[]> 
   }
 
   if (allItems.length === 0) {
-    // If live scrapers yielded 0 items, try dynamic image resolution directly for query
-    const directFallbackImg = await fetchWebImageFallback(cleanQ);
     return [];
   }
 
@@ -504,19 +526,16 @@ export async function aggregateSearchResults(query: string): Promise<Product[]> 
       }
     }
 
+    // Use primary image resolved in Step 1
+    if (!highResImage && primaryImage) {
+      highResImage = primaryImage;
+    }
+
     // If cluster doesn't have an Amazon image, check all scraped items from Amazon
     if (!highResImage) {
       const globalAmazonItem = allItems.find(i => i.store === Store.AMAZON && isValidImageUrl(i.imageUrl));
       if (globalAmazonItem?.imageUrl) {
         highResImage = optimizeProductImageUrl(globalAmazonItem.imageUrl) || globalAmazonItem.imageUrl;
-      }
-    }
-
-    // Fallback to web search fallback if still not found
-    if (!highResImage) {
-      const onlineSearchImg = await fetchWebImageFallback(cleanTitle(cluster.title)) || await fetchWebImageFallback(cleanQ);
-      if (onlineSearchImg && isValidImageUrl(onlineSearchImg)) {
-        highResImage = optimizeProductImageUrl(onlineSearchImg) || onlineSearchImg;
       }
     }
 
