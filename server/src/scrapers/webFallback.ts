@@ -2,6 +2,7 @@ import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { getRandomUserAgent } from '../utils/headers.js';
 import { isZenRowsKeyDisabled, disableZenRowsKey } from '../utils/zenrowsState.js';
+import { isScrapingAntKeyDisabled, disableScrapingAntKey } from '../utils/scrapingAntState.js';
 import { getZenRowsKeyForStore } from '../utils/keyManager.js';
 import dotenv from 'dotenv';
 
@@ -85,6 +86,73 @@ export async function fetchZenRowsProductImage(query: string): Promise<string | 
         disableZenRowsKey(zenrowsKey, `Usage limit / Auth error (status ${status}) during image search. Trying alternate key.`);
       } else {
         console.warn(`[ZenRows Image Gateway Notice] Unable to fetch dynamic image for "${cleanQ}":`, err.message);
+      }
+    }
+  }
+
+  // Fallback to ScrapingAnt image gateway if configured and active
+  const scrapingAntKey = process.env.SCRAPINGANT_KEY?.trim();
+  if (scrapingAntKey && !isScrapingAntKeyDisabled(scrapingAntKey)) {
+    try {
+      const saParams = new URLSearchParams();
+      saParams.append('url', searchUrl);
+      saParams.append('x-api-key', scrapingAntKey);
+      saParams.append('proxy_country', 'in');
+      saParams.append('browser', 'false');
+
+      const saUrl = `https://api.scrapingant.com/v2/general?${saParams.toString()}`;
+      const res = await axios.get(saUrl, { timeout: 25000 });
+      if (res.status === 200 && res.data) {
+        const $ = cheerio.load(res.data);
+        let foundUrl: string | null = null;
+        const queryWords = cleanQ.toLowerCase().replace(/[^a-z0-9 ]/g, '').split(/\s+/).filter(w => w.length > 1);
+
+        $('div[data-component-type="s-search-result"]').each((_, el) => {
+          if (foundUrl) return;
+          const card = $(el);
+          const isSponsored = card.find('.puis-sponsored-label-text, .s-sponsored-label-info-icon, .s-label-popover-default').length > 0 ||
+                              card.hasClass('AdHolder') ||
+                              (card.attr('data-component-props') || '').includes('s-sponsored');
+          if (isSponsored) return;
+
+          const cardTitle = (
+            card.find('h2 a span').last().text().trim() ||
+            card.find('h2 a').text().trim() ||
+            card.find('h2').text().trim()
+          ).toLowerCase();
+
+          if (queryWords.length > 0) {
+            const matches = queryWords.filter(w => cardTitle.includes(w)).length;
+            const matchRatio = matches / queryWords.length;
+            if (matchRatio < 0.5) return;
+          }
+
+          const imgEl = card.find('img.s-image').first();
+          let src = imgEl.attr('src') || imgEl.attr('data-src');
+          if (!src || src.includes('grey-pixel') || src.includes('transparent-pixel') || src.includes('1x1')) {
+            const srcset = imgEl.attr('srcset') || imgEl.attr('data-image-srcset');
+            if (srcset) {
+              const parts = srcset.split(',').map(s => s.trim().split(' ')[0]).filter(p => p && !p.includes('grey-pixel') && !p.includes('transparent-pixel') && !p.includes('1x1'));
+              if (parts.length > 0) src = parts[parts.length - 1];
+            }
+          }
+
+          if (src && isValidImageUrl(src)) {
+            foundUrl = optimizeProductImageUrl(src);
+          }
+        });
+
+        if (foundUrl) {
+          console.log(`[ScrapingAnt Image Gateway] Successfully resolved image for "${cleanQ}": ${foundUrl}`);
+          return foundUrl;
+        }
+      }
+    } catch (err: any) {
+      const status = err.response?.status;
+      if (status === 402 || status === 401 || status === 403) {
+        disableScrapingAntKey(scrapingAntKey, `Usage limit / Auth error (status ${status}) during image search.`);
+      } else {
+        console.warn(`[ScrapingAnt Image Gateway Notice] Unable to fetch dynamic image for "${cleanQ}":`, err.message);
       }
     }
   }

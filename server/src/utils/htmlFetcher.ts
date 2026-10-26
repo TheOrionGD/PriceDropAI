@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { getBrowserHeaders } from './headers.js';
 import { isZenRowsKeyDisabled, disableZenRowsKey } from './zenrowsState.js';
+import { isScrapingAntKeyDisabled, disableScrapingAntKey } from './scrapingAntState.js';
 import { scrapePage } from './puppeteer.js';
 import { getZenRowsKeyForStore } from './keyManager.js';
 import dotenv from 'dotenv';
@@ -79,11 +80,50 @@ export async function fetchPageHtml(url: string, optionsOrReferer?: string | Fet
       const status = err.response?.status;
       const respData = err.response?.data;
       const detail = respData ? (typeof respData === 'object' ? JSON.stringify(respData) : respData) : err.message;
-
       if (status === 402 || status === 401 || status === 403) {
         disableZenRowsKey(zenrowsKey, `Usage limit / Auth error (status ${status}) on key ${zenrowsKey.slice(0, 8)}... Trying alternate key.`);
       } else {
         console.warn(`[ZenRows Gateway Notice] ${url}: Request failed${status ? ` (status ${status})` : ''}: ${detail}.`);
+      }
+    }
+  }
+
+  // Tier 1.5: ScrapingAnt gateway failover (10,000 free credits/month)
+  const scrapingAntKey = process.env.SCRAPINGANT_KEY?.trim();
+  if (scrapingAntKey && !isScrapingAntKeyDisabled(scrapingAntKey)) {
+    try {
+      const saParams = new URLSearchParams();
+      saParams.append('url', url);
+      saParams.append('x-api-key', scrapingAntKey);
+      if (options.proxyCountry) saParams.append('proxy_country', options.proxyCountry.toLowerCase());
+      else saParams.append('proxy_country', 'in');
+
+      if (options.jsRender) {
+        saParams.append('browser', 'true');
+      } else {
+        saParams.append('browser', 'false');
+      }
+
+      const saUrl = `https://api.scrapingant.com/v2/general?${saParams.toString()}`;
+      const response = await axios.get(saUrl, {
+        timeout: 30000,
+        maxContentLength: 8 * 1024 * 1024,
+        maxBodyLength: 8 * 1024 * 1024,
+        validateStatus: (status) => status === 200,
+      });
+
+      if (response.status === 200 && response.data) {
+        return typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
+      }
+    } catch (err: any) {
+      const status = err.response?.status;
+      const respData = err.response?.data;
+      const detail = respData ? (typeof respData === 'object' ? JSON.stringify(respData) : respData) : err.message;
+
+      if (status === 402 || status === 401 || status === 403) {
+        disableScrapingAntKey(scrapingAntKey, `Usage limit / Auth error (status ${status}) on ScrapingAnt key.`);
+      } else {
+        console.warn(`[ScrapingAnt Gateway Notice] ${url}: Request failed${status ? ` (status ${status})` : ''}: ${detail}.`);
       }
     }
   }
