@@ -69,10 +69,22 @@ class ProductRepository(
         val cleanQuery = com.pricedropai.myapp.core.parser.UrlProductParser.extractSearchQuery(query).ifBlank { query.trim() }
         val estimatedId = cleanQuery.lowercase().replace("[^a-z0-9]+".toRegex(), "-").take(60)
 
-        // 1. Emit cached data if available in Room
+        // 1. Emit cached data if available in Room and relevant to the query
         val cachedWithOffers = productDao.getProductWithOffers(estimatedId)
+            ?: productDao.observeRecentProducts(10).let { null }
+        var emittedCache = false
+
         if (cachedWithOffers != null) {
-            emit(Result.success(cachedWithOffers.toDomain()))
+            val cachedDomain = cachedWithOffers.toDomain()
+            val queryWords = cleanQuery.lowercase().split("\\s+".toRegex()).filter { it.length > 1 }
+            val titleLower = cachedDomain.title.lowercase()
+            val matches = if (queryWords.isEmpty()) 1 else queryWords.count { titleLower.contains(it) }
+            val matchRatio = if (queryWords.isEmpty()) 1.0 else matches.toDouble() / queryWords.size
+
+            if (matchRatio >= 0.5) {
+                emittedCache = true
+                emit(Result.success(cachedDomain))
+            }
         }
 
         // 2. Query live data from remote data source
@@ -83,10 +95,19 @@ class ProductRepository(
                 if (products.isNotEmpty()) {
                     val liveProduct = products.first()
 
-                    // Save to Room DB
+                    // Save to Room DB under its native ID
                     val productEntity = liveProduct.toEntity()
                     val offerEntities = liveProduct.stores.map { it.toEntity() }
                     productDao.saveProductWithOffers(productEntity, offerEntities)
+
+                    // Also save under estimated query ID as alias so future offline/cache lookups find this exact product
+                    if (liveProduct.id != estimatedId) {
+                        val aliasEntity = productEntity.copy(id = estimatedId)
+                        val aliasOffers = offerEntities.map { 
+                            it.copy(id = "${estimatedId}_${it.store.name.lowercase()}", productId = estimatedId) 
+                        }
+                        productDao.saveProductWithOffers(aliasEntity, aliasOffers)
+                    }
 
                     // Record live price snapshots for each store with a verified price
                     liveProduct.stores.forEach { offer ->

@@ -32,25 +32,36 @@ router.get('/health', (_req: Request, res: Response) => {
 
 // Search products endpoint: GET /api/search?q=query
 router.get('/search', async (req: Request, res: Response) => {
-  const query = (req.query.q as string || '').trim();
-  if (!query) {
+  const startTime = Date.now();
+  const rawQuery = (req.query.q as string || '').trim();
+  const reqId = (req.headers['x-request-id'] as string) || `req_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  res.setHeader('X-Request-Id', reqId);
+
+  if (!rawQuery) {
     res.json([]);
     return;
   }
 
-  const cacheKey = `search_${query.toLowerCase()}`;
-  const cached = cache.get(cacheKey);
+  const normalizedQuery = rawQuery.toLowerCase().replace(/\s+/g, ' ').trim();
+  const cacheKey = `search_${normalizedQuery}`;
+  const cached = cache.get<any[]>(cacheKey);
   if (cached) {
+    const durationMs = Date.now() - startTime;
+    console.log(`[Search Audit] [${reqId}] Cache HIT for "${normalizedQuery}" | ${cached.length} products returned in ${durationMs}ms`);
     res.json(cached);
     return;
   }
 
   try {
-    const products = await aggregateSearchResults(query);
+    const products = await aggregateSearchResults(normalizedQuery);
     cache.set(cacheKey, products);
+    const durationMs = Date.now() - startTime;
+    const top = products[0];
+    console.log(`[Search Audit] [${reqId}] Cache MISS for "${normalizedQuery}" | Found ${products.length} products in ${durationMs}ms | Top Product: "${top?.title?.slice(0, 45)}" | ASIN: ${top?.asin || 'N/A'} | Image: ${top?.imageUrl || 'null'}`);
     res.json(products);
   } catch (err: any) {
-    console.error(`[Search API Error] for "${query}":`, err);
+    const durationMs = Date.now() - startTime;
+    console.error(`[Search Audit] [${reqId}] ERROR for "${normalizedQuery}" after ${durationMs}ms:`, err.message);
     res.status(500).json({
       error: 'Failed to aggregate products',
       message: err.message,

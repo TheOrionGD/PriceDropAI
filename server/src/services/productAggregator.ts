@@ -411,6 +411,45 @@ function similarityScore(strA: string, strB: string): number {
   return (2 * intersection) / (wordsA.size + wordsB.size);
 }
 
+export function calculateRelevanceScore(query: string, title: string, isSponsored?: boolean): number {
+  const cleanQ = query.trim().toLowerCase();
+  const titleLower = title.trim().toLowerCase();
+  if (!cleanQ || !titleLower) return 0;
+
+  let score = 0;
+
+  // 1. Exact phrase match bonus
+  if (titleLower.includes(cleanQ)) {
+    score += 60;
+  }
+
+  // 2. Query words matching ratio
+  const queryTokens = cleanQ.replace(/[^a-z0-9 ]/g, '').split(/\s+/).filter(w => w.length > 0);
+  const titleTokens = new Set(titleLower.replace(/[^a-z0-9 ]/g, '').split(/\s+/).filter(w => w.length > 0));
+
+  if (queryTokens.length > 0) {
+    let matchedCount = 0;
+    for (const token of queryTokens) {
+      if (titleTokens.has(token) || titleLower.includes(token)) {
+        matchedCount++;
+      }
+    }
+    const tokenMatchRatio = matchedCount / queryTokens.length;
+    score += tokenMatchRatio * 40;
+
+    if (matchedCount === 0) {
+      score -= 50;
+    }
+  }
+
+  // 3. Sponsored penalty: Prioritize organic product matches over paid advertisements
+  if (isSponsored) {
+    score -= 25;
+  }
+
+  return Math.max(0, score);
+}
+
 function isProductCategorySupportedByStore(store: Store, query: string, category: string): boolean {
   const q = query.toLowerCase();
   const cat = category.toLowerCase();
@@ -489,39 +528,16 @@ export async function aggregateSearchResults(query: string): Promise<Product[]> 
   const cleanQ = query.trim();
   if (!cleanQ) return [];
 
-  // =========================================================================
-  // STEP 1: Dedicated ZenRows request to fetch primary product image & Amazon listing FIRST (Concurrency = 1)
-  // =========================================================================
-  let primaryImage: string | null = null;
+  // 1. Scrape Amazon as primary source of items, prices, and high-res images
   let amazonItems: RawScrapedItem[] = [];
 
   try {
     amazonItems = await scrapeAmazon(cleanQ);
-    const validFirst = amazonItems.find(i => isValidImageUrl(i.imageUrl));
-    if (validFirst?.imageUrl) {
-      primaryImage = optimizeProductImageUrl(validFirst.imageUrl) || validFirst.imageUrl;
-      console.log(`[Step 1 - ZenRows Image Fetch] Resolved primary Amazon image for "${cleanQ}": ${primaryImage}`);
-    }
   } catch (err: any) {
     console.warn(`[Amazon Scraper Notice] ${err.message}`);
   }
 
-  // If Amazon listing didn't return an image, query ZenRows Image Gateway before calling other stores
-  if (!primaryImage) {
-    try {
-      const zenrowsImg = await fetchZenRowsProductImage(cleanQ);
-      if (zenrowsImg && isValidImageUrl(zenrowsImg)) {
-        primaryImage = optimizeProductImageUrl(zenrowsImg) || zenrowsImg;
-        console.log(`[Step 1 - ZenRows Gateway] Resolved fallback Amazon image for "${cleanQ}": ${primaryImage}`);
-      }
-    } catch (err: any) {
-      console.warn(`[ZenRows Direct Image Notice] ${err.message}`);
-    }
-  }
-
-  // =========================================================================
-  // STEP 2: Only after ZenRows image request completes, fetch other store values for the product
-  // =========================================================================
+  // 2. Fetch other fast stores in parallel without overloading ZenRows concurrency
   const otherTasks: Array<() => Promise<RawScrapedItem[]>> = [
     () => scrapeFlipkart(cleanQ),
     () => scrapeMeesho(cleanQ),
@@ -558,25 +574,40 @@ export async function aggregateSearchResults(query: string): Promise<Product[]> 
   const productClusters: Array<{
     title: string;
     items: RawScrapedItem[];
+    relevanceScore: number;
+    asin?: string | null;
   }> = [];
 
   for (const item of itemsToCluster) {
     let matchedCluster = productClusters.find(c => similarityScore(c.title, item.title) > 0.45);
+    const itemScore = calculateRelevanceScore(cleanQ, item.title, item.isSponsored);
+
     if (matchedCluster) {
       // Don't add duplicate store offers for the same cluster if one already exists
       const hasStore = matchedCluster.items.some(i => i.store === item.store);
       if (!hasStore) {
         matchedCluster.items.push(item);
       }
+      if (!matchedCluster.asin && item.asin) {
+        matchedCluster.asin = item.asin;
+      }
+      if (itemScore > matchedCluster.relevanceScore) {
+        matchedCluster.relevanceScore = itemScore;
+      }
     } else {
       productClusters.push({
         title: item.title,
         items: [item],
+        relevanceScore: itemScore,
+        asin: item.asin || null,
       });
     }
   }
 
-  // 3. Transform clusters into Product objects with dynamic rate, link, and image allocation
+  // Sort clusters by query relevance so the best organic match to the user's query is at index 0
+  productClusters.sort((a, b) => b.relevanceScore - a.relevanceScore);
+
+  // 3. Transform clusters into Product objects with dynamic rate, link, and verified image allocation
   const products: Product[] = [];
   const selectedClusters = productClusters.slice(0, 12);
 
@@ -585,7 +616,7 @@ export async function aggregateSearchResults(query: string): Promise<Product[]> 
     const primaryItem = cluster.items[0];
     const productId = cluster.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 60);
 
-    // 1. STRICTLY prioritize product image from Amazon product listing
+    // 1. Resolve product image STRICTLY from items belonging to this specific cluster
     let highResImage: string | null = null;
     const amazonItem = cluster.items.find(i => i.store === Store.AMAZON && isValidImageUrl(i.imageUrl));
     if (amazonItem?.imageUrl) {
@@ -600,17 +631,14 @@ export async function aggregateSearchResults(query: string): Promise<Product[]> 
       }
     }
 
-    // Use primary image resolved in Step 1
-    if (!highResImage && primaryImage) {
-      highResImage = primaryImage;
-    }
-
-    // If cluster doesn't have an Amazon image, check all scraped items from Amazon
+    // Fallback: If this cluster has no image, attempt image resolution ONLY for this cluster's exact title
     if (!highResImage) {
-      const globalAmazonItem = allItems.find(i => i.store === Store.AMAZON && isValidImageUrl(i.imageUrl));
-      if (globalAmazonItem?.imageUrl) {
-        highResImage = optimizeProductImageUrl(globalAmazonItem.imageUrl) || globalAmazonItem.imageUrl;
-      }
+      try {
+        const clusterTitleImg = await fetchWebImageFallback(cleanTitle(cluster.title));
+        if (clusterTitleImg && isValidImageUrl(clusterTitleImg)) {
+          highResImage = optimizeProductImageUrl(clusterTitleImg) || clusterTitleImg;
+        }
+      } catch { }
     }
 
     const storeOffers: StoreOffer[] = [];
@@ -856,6 +884,8 @@ export async function aggregateSearchResults(query: string): Promise<Product[]> 
 
     products.push({
       id: productId,
+      asin: cluster.asin || null,
+      searchQuery: cleanQ,
       title: cleanTitle(cluster.title),
       description: `Live price comparison across online stores for ${cluster.title}.`,
       imageUrl: highResImage || null,

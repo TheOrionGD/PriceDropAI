@@ -75,6 +75,8 @@ export interface ReviewSummary {
 
 export interface Product {
   id: string;
+  asin?: string | null;
+  searchQuery?: string | null;
   title: string;
   description: string | null;
   imageUrl: string | null;
@@ -97,6 +99,8 @@ export interface RawScrapedItem {
   originalPrice: number | null;
   discountPercentage: number | null;
   imageUrl: string | null;
+  asin?: string | null;
+  isSponsored?: boolean;
   rating: number | null;
   reviewCount: number | null;
   availability: Availability;

@@ -33,15 +33,38 @@ export async function fetchZenRowsProductImage(query: string): Promise<string | 
         const $ = cheerio.load(res.data);
         let foundUrl: string | null = null;
 
+        const queryWords = cleanQ.toLowerCase().replace(/[^a-z0-9 ]/g, '').split(/\s+/).filter(w => w.length > 1);
+
         $('div[data-component-type="s-search-result"]').each((_, el) => {
           if (foundUrl) return;
-          const imgEl = $(el).find('img.s-image, img.a-dynamic-image').first();
-          let src = imgEl.attr('src') || imgEl.attr('data-image-src');
+          const card = $(el);
 
-          if (!src || src.includes('grey-pixel') || src.includes('transparent-pixel')) {
+          // Skip sponsored / ad cards
+          const isSponsored = card.find('.puis-sponsored-label-text, .s-sponsored-label-info-icon, .s-label-popover-default').length > 0 ||
+                              card.hasClass('AdHolder') ||
+                              (card.attr('data-component-props') || '').includes('s-sponsored');
+          if (isSponsored) return;
+
+          // Check card title relevance against queried product
+          const cardTitle = (
+            card.find('h2 a span').last().text().trim() ||
+            card.find('h2 a').text().trim() ||
+            card.find('h2').text().trim()
+          ).toLowerCase();
+
+          if (queryWords.length > 0) {
+            const matches = queryWords.filter(w => cardTitle.includes(w)).length;
+            const matchRatio = matches / queryWords.length;
+            if (matchRatio < 0.5) return; // Skip cards that don't match the query
+          }
+
+          const imgEl = card.find('img.s-image, img.a-dynamic-image, .s-product-image-container img').first();
+          let src = imgEl.attr('src') || imgEl.attr('data-image-src') || imgEl.attr('data-src');
+
+          if (!src || src.includes('grey-pixel') || src.includes('transparent-pixel') || src.includes('1x1') || src.includes('blank.gif')) {
             const srcset = imgEl.attr('srcset') || imgEl.attr('data-image-srcset');
             if (srcset) {
-              const parts = srcset.split(',').map(s => s.trim().split(' ')[0]).filter(p => p && !p.includes('grey-pixel'));
+              const parts = srcset.split(',').map(s => s.trim().split(' ')[0]).filter(p => p && !p.includes('grey-pixel') && !p.includes('transparent-pixel') && !p.includes('1x1'));
               if (parts.length > 0) src = parts[parts.length - 1];
             }
           }

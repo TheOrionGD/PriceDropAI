@@ -127,6 +127,8 @@ data class Product(
     val title: String,
     val description: String? = null,
     val imageUrl: String? = null,
+    val asin: String? = null,
+    val searchQuery: String? = null,
     val category: String? = null,
     val brand: String? = null,
     val rating: Double? = null,

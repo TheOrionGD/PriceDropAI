@@ -22,18 +22,36 @@ export async function scrapeAmazon(query: string): Promise<RawScrapedItem[]> {
                   card.find('h2').text().trim() ||
                   card.find('span.a-size-medium, span.a-size-base-plus').last().text().trim();
       title = title.replace(/\s+/g, ' ').trim();
+      
       const priceText = card.find('span.a-price-whole').first().text().replace(/[^0-9]/g, '');
       const originalPriceText = card.find('span.a-price.a-text-price span.a-offscreen').first().text().replace(/[^0-9]/g, '');
       const ratingText = card.find('span.a-icon-alt, i.a-icon-star-small span').first().text().trim();
       const reviewCountText = card.find('span.a-size-base.s-underline-text, span.s-underline-text').first().text().replace(/[^0-9]/g, '');
       
       const relHref = card.find('h2 a, a.a-link-normal.s-no-outline').first().attr('href');
-      const imgEl = card.find('img.s-image, img.a-dynamic-image').first();
-      let imgUrl = imgEl.attr('src') || imgEl.attr('data-image-src');
-      if (!imgUrl || imgUrl.includes('grey-pixel') || imgUrl.includes('transparent-pixel')) {
+      
+      // Extract ASIN from card attribute or URL
+      let asin = card.attr('data-asin')?.trim() || null;
+      if (!asin && relHref) {
+        const asinMatch = relHref.match(/\/dp\/([A-Z0-9]{10})/i) || relHref.match(/\/gp\/product\/([A-Z0-9]{10})/i);
+        if (asinMatch) {
+          asin = asinMatch[1].toUpperCase();
+        }
+      }
+
+      // Detect whether this card is a sponsored advertisement
+      const isSponsored = card.find('.puis-sponsored-label-text, .s-sponsored-label-info-icon, .s-label-popover-default, .puis-label-popover-default').length > 0 ||
+                          card.hasClass('AdHolder') ||
+                          (card.attr('data-component-props') || '').includes('s-sponsored') ||
+                          card.find('span.a-badge-text:contains("Sponsored")').length > 0;
+
+      // Extract product image strictly from this specific card
+      const imgEl = card.find('img.s-image, img.a-dynamic-image, .s-product-image-container img').first();
+      let imgUrl = imgEl.attr('src') || imgEl.attr('data-image-src') || imgEl.attr('data-src') || imgEl.attr('data-old-hires');
+      if (!imgUrl || imgUrl.includes('grey-pixel') || imgUrl.includes('transparent-pixel') || imgUrl.includes('1x1') || imgUrl.includes('blank.gif')) {
         const srcset = imgEl.attr('srcset') || imgEl.attr('data-image-srcset');
         if (srcset) {
-          const parts = srcset.split(',').map(s => s.trim().split(' ')[0]).filter(p => p && !p.includes('grey-pixel'));
+          const parts = srcset.split(',').map(s => s.trim().split(' ')[0]).filter(p => p && !p.includes('grey-pixel') && !p.includes('transparent-pixel') && !p.includes('1x1'));
           if (parts.length > 0) {
             imgUrl = parts[parts.length - 1];
           }
@@ -70,6 +88,8 @@ export async function scrapeAmazon(query: string): Promise<RawScrapedItem[]> {
           originalPrice,
           discountPercentage,
           imageUrl: imgUrl || null,
+          asin: asin || null,
+          isSponsored: !!isSponsored,
           rating,
           reviewCount,
           availability: Availability.IN_STOCK,

@@ -151,4 +151,44 @@ class ProductModelTest {
         assertNotNull(product.imageUrl)
         assertTrue(product.imageUrl!!.startsWith("http"))
     }
+
+    @Test
+    fun testProductIdentityAndImageIntegrity() {
+        val productA = Product(
+            id = "apple-iphone-15-128gb",
+            title = "Apple iPhone 15 (128 GB) - Black",
+            imageUrl = "https://m.media-amazon.com/images/I/71657TiFeHL._AC_SL1000_.jpg",
+            asin = "B0CHX1W1XY",
+            searchQuery = "iPhone 15"
+        )
+
+        val productB = Product(
+            id = "puma-running-shoes-dazzler",
+            title = "Puma Men Running Shoes Dazzler",
+            imageUrl = "https://rukmini1.flixcart.com/image/832/832/puma-shoe.jpg",
+            asin = null,
+            searchQuery = "Puma shoes"
+        )
+
+        val productCWithoutImage = Product(
+            id = "generic-adapter",
+            title = "Generic USB-C Adapter",
+            imageUrl = null,
+            asin = null,
+            searchQuery = "adapter"
+        )
+
+        // 1. Verify identities and ASIN preservation
+        assertEquals("B0CHX1W1XY", productA.asin)
+        assertEquals("iPhone 15", productA.searchQuery)
+        assertNull(productB.asin)
+
+        // 2. Strict image URL isolation
+        assertNotNull(productA.imageUrl)
+        assertNotNull(productB.imageUrl)
+        assertNull(productCWithoutImage.imageUrl)
+        assertNotEquals(productA.imageUrl, productB.imageUrl)
+        assertTrue(productA.imageUrl!!.contains("media-amazon.com"))
+        assertTrue(productB.imageUrl!!.contains("flixcart.com"))
+    }
 }

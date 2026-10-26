@@ -559,7 +559,7 @@ private fun HomeDiscoveryContent(
                 Spacer(Modifier.height(8.dp))
             }
 
-            items(recentProducts) { product ->
+            items(recentProducts, key = { it.id }) { product ->
                 // The newest added product gets an intense glowing border and shimmer sweep
                 val isLatestProduct = product == recentProducts.firstOrNull()
 

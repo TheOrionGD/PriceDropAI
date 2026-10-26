@@ -42,6 +42,8 @@ class BackendProductDataSource(
             return@withContext Result.success(emptyList())
         }
 
+        val requestId = "and_${System.currentTimeMillis()}_${java.util.UUID.randomUUID().toString().take(6)}"
+
         try {
             val encoded = URLEncoder.encode(cleanQuery, StandardCharsets.UTF_8.toString())
             val targetUrl = "$baseUrl/api/search?q=$encoded"
@@ -50,6 +52,7 @@ class BackendProductDataSource(
                 .url(targetUrl)
                 .header("Accept", "application/json")
                 .header("User-Agent", "PriceDropAI-Android/1.3")
+                .header("X-Request-Id", requestId)
                 .build()
 
             val response = client.newCall(request).execute()
@@ -72,14 +75,15 @@ class BackendProductDataSource(
                 }
 
                 if (products.isNotEmpty()) {
-                    Log.d(TAG, "Backend returned ${products.size} products for '$cleanQuery'")
+                    val top = products.first()
+                    Log.d(TAG, "[Audit] [reqId: $requestId] Backend returned ${products.size} products for '$cleanQuery' | Top: '${top.title.take(40)}' | ASIN: ${top.asin ?: "N/A"} | Image: ${top.imageUrl ?: "null"}")
                     return@withContext Result.success(products)
                 }
             } else {
-                Log.w(TAG, "Backend search returned status ${response.code}: $responseBody")
+                Log.w(TAG, "[Audit] [reqId: $requestId] Backend search returned status ${response.code}: $responseBody")
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Backend search connection error: ${e.message}. Attempting on-device fallback.", e)
+            Log.e(TAG, "[Audit] [reqId: $requestId] Backend search error: ${e.message}. Attempting on-device fallback.", e)
         }
 
         // Fallback to on-device scraper if backend is unreachable / starting up
@@ -298,11 +302,16 @@ class BackendProductDataSource(
         val resolvedProductImage = sanitizedImageUrl
             ?: storesList.firstOrNull { !it.imageUrl.isNullOrBlank() }?.imageUrl
 
+        val asin = json.optString("asin").takeIf { it.isNotBlank() && it != "null" && it != "undefined" }
+        val searchQuery = json.optString("searchQuery").takeIf { it.isNotBlank() && it != "null" && it != "undefined" }
+
         return Product(
             id = id,
             title = title,
             description = description,
             imageUrl = resolvedProductImage,
+            asin = asin,
+            searchQuery = searchQuery,
             category = category,
             brand = brand,
             rating = rating,
