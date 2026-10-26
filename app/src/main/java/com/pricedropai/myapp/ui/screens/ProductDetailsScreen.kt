@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.SubcomposeAsyncImage
 import coil.request.ImageRequest
+import com.pricedropai.myapp.core.model.Availability
 import com.pricedropai.myapp.core.model.PriceSnapshot
 import com.pricedropai.myapp.core.model.Product
 import com.pricedropai.myapp.core.model.Store
@@ -74,8 +75,13 @@ fun ProductDetailsScreen(
 
     val sortedOffers = remember(product.stores, storeFilter) {
         when (storeFilter) {
-            1 -> product.stores.sortedBy { it.price ?: Double.MAX_VALUE }
-            2 -> product.stores.filter { it.price != null && it.price > 0 }
+            1 -> {
+                val available = product.stores.filter { it.price != null && it.price > 0 && it.availability != Availability.OUT_OF_STOCK }
+                    .sortedBy { it.price }
+                val unavailable = product.stores.filter { it.price == null || it.price <= 0 || it.availability == Availability.OUT_OF_STOCK }
+                available + unavailable
+            }
+            2 -> product.stores.filter { it.price != null && it.price > 0 && it.availability != Availability.OUT_OF_STOCK }
             else -> product.stores
         }
     }

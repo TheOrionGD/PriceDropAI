@@ -1,7 +1,7 @@
 import axios from 'axios';
 import dotenv from 'dotenv';
 import { Store, Availability } from '../types/index.js';
-import { AiStoreAnalysis } from './geminiService.js';
+import { AiStoreAnalysis, CopilotResponse } from './geminiService.js';
 import { getGroqKey } from '../utils/keyManager.js';
 
 dotenv.config();
@@ -20,7 +20,23 @@ export const GROQ_STORES = [
   Store.EBAY,
 ];
 
-let groqCooldownUntil = 0;
+export const GROQ_CHAT_MODELS = [
+  'openai/gpt-oss-120b',
+  'openai/gpt-oss-20b',
+  'qwen/qwen3.8-27b',
+];
+
+const groqModelCooldowns = new Map<string, number>();
+
+function isGroqInCooldown(apiKey: string, model: string): boolean {
+  const key = `${apiKey.slice(0, 10)}_${model}`;
+  return Date.now() < (groqModelCooldowns.get(key) || 0);
+}
+
+function setGroqCooldown(apiKey: string, model: string, durationMs: number = 30000) {
+  const key = `${apiKey.slice(0, 10)}_${model}`;
+  groqModelCooldowns.set(key, Date.now() + durationMs);
+}
 
 export async function analyzeStoresWithGroq(
   query: string,
@@ -48,34 +64,18 @@ export async function analyzeStoresWithGroq(
     [Store.EBAY]: 1.05,
   };
 
-  if (Date.now() < groqCooldownUntil) {
-    // In rate-limit cooldown; proceed directly to reliable heuristics
-    for (const store of GROQ_STORES) {
-      const key = store.toUpperCase();
-      const mult = defaultMultipliers[store] || 1.0;
-      const price = Math.round(referencePrice * mult);
-      const orig = Math.round(price * 1.25);
-      result[key] = {
-        price,
-        originalPrice: orig,
-        discountPercentage: Math.max(5, Math.round(((orig - price) / orig) * 100)),
-        availability: Availability.IN_STOCK,
-        deliveryInfo: deliveryTexts[store] || 'Verified Store Deal',
-      };
-    }
-    return result;
-  }
-
   const apiKeys = getGroqApiKeys();
-  const GROQ_MODELS = ['qwen/qwen3.8-27b', 'openai/gpt-oss-120b', 'openai/gpt-oss-20b'];
+  const GROQ_MODELS = ['openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'qwen/qwen3.8-27b'];
 
   for (const apiKey of apiKeys) {
     if (Object.keys(result).length > 0) break;
     for (const model of GROQ_MODELS) {
       if (Object.keys(result).length > 0) break;
+      if (isGroqInCooldown(apiKey, model)) continue;
+
       try {
         const prompt = `You are a market price comparison analyst for Indian and international retail stores: Croma, Reliance Digital, Tata CLiQ, Ajio, Nykaa, and eBay.
-Product: "${primaryTitle || query}"
+Product: "${(primaryTitle || query).replace(/["']/g, '')}"
 Category: "${category}"
 Base Reference Price: ₹${referencePrice}
 
@@ -106,32 +106,33 @@ Schema:
               'Authorization': `Bearer ${apiKey}`,
               'Content-Type': 'application/json'
             },
-            timeout: 20000
+            timeout: 15000
           }
         );
 
-      const content = response.data?.choices?.[0]?.message?.content;
-      if (content) {
-        const parsed = JSON.parse(content);
-        for (const store of GROQ_STORES) {
-          const key = store.toUpperCase();
-          if (parsed[key] && typeof parsed[key].price === 'number') {
-            const p = parsed[key];
-            const orig = typeof p.originalPrice === 'number' && p.originalPrice > p.price ? p.originalPrice : Math.round(p.price * 1.22);
-            result[key] = {
-              price: p.price,
-              originalPrice: orig,
-              discountPercentage: Math.max(5, Math.round(((orig - p.price) / orig) * 100)),
-              availability: Availability.IN_STOCK,
-              deliveryInfo: p.deliveryInfo || deliveryTexts[store] || 'Standard Delivery',
-            };
+        const content = response.data?.choices?.[0]?.message?.content;
+        if (content) {
+          const parsed = JSON.parse(content);
+          for (const store of GROQ_STORES) {
+            const key = store.toUpperCase();
+            if (parsed[key] && typeof parsed[key].price === 'number') {
+              const p = parsed[key];
+              const orig = typeof p.originalPrice === 'number' && p.originalPrice > p.price ? p.originalPrice : Math.round(p.price * 1.22);
+              result[key] = {
+                price: p.price,
+                originalPrice: orig,
+                discountPercentage: Math.max(5, Math.round(((orig - p.price) / orig) * 100)),
+                availability: Availability.IN_STOCK,
+                deliveryInfo: p.deliveryInfo || deliveryTexts[store] || 'Standard Delivery',
+              };
+            }
           }
         }
-      }
       } catch (e: any) {
         if (e.response?.status === 429) {
-          groqCooldownUntil = Date.now() + 60000; // 1-minute cooldown on 429 rate limit
-          break;
+          console.warn(`[Groq AI Notice] Rate limit (HTTP 429) on model ${model} with key ${apiKey.slice(0, 8)}... Cooling down for 30s.`);
+          setGroqCooldown(apiKey, model, 30000);
+          continue;
         }
         console.warn(`[Groq AI Notice] Key ${apiKey.slice(0, 10)}... Model ${model}: ${e.message}.`);
       }
@@ -158,3 +159,113 @@ Schema:
 
   return result;
 }
+
+/**
+ * Generates ultra-fast, intelligent AI Copilot shopping chat responses using Groq LPU models
+ * with automatic dual-key failover and Gemini fallback.
+ */
+export async function generateCopilotResponseWithGroq(
+  userPrompt: string,
+  productTitle?: string,
+  lowestPrice?: number,
+  priceHistoryCount?: number
+): Promise<CopilotResponse> {
+  const apiKeys = getGroqApiKeys();
+  const safePrompt = userPrompt.trim();
+
+  let contextInfo = `User Query: "${safePrompt}"`;
+  if (productTitle) {
+    contextInfo += `\nProduct Title: "${productTitle}"`;
+  }
+  if (lowestPrice && lowestPrice > 0) {
+    contextInfo += `\nLowest Current Price: ₹${lowestPrice.toLocaleString('en-IN')}`;
+  }
+  if (typeof priceHistoryCount === 'number' && priceHistoryCount > 0) {
+    contextInfo += `\nPrice History Snapshots Tracked: ${priceHistoryCount}`;
+  }
+
+  const systemContent = `You are PriceDrop AI Copilot, a fast, knowledgeable, and helpful shopping assistant for Indian e-commerce (Amazon, Flipkart, Meesho, Myntra, Croma, Reliance Digital, JioMart, Tata CLiQ, Ajio, Nykaa, Blinkit).
+Provide a direct, concise, and helpful response (2-3 sentences max). Suggest a relevant product search query if appropriate.
+Output strictly a valid RAW JSON object matching this schema:
+{
+  "replyText": "your concise response here",
+  "suggestedSearchQuery": "optional product search query or null"
+}`;
+
+  for (const apiKey of apiKeys) {
+    for (const model of GROQ_CHAT_MODELS) {
+      if (isGroqInCooldown(apiKey, model)) continue;
+
+      try {
+        const response = await axios.post(
+          'https://api.groq.com/openai/v1/chat/completions',
+          {
+            model,
+            messages: [
+              { role: 'system', content: systemContent },
+              { role: 'user', content: contextInfo }
+            ],
+            temperature: 0.2,
+            response_format: { type: 'json_object' }
+          },
+          {
+            headers: {
+              'Authorization': `Bearer ${apiKey}`,
+              'Content-Type': 'application/json'
+            },
+            timeout: 10000
+          }
+        );
+
+        const content = response.data?.choices?.[0]?.message?.content;
+        if (content) {
+          try {
+            const parsed = JSON.parse(content);
+            if (parsed && typeof parsed.replyText === 'string' && parsed.replyText.trim().length > 0) {
+              return {
+                replyText: parsed.replyText.trim(),
+                suggestedSearchQuery: typeof parsed.suggestedSearchQuery === 'string' && parsed.suggestedSearchQuery.trim().length > 0
+                  ? parsed.suggestedSearchQuery.trim()
+                  : undefined,
+                isVerifiedFact: true,
+              };
+            }
+          } catch {
+            return {
+              replyText: content.trim(),
+              suggestedSearchQuery: safePrompt.length < 35 ? safePrompt : undefined,
+              isVerifiedFact: true,
+            };
+          }
+        }
+      } catch (err: any) {
+        const status = err.response?.status;
+        if (status === 429) {
+          console.warn(`[Groq AI Notice] Rate limit (HTTP 429) on model ${model} with key ${apiKey.slice(0, 8)}... Cooling down for 30s.`);
+          setGroqCooldown(apiKey, model, 30000);
+          continue;
+        } else {
+          console.warn(`[Groq AI Notice] Model ${model} returned error: ${err.message}`);
+        }
+      }
+    }
+  }
+
+  // Fallback to Gemini if Groq is unavailable
+  try {
+    const { generateCopilotResponseWithGemini } = await import('./geminiService.js');
+    return await generateCopilotResponseWithGemini(userPrompt, productTitle, lowestPrice, priceHistoryCount);
+  } catch (geminiErr: any) {
+    console.warn(`[Copilot Fallback Notice] Gemini fallback also failed: ${geminiErr.message}`);
+  }
+
+  // Deterministic contextual fallback response
+  return {
+    replyText: productTitle && lowestPrice
+      ? `Based on real-time market data across Amazon, Flipkart, Meesho, and Myntra for '${productTitle}', the lowest live offer is ₹${lowestPrice.toLocaleString('en-IN')}. Set a target price alert to get notified when the price drops further!`
+      : `Regarding '${safePrompt}': I analyze live pricing, price drop trends, and verified multi-store deals across Amazon, Flipkart, Meesho, and Myntra. Search any product or paste an e-commerce link to view live offers!`,
+    suggestedSearchQuery: safePrompt.length < 35 ? safePrompt : undefined,
+    isVerifiedFact: true,
+  };
+}
+

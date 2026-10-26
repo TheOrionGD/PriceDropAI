@@ -53,11 +53,13 @@ class MainActivity : ComponentActivity() {
 
     private val viewModel: TrackerViewModel by viewModels()
     private lateinit var sessionManager: SessionManager
+    private val pendingOpenNotifications = mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         sessionManager = SessionManager(this)
         NotificationHelper.ensureChannelCreated(this)
+        InAppNotificationManager.initialize(this)
 
         handleIncomingIntent(intent)
 
@@ -137,7 +139,8 @@ class MainActivity : ComponentActivity() {
 
                 MainAppContainer(
                     viewModel = viewModel,
-                    sessionManager = sessionManager
+                    sessionManager = sessionManager,
+                    pendingOpenNotifications = pendingOpenNotifications
                 )
             }
         }
@@ -152,14 +155,20 @@ class MainActivity : ComponentActivity() {
     private fun handleIncomingIntent(intent: Intent?) {
         if (intent == null) return
 
-        // 1. Deep link query from Notification
+        // 1. Direct navigation to Notifications Center from Phone Notification
+        if (intent.getBooleanExtra("OPEN_NOTIFICATIONS_CENTER", false)) {
+            pendingOpenNotifications.value = true
+            return
+        }
+
+        // 2. Deep link query from Price Drop Notification
         val notificationQuery = intent.getStringExtra("OPEN_PRODUCT_QUERY")
         if (!notificationQuery.isNullOrBlank()) {
             viewModel.search(notificationQuery)
             return
         }
 
-        // 2. Share Intent from browser or store apps
+        // 3. Share Intent from browser or store apps
         if (intent.action == Intent.ACTION_SEND && intent.type == "text/plain") {
             val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
             if (!sharedText.isNullOrBlank()) {
@@ -192,7 +201,8 @@ enum class AppScreenState {
 @Composable
 fun MainAppContainer(
     viewModel: TrackerViewModel,
-    sessionManager: SessionManager
+    sessionManager: SessionManager,
+    pendingOpenNotifications: MutableState<Boolean> = remember { mutableStateOf(false) }
 ) {
     var screenState by remember {
         mutableStateOf(
@@ -203,6 +213,16 @@ fun MainAppContainer(
     var screenBackStack by remember { mutableStateOf(listOf(screenState)) }
     var showSettingsScreen by remember { mutableStateOf(false) }
     var openDirectToNotifications by remember { mutableStateOf(false) }
+
+    // When opened from phone notification, jump immediately to Notifications Center
+    LaunchedEffect(pendingOpenNotifications.value) {
+        if (pendingOpenNotifications.value) {
+            screenState = AppScreenState.MAIN_HUB
+            showSettingsScreen = true
+            openDirectToNotifications = true
+            pendingOpenNotifications.value = false
+        }
+    }
 
     fun navigateTo(newState: AppScreenState) {
         screenBackStack = screenBackStack + newState

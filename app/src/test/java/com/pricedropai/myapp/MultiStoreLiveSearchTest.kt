@@ -45,19 +45,27 @@ class MultiStoreLiveSearchTest {
                 product.imageUrl!!.startsWith("http://") || product.imageUrl!!.startsWith("https://")
             )
 
-            // 2. Validate Real Scraped Store Offers
-            assertTrue("Product must contain at least 1 verified live store offer for query: $query", product.stores.isNotEmpty())
+            // 2. Validate Store Offers & Unavailable Handling
+            assertTrue("Product must contain store offers for query: $query", product.stores.isNotEmpty())
+            val availableOffers = product.stores.filter { it.price != null && it.price > 0.0 }
+            val unavailableOffers = product.stores.filter { it.price == 0.0 }
+            assertTrue("Product must contain at least 1 verified live store offer with positive price for query: $query", availableOffers.isNotEmpty())
             for (offer in product.stores) {
                 assertNotNull("Offer price must not be null for store ${offer.store}", offer.price)
-                assertTrue("Offer price must be positive for store ${offer.store}", offer.price!! > 0.0)
+                assertTrue("Offer price must be non-negative for store ${offer.store}", offer.price!! >= 0.0)
+                if (offer.price == 0.0) {
+                    assertEquals("(Product Unavailable..)", offer.deliveryInfo)
+                    assertEquals(com.pricedropai.myapp.core.model.Availability.OUT_OF_STOCK, offer.availability)
+                }
                 assertTrue("Offer product URL must be non-empty", offer.productUrl.isNotBlank())
             }
 
-            // 3. Validate Lowest Offer & Price Integrity
+            // 3. Validate Lowest Offer & Price Integrity (Must only pick from available offers > 0)
             assertNotNull("Lowest offer must exist for query: $query", product.lowestOffer)
             val lowestPrice = product.lowestPrice
             assertNotNull("Lowest price must be valid for query: $query", lowestPrice)
             assertTrue("Lowest price must be positive for query: $query (was: $lowestPrice)", lowestPrice!! > 0.0)
+            assertNotEquals("Lowest price cannot be 0.0", 0.0, lowestPrice, 0.001)
 
             // 4. Validate Category Detection
             assertNotNull("Category must be detected for query: $query", product.category)
@@ -84,6 +92,24 @@ class MultiStoreLiveSearchTest {
         assertTrue(dataSource.isValidImageUrl("https://rukminim2.flixcart.com/image/312/312/product.jpeg"))
         assertFalse(dataSource.isValidImageUrl("not_a_valid_url"))
         assertFalse(dataSource.isValidImageUrl("https://amazon.in/s?k=phone.html"))
+    }
+
+    @Test
+    fun testCategoryIncompatibleStoreReturnsPriceZeroWithUnavailableTag() = runBlocking {
+        // iPhone 15 should be marked unavailable (price 0.0) on fashion/cosmetics platforms like Nykaa & Myntra
+        val result = dataSource.searchProducts("Apple iPhone 15")
+        assertTrue(result.isSuccess)
+        val product = result.getOrNull()!!.first()
+
+        val nykaaOffer = product.stores.firstOrNull { it.store == Store.NYKAA }
+        assertNotNull("Nykaa offer should exist", nykaaOffer)
+        assertEquals("Nykaa price should be 0.0 for iPhone", 0.0, nykaaOffer?.price ?: -1.0, 0.001)
+        assertEquals("(Product Unavailable..)", nykaaOffer?.deliveryInfo)
+
+        // Amazon & Croma must carry iPhone with positive price
+        val amazonOffer = product.stores.firstOrNull { it.store == Store.AMAZON }
+        assertNotNull(amazonOffer)
+        assertTrue(amazonOffer!!.price != null && amazonOffer.price!! > 0)
     }
 
     @Test

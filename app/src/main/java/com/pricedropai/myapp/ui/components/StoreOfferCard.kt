@@ -48,6 +48,12 @@ fun StoreOfferCard(
         com.pricedropai.myapp.core.model.Store.TARGET -> Color(0xFFCC0000)
     }
 
+    val isUnavailable = offer.price == null || offer.price <= 0.0 ||
+            offer.availability == Availability.OUT_OF_STOCK ||
+            offer.deliveryInfo?.contains("Unavailable", ignoreCase = true) == true
+
+    val effectiveIsLowest = isLowest && !isUnavailable && (offer.price ?: 0.0) > 0
+
     Card(
         modifier = modifier
             .fillMaxWidth()
@@ -76,7 +82,7 @@ fun StoreOfferCard(
                 }
             }
             .then(
-                if (isLowest) {
+                if (effectiveIsLowest) {
                     Modifier
                         .glowBackdrop(glowColor = Color(0xFF10B981), minAlpha = 0.12f, maxAlpha = 0.38f)
                         .neonGlow(
@@ -86,17 +92,23 @@ fun StoreOfferCard(
                             borderWidth = 1.3.dp
                         )
                         .shimmerSweep(shimmerColor = Color.White.copy(alpha = 0.08f), durationMillis = 2000)
+                } else if (isUnavailable) {
+                    Modifier
                 } else {
                     Modifier.glowBackdrop(glowColor = storeColor, minAlpha = 0.04f, maxAlpha = 0.18f)
                 }
             ),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
+            containerColor = if (isUnavailable) MaterialTheme.colorScheme.surface.copy(alpha = 0.7f) else MaterialTheme.colorScheme.surface
         ),
         border = BorderStroke(
-            width = if (isLowest) 1.5.dp else 1.dp,
-            color = if (isLowest) Color(0xFF10B981) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+            width = if (effectiveIsLowest) 1.5.dp else 1.dp,
+            color = when {
+                effectiveIsLowest -> Color(0xFF10B981)
+                isUnavailable -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)
+                else -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+            }
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
@@ -110,7 +122,7 @@ fun StoreOfferCard(
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Surface(
-                        color = storeColor.copy(alpha = 0.15f),
+                        color = storeColor.copy(alpha = if (isUnavailable) 0.08f else 0.15f),
                         shape = RoundedCornerShape(6.dp),
                         modifier = Modifier.padding(end = 8.dp)
                     ) {
@@ -118,11 +130,12 @@ fun StoreOfferCard(
                             text = offer.store.displayName,
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.onSurface,
+                            color = if (isUnavailable) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f) else MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                         )
                     }
-                    if (isLowest && offer.price != null) {
+
+                    if (effectiveIsLowest) {
                         Surface(color = Color(0xFF10B981), shape = RoundedCornerShape(4.dp)) {
                             Text(
                                 text = "LOWEST",
@@ -132,44 +145,67 @@ fun StoreOfferCard(
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
                         }
+                    } else if (isUnavailable) {
+                        Surface(
+                            color = Color(0xFFEF4444).copy(alpha = 0.12f),
+                            shape = RoundedCornerShape(4.dp),
+                            border = BorderStroke(0.8.dp, Color(0xFFEF4444).copy(alpha = 0.35f))
+                        ) {
+                            Text(
+                                text = "(Product Unavailable..)",
+                                color = Color(0xFFEF4444),
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                            )
+                        }
                     }
                 }
 
                 Spacer(Modifier.height(4.dp))
 
-                val delivery = offer.deliveryInfo
-                if (!delivery.isNullOrBlank()) {
+                if (isUnavailable) {
                     Text(
-                        text = "🚚 $delivery",
+                        text = "Not in store catalog / Out of stock",
                         fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium,
+                        fontWeight = FontWeight.Normal,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
+                    )
+                } else {
+                    val delivery = offer.deliveryInfo
+                    if (!delivery.isNullOrBlank()) {
+                        Text(
+                            text = "🚚 $delivery",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(Modifier.height(2.dp))
+                    }
+
+                    val stockStatusText = when (offer.availability) {
+                        Availability.IN_STOCK -> "In Stock"
+                        Availability.OUT_OF_STOCK -> "Currently Unavailable"
+                        Availability.LIMITED_STOCK -> "Limited Stock Available"
+                        Availability.UNKNOWN -> "Availability not reported"
+                    }
+
+                    Text(
+                        text = stockStatusText,
+                        fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Spacer(Modifier.height(2.dp))
                 }
-
-                val stockStatusText = when (offer.availability) {
-                    Availability.IN_STOCK -> "In Stock"
-                    Availability.OUT_OF_STOCK -> "Currently Unavailable"
-                    Availability.LIMITED_STOCK -> "Limited Stock Available"
-                    Availability.UNKNOWN -> "Availability not reported"
-                }
-
-                Text(
-                    text = stockStatusText,
-                    fontSize = 12.sp,
-                    color = if (offer.availability == Availability.OUT_OF_STOCK) Color(0xFFEF4444) else MaterialTheme.colorScheme.onSurfaceVariant
-                )
             }
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(horizontalAlignment = Alignment.End) {
-                    if (offer.price != null && offer.price > 0) {
+                    if (!isUnavailable && offer.price != null) {
                         Text(
                             text = "₹${"%,.0f".format(offer.price)}",
                             fontWeight = FontWeight.Black,
                             fontSize = 17.sp,
-                            color = if (isLowest) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                            color = if (effectiveIsLowest) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                         )
                         if (offer.originalPrice != null && offer.originalPrice > offer.price) {
                             Text(
@@ -180,10 +216,16 @@ fun StoreOfferCard(
                         }
                     } else {
                         Text(
-                            text = "Not available",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            text = "₹0",
+                            fontWeight = FontWeight.Black,
+                            fontSize = 17.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f)
+                        )
+                        Text(
+                            text = "(Product Unavailable..)",
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFEF4444)
                         )
                     }
                 }
@@ -192,7 +234,7 @@ fun StoreOfferCard(
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.OpenInNew,
                     contentDescription = "Visit Store",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = if (isUnavailable) 0.4f else 0.85f),
                     modifier = Modifier.size(16.dp)
                 )
             }

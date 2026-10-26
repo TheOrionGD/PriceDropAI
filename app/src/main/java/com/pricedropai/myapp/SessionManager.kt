@@ -20,6 +20,26 @@ class SessionManager(context: Context) {
         private const val SALT_PREFIX = "pricedrop_salt_v1_"
         private const val KEY_THEME_MODE = "theme_mode" // "SYSTEM", "LIGHT", "DARK"
         private const val KEY_ACCENT_COLOR = "accent_color" // hex e.g. "#6366F1"
+        private const val KEY_PHONE_NOTIFICATIONS_ENABLED = "phone_notifications_enabled"
+        private const val KEY_ALERT_SOUND_ENABLED = "alert_sound_enabled"
+    }
+
+    /**
+     * Whether app activity and price drop messages should be delivered to phone status bar / lock screen
+     */
+    fun isPhoneNotificationsEnabled(): Boolean = prefs.getBoolean(KEY_PHONE_NOTIFICATIONS_ENABLED, true)
+
+    fun setPhoneNotificationsEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_PHONE_NOTIFICATIONS_ENABLED, enabled).apply()
+    }
+
+    /**
+     * Whether phone notifications produce an audible chime and haptic vibration
+     */
+    fun isSoundEnabled(): Boolean = prefs.getBoolean(KEY_ALERT_SOUND_ENABLED, true)
+
+    fun setSoundEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_ALERT_SOUND_ENABLED, enabled).apply()
     }
 
     private fun hashPassword(username: String, rawPassword: String): String {

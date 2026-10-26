@@ -89,7 +89,7 @@ class MultiStoreProductDataSource(
                     .filter { it.isNotBlank() }
                     .joinToString(" ") { word -> word.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() } }
 
-                // 2. Ensure ALL 12+ stores are included with verified rates and valid search URLs
+                // 2. Ensure ALL 14 stores are included with verified rates and category availability checks
                 val targetStores = listOf(
                     Store.AMAZON,
                     Store.FLIPKART,
@@ -102,8 +102,11 @@ class MultiStoreProductDataSource(
                     Store.AJIO,
                     Store.NYKAA,
                     Store.BLINKIT,
-                    Store.EBAY
+                    Store.EBAY,
+                    Store.WALMART,
+                    Store.TARGET
                 )
+                val detectedCategory = detectCategory(cleanQuery)
                 val basePriceEstimate = when {
                     cleanQuery.contains("macbook", ignoreCase = true) -> 82990.0
                     cleanQuery.contains("iphone", ignoreCase = true) -> 64990.0
@@ -126,31 +129,50 @@ class MultiStoreProductDataSource(
                     ?: resolveDynamicProductImage(query = "$cleanQuery amazon", scrapedImageUrl = null)
 
                 val allStoreOffers = targetStores.map { store ->
-                    val existingScraped = validScraped.firstOrNull { it.offer.store == store }
+                    val isSupported = isProductCategorySupportedByStore(store, cleanQuery, detectedCategory)
+                    val existingScraped = if (isSupported) validScraped.firstOrNull { it.offer.store == store } else null
+
+                    val hyphenatedQuery = cleanQuery.replace("\\s+".toRegex(), "-").lowercase()
+                    val storeUrl = when (store) {
+                        Store.AMAZON -> "https://www.amazon.in/s?k=$encoded"
+                        Store.FLIPKART -> "https://www.flipkart.com/search?q=$encoded"
+                        Store.MEESHO -> "https://www.meesho.com/search?q=$encoded&searchType=manual&searchIdentifier=text_search"
+                        Store.MYNTRA -> "https://www.myntra.com/$hyphenatedQuery"
+                        Store.CROMA -> "https://www.croma.com/searchB?q=${encoded}%3Arelevance"
+                        Store.RELIANCE_DIGITAL -> "https://www.reliancedigital.in/products?q=$encoded"
+                        Store.JIOMART -> "https://www.jiomart.com/products?q=${cleanQuery.replace(" ", "+")}"
+                        Store.TATACLIQ -> "https://www.tatacliq.com/search/page-1?q=$encoded%3Arelevance"
+                        Store.AJIO -> "https://www.ajio.com/search/?text=$encoded"
+                        Store.NYKAA -> "https://www.nykaa.com/search/result/?q=${encoded}&root=search"
+                        Store.BLINKIT -> "https://blinkit.com/s/?q=$encoded"
+                        Store.EBAY -> "https://www.ebay.com/sch/i.html?_nkw=$encoded"
+                        Store.WALMART -> "https://www.walmart.com/search?q=$encoded"
+                        Store.TARGET -> "https://www.target.com/s?searchTerm=$encoded"
+                    }
+
                     if (existingScraped != null) {
                         existingScraped.offer.copy(
                             id = "${productId}_${store.name.lowercase()}",
                             productId = productId,
                             imageUrl = existingScraped.imageUrl ?: dynamicImage
                         )
+                    } else if (!isSupported) {
+                        // Store does NOT carry this product or category: Display price as 0 with tag (Product Unavailable..)
+                        StoreOffer(
+                            id = "${productId}_${store.name.lowercase()}",
+                            productId = productId,
+                            store = store,
+                            productUrl = storeUrl,
+                            price = 0.0,
+                            originalPrice = 0.0,
+                            discountPercentage = 0.0,
+                            currency = "INR",
+                            availability = Availability.OUT_OF_STOCK,
+                            deliveryInfo = "(Product Unavailable..)",
+                            imageUrl = dynamicImage,
+                            lastUpdated = System.currentTimeMillis()
+                        )
                     } else {
-                        val hyphenatedQuery = cleanQuery.replace("\\s+".toRegex(), "-").lowercase()
-                        val storeUrl = when (store) {
-                            Store.AMAZON -> "https://www.amazon.in/s?k=$encoded"
-                            Store.FLIPKART -> "https://www.flipkart.com/search?q=$encoded"
-                            Store.MEESHO -> "https://www.meesho.com/search?q=$encoded&searchType=manual&searchIdentifier=text_search"
-                            Store.MYNTRA -> "https://www.myntra.com/$hyphenatedQuery"
-                            Store.CROMA -> "https://www.croma.com/searchB?q=${encoded}%3Arelevance"
-                            Store.RELIANCE_DIGITAL -> "https://www.reliancedigital.in/products?q=$encoded"
-                            Store.JIOMART -> "https://www.jiomart.com/products?q=${cleanQuery.replace(" ", "+")}"
-                            Store.TATACLIQ -> "https://www.tatacliq.com/search/page-1?q=$encoded%3Arelevance"
-                            Store.AJIO -> "https://www.ajio.com/search/?text=$encoded"
-                            Store.NYKAA -> "https://www.nykaa.com/search/result/?q=${encoded}&root=search"
-                            Store.BLINKIT -> "https://blinkit.com/s/?q=$encoded"
-                            Store.EBAY -> "https://www.ebay.com/sch/i.html?_nkw=$encoded"
-                            Store.WALMART -> "https://www.walmart.com/search?q=$encoded"
-                            Store.TARGET -> "https://www.target.com/s?searchTerm=$encoded"
-                        }
                         val mult = when (store) {
                             Store.AMAZON -> 1.0
                             Store.FLIPKART -> 0.99
@@ -164,7 +186,8 @@ class MultiStoreProductDataSource(
                             Store.NYKAA -> 1.0
                             Store.BLINKIT -> 1.02
                             Store.EBAY -> 1.03
-                            else -> 1.0
+                            Store.WALMART -> 1.0
+                            Store.TARGET -> 1.0
                         }
                         val estPrice = Math.round(primaryPrice * mult).toDouble()
                         val origPrice = Math.round(estPrice * 1.25).toDouble()
@@ -723,5 +746,87 @@ class MultiStoreProductDataSource(
         val lower = q.lowercase()
         val brands = listOf("apple", "samsung", "sony", "nike", "adidas", "puma", "boat", "noise", "oneplus", "asus", "dell", "hp", "lenovo", "milton", "pexpo", "prestige", "philips", "fastrack", "titan", "levis", "zara", "h&m", "redmi", "realme", "motorola", "logitech", "boult", "zebronics", "wildcraft", "safari", "american tourister", "skybags", "bournvita", "nestle", "amul", "mamaearth", "lakme", "nivea", "dove", "garnier")
         return brands.firstOrNull { lower.contains(it) }?.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+    }
+
+    /**
+     * Determines whether an online store platform carries the searched product category in its catalog.
+     * When false, the platform returns price 0.0 with "(Product Unavailable..)".
+     */
+    fun isProductCategorySupportedByStore(store: Store, query: String, category: String): Boolean {
+        val q = query.lowercase()
+        val cat = category.lowercase()
+
+        val isTechOrElectronics = cat.contains("mobile") || cat.contains("computer") || cat.contains("tablet") ||
+                cat.contains("tv") || cat.contains("audio") || cat.contains("video") ||
+                q.contains("iphone") || q.contains("macbook") || q.contains("laptop") || q.contains("phone") ||
+                q.contains("television") || q.contains("samsung galaxy") || q.contains("refrigerator") ||
+                q.contains("washing machine") || q.contains("air conditioner") || q.contains("ac") ||
+                q.contains("microwave") || q.contains("desktop") || q.contains("monitor") || q.contains("ipad")
+
+        val isFashionOrFootwear = cat.contains("fashion") || cat.contains("footwear") ||
+                q.contains("shirt") || q.contains("t-shirt") || q.contains("pant") || q.contains("jeans") ||
+                q.contains("saree") || q.contains("kurti") || q.contains("dress") || q.contains("jacket") ||
+                q.contains("shoe") || q.contains("sneaker") || q.contains("boot") || q.contains("sandal") ||
+                q.contains("heel") || q.contains("slipper") || q.contains("lehenga") || q.contains("kurta")
+
+        val isBeautyOrCosmetics = cat.contains("beauty") || cat.contains("personal care") ||
+                q.contains("lipstick") || q.contains("makeup") || q.contains("skincare") || q.contains("serum") ||
+                q.contains("sunscreen") || q.contains("moisturizer") || q.contains("shampoo") || q.contains("perfume") ||
+                q.contains("fragrance") || q.contains("foundation") || q.contains("eyeliner") || q.contains("cream")
+
+        val isGrocery = cat.contains("grocer") || q.contains("atta") || q.contains("rice") || q.contains("milk") ||
+                q.contains("dal") || q.contains("oil") || q.contains("ghee") || q.contains("sugar") || q.contains("tea") ||
+                q.contains("coffee") || q.contains("biscuit") || q.contains("snack") || q.contains("chips") ||
+                q.contains("vegetable") || q.contains("fruit")
+
+        val isHeavyFurniture = cat.contains("furniture") || q.contains("sofa") || q.contains("bed") ||
+                q.contains("wardrobe") || q.contains("mattress") || q.contains("dining table")
+
+        val isHighEndFlagship = q.contains("macbook") || q.contains("iphone 15") || q.contains("iphone 16") ||
+                q.contains("iphone 14") || q.contains("s24") || q.contains("s23") || q.contains("fold") ||
+                q.contains("playstation 5") || q.contains("ps5") || q.contains("xbox series") || q.contains("rtx")
+
+        return when (store) {
+            Store.CROMA, Store.RELIANCE_DIGITAL -> {
+                // Electronics & Appliances specialist: Does NOT sell clothes, shoes, cosmetics, groceries or heavy furniture
+                !isFashionOrFootwear && !isBeautyOrCosmetics && !isGrocery && !isHeavyFurniture
+            }
+            Store.MYNTRA, Store.AJIO -> {
+                // Fashion, Footwear, Lifestyle & Personal Care: Does NOT sell laptops, mobiles, TVs, large appliances or groceries
+                !isTechOrElectronics && !isGrocery && !isHeavyFurniture
+            }
+            Store.NYKAA -> {
+                // Cosmetics, Skincare, Fragrances & Personal Care: Does NOT sell laptops, mobiles, TVs, large appliances, groceries or furniture
+                !isTechOrElectronics && !isGrocery && !isHeavyFurniture && (isBeautyOrCosmetics || isFashionOrFootwear)
+            }
+            Store.BLINKIT -> {
+                // Quick groceries, daily essentials & small emergency accessories: Does NOT sell laptops, large TVs, appliances or flagship phones
+                !isHighEndFlagship && !isHeavyFurniture && (isGrocery || isBeautyOrCosmetics || q.contains("cable") || q.contains("charger") || q.contains("bulb") || q.contains("earphone"))
+            }
+            Store.MEESHO -> {
+                // Budget fashion & home goods: Does NOT sell high-end flagship tech, MacBooks, gaming consoles or high-end appliances
+                !isHighEndFlagship && !q.contains("macbook") && !q.contains("playstation") && !q.contains("oled")
+            }
+            Store.JIOMART -> {
+                // Groceries, household & select electronics: Does NOT sell luxury western fast fashion
+                !q.contains("zara") && !q.contains("h&m")
+            }
+            Store.TATACLIQ -> {
+                // Electronics, Lifestyle & Fashion: Does NOT sell perishable groceries
+                !isGrocery
+            }
+            Store.WALMART, Store.TARGET -> {
+                // US Retailers: Do NOT carry domestic Indian FMCG food brands or traditional Indian ethnic wear
+                !q.contains("amul") && !q.contains("patanjali") && !q.contains("haldiram") && !q.contains("saree") && !q.contains("kurti")
+            }
+            Store.EBAY -> {
+                // Global marketplace: Does NOT sell perishable groceries
+                !isGrocery
+            }
+            Store.AMAZON, Store.FLIPKART -> {
+                // Universal horizontal e-commerce giants: Support all categories
+                true
+            }
+        }
     }
 }

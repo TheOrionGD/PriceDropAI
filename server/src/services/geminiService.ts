@@ -16,15 +16,17 @@ export interface CopilotResponse {
 }
 
 export const GEMINI_ANALYSIS_MODELS = [
+  'gemini-2.0-flash',
+  'gemini-1.5-flash',
+  'gemini-1.5-flash-8b',
   'gemini-2.5-flash',
-  'gemini-2.5-flash-lite',
-  'gemini-3.8-flash',
 ];
 
 export const GEMINI_CHAT_MODELS = [
+  'gemini-2.0-flash',
+  'gemini-1.5-flash',
+  'gemini-1.5-flash-8b',
   'gemini-2.5-flash',
-  'gemini-2.5-flash-lite',
-  'gemini-3.8-flash',
 ];
 
 import { getGeminiKey } from '../utils/keyManager.js';
@@ -43,7 +45,19 @@ function getApiKey(segment: 1 | 2 = 1): string {
   return getGeminiKey(segment) || process.env.GEMINI_API_KEY || '';
 }
 
-let geminiCooldownUntil = 0;
+// Track cooldown per API key and model independently to prevent a single 429 from blocking other keys/models
+const modelCooldowns = new Map<string, number>();
+
+function isModelInCooldown(apiKey: string, model: string): boolean {
+  const key = `${apiKey.slice(0, 10)}_${model}`;
+  const cooldownUntil = modelCooldowns.get(key) || 0;
+  return Date.now() < cooldownUntil;
+}
+
+function setModelCooldown(apiKey: string, model: string, durationMs: number = 30000) {
+  const key = `${apiKey.slice(0, 10)}_${model}`;
+  modelCooldowns.set(key, Date.now() + durationMs);
+}
 
 function safeParseJson<T = any>(rawText: string | null | undefined): T | null {
   if (!rawText || typeof rawText !== 'string') return null;
@@ -57,14 +71,6 @@ function safeParseJson<T = any>(rawText: string | null | undefined): T | null {
   const lastBrace = cleanStr.lastIndexOf('}');
   if (firstBrace !== -1 && lastBrace > firstBrace) {
     cleanStr = cleanStr.substring(firstBrace, lastBrace + 1);
-  } else if (firstBrace !== -1 && lastBrace <= firstBrace) {
-    // If output was truncated (no closing brace), attempt to auto-close JSON structure
-    cleanStr = cleanStr.substring(firstBrace);
-    const openBraces = (cleanStr.match(/\{/g) || []).length;
-    const closeBraces = (cleanStr.match(/\}/g) || []).length;
-    for (let i = 0; i < openBraces - closeBraces; i++) {
-      cleanStr += '}';
-    }
   }
 
   // Remove trailing commas before closing braces/brackets
@@ -73,16 +79,64 @@ function safeParseJson<T = any>(rawText: string | null | undefined): T | null {
   try {
     return JSON.parse(cleanStr) as T;
   } catch (e1) {
+    // First fallback: sanitize control chars & clean quotes
     try {
-      // Secondary cleanup attempt: replace unescaped control chars / multiline strings
       const sanitized = cleanStr
         .replace(/[\u0000-\u001F\u007F-\u009F]/g, ' ')
         .replace(/\\'/g, "'")
         .replace(/,\s*([\}\]])/g, '$1');
       return JSON.parse(sanitized) as T;
-    } catch (e2) {
-      console.warn('[Gemini SafeParse Warning] Unable to parse response string into JSON:', e2);
-      return null;
+    } catch {
+      // Second fallback: Auto-repair common quotes inside values (e.g., 14" Laptop -> 14-inch Laptop)
+      try {
+        const fixedQuotes = cleanStr.replace(
+          /(:\s*"[^"]*?)(?:(\d+(?:\.\d+)?)\s*")([^"]*?")/g,
+          '$1$2-inch$3'
+        );
+        return JSON.parse(fixedQuotes) as T;
+      } catch {
+        // Third fallback: Resilient regex extraction for store pricing blocks
+        const extracted: Record<string, any> = {};
+        const storeRegex = /["'](AMAZON|FLIPKART|MEESHO|MYNTRA|CROMA|RELIANCE_DIGITAL|JIOMART|TATACLIQ|AJIO|NYKAA|BLINKIT|EBAY|WALMART|TARGET)["']\s*:\s*\{([^}]+)\}/gi;
+        let match: RegExpExecArray | null;
+        let foundAny = false;
+        while ((match = storeRegex.exec(cleanStr)) !== null) {
+          const storeName = match[1].toUpperCase();
+          const block = match[2];
+          const priceMatch = block.match(/["']price["']\s*:\s*([0-9]+(?:\.[0-9]+)?)/i);
+          const origMatch = block.match(/["']originalPrice["']\s*:\s*([0-9]+(?:\.[0-9]+)?)/i);
+          const discMatch = block.match(/["']discountPercentage["']\s*:\s*([0-9]+(?:\.[0-9]+)?)/i);
+          const availMatch = block.match(/["']availability["']\s*:\s*["']?([A-Z_]+)["']?/i);
+          const delivMatch = block.match(/["']deliveryInfo["']\s*:\s*["']([^"'\n\r]+)/i);
+
+          if (priceMatch) {
+            foundAny = true;
+            extracted[storeName] = {
+              price: parseFloat(priceMatch[1]),
+              originalPrice: origMatch ? parseFloat(origMatch[1]) : Math.round(parseFloat(priceMatch[1]) * 1.25),
+              discountPercentage: discMatch ? parseFloat(discMatch[1]) : 15,
+              availability: availMatch ? availMatch[1] : 'IN_STOCK',
+              deliveryInfo: delivMatch ? delivMatch[1].replace(/["',}]*$/, '').trim() : 'Standard Express Delivery',
+            };
+          }
+        }
+        if (foundAny) {
+          return extracted as T;
+        }
+
+        // Fourth fallback: Chat/Copilot extraction
+        const replyMatch = cleanStr.match(/["']replyText["']\s*:\s*["']([^"'\n\r]+)/i);
+        if (replyMatch) {
+          const queryMatch = cleanStr.match(/["']suggestedSearchQuery["']\s*:\s*["']([^"'\n\r]+)/i);
+          return {
+            replyText: replyMatch[1].replace(/["',}]*$/, '').trim(),
+            suggestedSearchQuery: queryMatch ? queryMatch[1].replace(/["',}]*$/, '').trim() : undefined,
+          } as T;
+        }
+
+        console.warn('[Gemini SafeParse Warning] Unable to parse response string into JSON:', (e1 as Error).message);
+        return null;
+      }
     }
   }
 }
@@ -91,13 +145,12 @@ async function callGeminiApi(prompt: string, modelsList: string[], expectJson: b
   const keys = [getApiKey(1), getApiKey(2)].filter(Boolean);
   if (keys.length === 0) return null;
 
-  // Short-circuit if API is in rate-limit cooldown
-  if (Date.now() < geminiCooldownUntil) {
-    return null;
-  }
-
   for (const apiKey of keys) {
     for (const model of modelsList) {
+      if (isModelInCooldown(apiKey, model)) {
+        continue;
+      }
+
       try {
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
         const payload: any = {
@@ -139,10 +192,15 @@ async function callGeminiApi(prompt: string, modelsList: string[], expectJson: b
       } catch (err: any) {
         const status = err.response?.status;
         if (status === 429) {
-          console.warn(`[Gemini API Notice] Rate limit (HTTP 429) on model ${model} with key ${apiKey.slice(0, 8)}... Trying next.`);
-          geminiCooldownUntil = Date.now() + 15000;
+          console.warn(`[Gemini API Notice] Rate limit (HTTP 429) on model ${model} with key ${apiKey.slice(0, 8)}... Cooling down model for 30s.`);
+          setModelCooldown(apiKey, model, 30000);
           continue;
         } else if (status === 404 || status === 400) {
+          setModelCooldown(apiKey, model, 300000); // 5 min cooldown for unsupported/non-existent model
+          continue;
+        } else if (status === 503) {
+          console.warn(`[Gemini API Notice] Model ${model} returned 503 (temporary overload). Cooling down for 15s.`);
+          setModelCooldown(apiKey, model, 15000);
           continue;
         } else {
           console.warn(`[Gemini API Notice] Model ${model} returned error: ${err.message}`);
@@ -164,10 +222,11 @@ export async function analyzeStorePricesWithGemini(
   primaryTitle: string
 ): Promise<Record<string, AiStoreAnalysis>> {
   const referencePrice = primaryPrice && primaryPrice > 10 ? primaryPrice : 1500;
+  const safeTitle = (primaryTitle || query).replace(/["']/g, '');
 
   const prompt = `You are an expert e-commerce price drop analyst and market data parser for top Indian retail platforms: Amazon India, Flipkart, Meesho, and Myntra.
   
-Product Title: "${primaryTitle || query}"
+Product Title: "${safeTitle}"
 Category: "${category}"
 Base Reference Price (INR): ₹${referencePrice}
 
@@ -177,6 +236,7 @@ Analyze and generate JSON market rate estimates for Amazon, Flipkart, Meesho, an
 - Meesho offers lower price points for fashion/home/lifestyle (approx 10-20% lower) or standard price for electronics.
 - Myntra offers targeted fashion/lifestyle deals.
 - Output strictly a RAW JSON object with keys "AMAZON", "FLIPKART", "MEESHO", "MYNTRA".
+- CRITICAL: Never include unescaped double quotes inside values (e.g., write '14 inch' instead of 14").
 
 Expected JSON Schema:
 {

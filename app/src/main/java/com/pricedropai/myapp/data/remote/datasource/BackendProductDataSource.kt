@@ -168,7 +168,7 @@ class BackendProductDataSource(
                     continue
                 }
 
-                val price = if (storeObj.has("price") && !storeObj.isNull("price")) storeObj.optDouble("price") else null
+                val rawPrice = if (storeObj.has("price") && !storeObj.isNull("price")) storeObj.optDouble("price") else null
                 val origPrice = if (storeObj.has("originalPrice") && !storeObj.isNull("originalPrice")) storeObj.optDouble("originalPrice") else null
                 val discountPct = if (storeObj.has("discountPercentage") && !storeObj.isNull("discountPercentage")) storeObj.optDouble("discountPercentage") else null
                 val productUrl = storeObj.optString("productUrl")
@@ -178,7 +178,17 @@ class BackendProductDataSource(
                 } catch (_: Exception) {
                     Availability.IN_STOCK
                 }
-                val deliveryInfo = storeObj.optString("deliveryInfo").takeIf { it.isNotBlank() }
+                val rawDelivery = storeObj.optString("deliveryInfo").takeIf { it.isNotBlank() }
+
+                val isUnavailable = rawPrice == null || rawPrice <= 0.0 ||
+                        availEnum == Availability.OUT_OF_STOCK ||
+                        rawDelivery?.contains("Unavailable", ignoreCase = true) == true
+
+                val finalPrice = if (isUnavailable) 0.0 else rawPrice
+                val finalOrigPrice = if (isUnavailable) 0.0 else origPrice
+                val finalDiscount = if (isUnavailable) 0.0 else discountPct
+                val finalAvail = if (isUnavailable) Availability.OUT_OF_STOCK else availEnum
+                val finalDelivery = if (isUnavailable) "(Product Unavailable..)" else rawDelivery
 
                 val offerRawImg = (
                     storeObj.optString("imageUrl").takeIf { it.isNotBlank() && it != "null" && it != "undefined" }
@@ -198,12 +208,12 @@ class BackendProductDataSource(
                         productId = id,
                         store = storeEnum,
                         productUrl = productUrl,
-                        price = price,
-                        originalPrice = origPrice,
-                        discountPercentage = discountPct,
+                        price = finalPrice,
+                        originalPrice = finalOrigPrice,
+                        discountPercentage = finalDiscount,
                         currency = storeObj.optString("currency", "INR"),
-                        availability = availEnum,
-                        deliveryInfo = deliveryInfo,
+                        availability = finalAvail,
+                        deliveryInfo = finalDelivery,
                         imageUrl = offerImg,
                         lastUpdated = storeObj.optLong("lastUpdated", System.currentTimeMillis())
                     )

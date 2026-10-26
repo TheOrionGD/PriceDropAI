@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import NodeCache from 'node-cache';
 import { aggregateSearchResults } from '../services/productAggregator.js';
-import { generateCopilotResponseWithGemini } from '../services/geminiService.js';
+import { generateCopilotResponseWithGroq } from '../services/groqService.js';
 
 const router = Router();
 
@@ -85,7 +85,7 @@ router.post('/copilot', async (req: Request, res: Response) => {
   }
 
   try {
-    const copilotResult = await generateCopilotResponseWithGemini(
+    const copilotResult = await generateCopilotResponseWithGroq(
       userPrompt,
       productTitle,
       lowestPrice,

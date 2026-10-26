@@ -6,8 +6,9 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
-    <!-- Push Notification Permission for Android 13+ (API 33+) -->
+    <!-- Push Notification & Vibration Permissions -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <!-- Package Visibility for opening browser links & store apps on Android 11+ -->
     <queries>
@@ -24,6 +25,7 @@
     </queries>
 
     <application
+        android:name=".PriceDropApplication"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"

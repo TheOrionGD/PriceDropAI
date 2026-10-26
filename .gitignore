@@ -54,6 +54,8 @@ captures/
 *.key
 *.bks
 secrets.properties
+Release_*/
+*KEYSTORE_CREDENTIALS*
 
 # Google Services config file (enable if using separate production keys)
 # google-services.json

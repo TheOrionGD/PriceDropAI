@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Privacy Policy - PriceDrop AI</title>
-    <meta name="description" content="Privacy Policy for PriceDrop AI - Learn how we handle your data, permissions, and security.">
+    <meta name="description" content="Privacy Policy for PriceDrop AI - Learn how we handle your data, permissions, 14-store price comparisons, and security.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -15,7 +15,7 @@
             --primary-light: #EEF2FF;
             --secondary: #10B981;
             --bg-main: #0F172A;
-            --card-bg: rgba(30, 41, 59, 0.7);
+            --card-bg: rgba(30, 41, 59, 0.75);
             --card-border: rgba(255, 255, 255, 0.1);
             --text-main: #F8FAFC;
             --text-muted: #94A3B8;
@@ -37,15 +37,15 @@
             padding: 0;
             margin: 0;
             background-image: 
-                radial-gradient(circle at 15% 15%, rgba(79, 70, 229, 0.12) 0%, transparent 40%),
-                radial-gradient(circle at 85% 85%, rgba(16, 185, 129, 0.08) 0%, transparent 40%);
+                radial-gradient(circle at 15% 15%, rgba(79, 70, 229, 0.14) 0%, transparent 40%),
+                radial-gradient(circle at 85% 85%, rgba(16, 185, 129, 0.1) 0%, transparent 40%);
             background-attachment: fixed;
             min-height: 100vh;
         }
 
         header {
-            background: rgba(15, 23, 42, 0.85);
-            backdrop-filter: blur(12px);
+            background: rgba(15, 23, 42, 0.9);
+            backdrop-filter: blur(14px);
             border-bottom: 1px solid var(--card-border);
             position: sticky;
             top: 0;
@@ -54,7 +54,7 @@
         }
 
         .header-content {
-            max-width: 900px;
+            max-width: 920px;
             margin: 0 auto;
             display: flex;
             align-items: center;
@@ -69,56 +69,51 @@
         }
 
         .logo-badge {
-            width: 40px;
-            height: 40px;
-            background: linear-gradient(135deg, #6366F1, #4F46E5);
+            width: 38px;
+            height: 38px;
+            background: linear-gradient(135deg, #4F46E5, #06B6D4);
             border-radius: 10px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-weight: 800;
-            color: #FFFFFF;
             font-size: 1.25rem;
-            box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+            box-shadow: 0 4px 12px rgba(79, 70, 229, 0.35);
         }
 
         .brand-name {
             font-size: 1.25rem;
-            font-weight: 700;
-            color: #FFFFFF;
+            font-weight: 800;
             letter-spacing: -0.02em;
+            color: #FFFFFF;
         }
 
         .brand-name span {
             color: #818CF8;
         }
 
+        .version-badge {
+            font-size: 0.75rem;
+            background: rgba(79, 70, 229, 0.2);
+            color: #A5B4FC;
+            border: 1px solid rgba(129, 140, 248, 0.3);
+            padding: 0.25rem 0.65rem;
+            border-radius: 9999px;
+            font-weight: 600;
+        }
+
         .container {
-            max-width: 900px;
-            margin: 3rem auto 5rem;
+            max-width: 920px;
+            margin: 2.5rem auto;
             padding: 0 1.5rem;
         }
 
         .hero-card {
-            background: linear-gradient(135deg, rgba(30, 41, 59, 0.8), rgba(15, 23, 42, 0.9));
-            border: 1px solid var(--card-border);
+            background: linear-gradient(180deg, rgba(30, 41, 59, 0.9) 0%, rgba(15, 23, 42, 0.8) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.12);
             border-radius: 20px;
             padding: 2.5rem 2rem;
-            margin-bottom: 2.5rem;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
-            text-align: center;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .hero-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 4px;
-            background: linear-gradient(90deg, #6366F1, #10B981, #6366F1);
+            margin-bottom: 2rem;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
         }
 
         h1 {
@@ -126,21 +121,23 @@
             font-weight: 800;
             letter-spacing: -0.03em;
             margin-bottom: 0.75rem;
-            background: linear-gradient(135deg, #FFFFFF 0%, #CBD5E1 100%);
+            background: linear-gradient(to right, #FFFFFF, #93C5FD);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
 
         .effective-date {
-            font-size: 0.9rem;
-            color: var(--secondary);
-            font-weight: 600;
-            background: rgba(16, 185, 129, 0.1);
-            padding: 0.35rem 1rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 1rem;
+            font-size: 0.85rem;
+            color: #A5B4FC;
+            background: rgba(99, 102, 241, 0.15);
+            padding: 0.35rem 0.85rem;
             border-radius: 9999px;
-            display: inline-block;
-            margin-top: 0.5rem;
-            border: 1px solid rgba(16, 185, 129, 0.2);
+            font-weight: 500;
+            border: 1px solid rgba(99, 102, 241, 0.25);
         }
 
         .content-card {
@@ -149,7 +146,7 @@
             border-radius: 16px;
             padding: 2rem;
             margin-bottom: 1.75rem;
-            backdrop-filter: blur(8px);
+            backdrop-filter: blur(10px);
             transition: border-color 0.2s ease, transform 0.2s ease;
         }
 
@@ -179,6 +176,7 @@
             font-size: 1.1rem;
             color: #818CF8;
             border: 1px solid rgba(129, 140, 248, 0.2);
+            flex-shrink: 0;
         }
 
         p {
@@ -224,8 +222,29 @@
 
         .highlight-box p {
             color: #E2E8F0;
-            margin-bottom: 0;
+            margin-bottom: 0.35rem;
             font-size: 0.95rem;
+        }
+
+        .highlight-box p:last-child {
+            margin-bottom: 0;
+        }
+
+        .badge-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin: 1rem 0;
+        }
+
+        .store-pill {
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            padding: 0.3rem 0.75rem;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: #E2E8F0;
         }
 
         .table-responsive {
@@ -294,118 +313,189 @@
                 <div class="logo-badge">🏷️</div>
                 <div class="brand-name">PriceDrop <span>AI</span></div>
             </a>
+            <div class="version-badge">v2.2.0 • Build 17</div>
         </div>
     </header>
 
     <div class="container">
         <div class="hero-card">
             <h1>Privacy Policy</h1>
-            <p>Your privacy is important to us. Learn how PriceDrop AI collects, uses, and protects your data.</p>
-            <div class="effective-date">Last Updated: October 2026</div>
+            <p>Your privacy is central to how we build. Learn how PriceDrop AI collects, uses, and safeguards your information across mobile app and web services.</p>
+            <div class="effective-date">📅 Last Updated: October 26, 2026 (Version 2.2.0)</div>
         </div>
 
         <!-- Section 1: Overview -->
         <div class="content-card">
-            <h2><div class="section-icon">📌</div> 1. Introduction & Overview</h2>
-            <p>PriceDrop AI ("we", "our", or "the Application") is an intelligent shopping assistant designed to help users track e-commerce product prices, compare multi-store offers, calculate payment discounts, and receive background price drop notifications.</p>
-            <p>We are committed to maintaining an <strong>offline-first</strong>, user-privacy-centric approach. Your personal search habits, target price thresholds, and security credentials remain under your direct control on your device.</p>
+            <h2><div class="section-icon">📌</div> 1. Introduction & Core Philosophy</h2>
+            <p><strong>PriceDrop AI</strong> ("we", "our", or "the Application") is an intelligent, offline-first shopping assistant that tracks multi-platform e-commerce prices, provides instant deal comparisons, offers AI shopping advice, and notifies users of price drops.</p>
+            <p>We are firmly committed to an <strong>offline-first</strong>, privacy-centric design. Your shopping habits, watchlist tracking thresholds, saved items, and account credentials remain stored locally on your physical device. We do not sell, rent, or trade your personal data.</p>
         </div>
 
-        <!-- Section 2: Information We Collect -->
+        <!-- Section 2: 14-Store Multi-Platform Coverage -->
         <div class="content-card">
-            <h2><div class="section-icon">🛡️</div> 2. Information We Collect & How It Is Stored</h2>
-            <p>We believe in minimal data collection. Here is a detailed breakdown of the data types handled by the Application:</p>
+            <h2><div class="section-icon">🛍️</div> 2. Multi-Store Search & Platform Coverage</h2>
+            <p>PriceDrop AI aggregates public pricing and stock information across 14 major retail platforms:</p>
+            <div class="badge-list">
+                <span class="store-pill">Amazon India</span>
+                <span class="store-pill">Flipkart</span>
+                <span class="store-pill">Meesho</span>
+                <span class="store-pill">Myntra</span>
+                <span class="store-pill">Croma</span>
+                <span class="store-pill">Reliance Digital</span>
+                <span class="store-pill">JioMart</span>
+                <span class="store-pill">Tata CLiQ</span>
+                <span class="store-pill">Ajio</span>
+                <span class="store-pill">Nykaa</span>
+                <span class="store-pill">Blinkit</span>
+                <span class="store-pill">eBay</span>
+                <span class="store-pill">Walmart</span>
+                <span class="store-pill">Target</span>
+            </div>
+            <p><strong>Product Category Filtering:</strong> Platforms that do not carry a searched product category (e.g., fashion-only platforms searched for electronics, or tech stores searched for cosmetics) display price <code>₹0</code> with a transparent <strong>(Product Unavailable..)</strong> badge and are automatically excluded from lowest-price calculations.</p>
+            <p><strong>Fair Use Search Limit:</strong> Because PriceDrop AI runs on free-tier community cloud infrastructure, we recommend searching 2 to 3 products at a time to prevent server delays and maintain optimal response times for everyone.</p>
+        </div>
+
+        <!-- Section 3: Information We Collect -->
+        <div class="content-card">
+            <h2><div class="section-icon">🛡️</div> 3. Information We Collect & Storage Architecture</h2>
+            <p>We practice strict data minimization. Here is exactly what data is handled and where it resides:</p>
 
             <div class="table-responsive">
                 <table>
                     <thead>
                         <tr>
                             <th>Data Category</th>
-                            <th>Data Types Collected</th>
+                            <th>Data Elements</th>
                             <th>Storage Location</th>
+                            <th>Purpose</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr>
                             <td><strong>Account & Profile</strong></td>
                             <td>Username & SHA-256 salted password hash</td>
-                            <td>Stored locally in Android SharedPreferences</td>
+                            <td>Locally on device (Android SharedPreferences)</td>
+                            <td>Local profile authentication & access control</td>
                         </tr>
                         <tr>
-                            <td><strong>App Activity & Trackers</strong></td>
-                            <td>Product queries, target prices, watchlist items</td>
-                            <td>Stored locally in SQLite/Room Database (`pricedrop.db`)</td>
+                            <td><strong>Watchlist & Trackers</strong></td>
+                            <td>Product IDs, titles, target prices, store links</td>
+                            <td>Locally on device (Room SQLite: `pricedrop.db`)</td>
+                            <td>Price tracking & automated threshold comparisons</td>
                         </tr>
                         <tr>
-                            <td><strong>Technical & API Data</strong></td>
-                            <td>Standard HTTP headers (IP, User-Agent) during search</td>
-                            <td>Transient in-memory processing on backend API</td>
+                            <td><strong>Notifications & Alerts</strong></td>
+                            <td>Price drop notifications, in-app activity logs</td>
+                            <td>Locally on device (`pricedrop.db`)</td>
+                            <td>In-app Notification Center and system notification history</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Search Queries</strong></td>
+                            <td>Product keyword text (e.g., "running shoes")</td>
+                            <td>Transient in-memory on backend API</td>
+                            <td>Executing live price comparisons across 14 stores</td>
                         </tr>
                     </tbody>
                 </table>
             </div>
 
             <div class="highlight-box">
-                <p><strong>Note on Passwords:</strong> We never store plain-text passwords. Passwords are salted and hashed locally using SHA-256 on your Android device for local profile access verification only.</p>
+                <p><strong>Password Security:</strong> We never transmit or store plain-text passwords. All credentials are salted and hashed on your Android device using SHA-256 encryption.</p>
+                <p><strong>No Cloud Profiling:</strong> We do not associate your search queries with your real-world identity, email, or advertising identifiers.</p>
             </div>
         </div>
 
-        <!-- Section 3: Third-Party Services -->
+        <!-- Section 4: AI Copilot & Third-Party Integrations -->
         <div class="content-card">
-            <h2><div class="section-icon">🔗</div> 3. Third-Party Services & Integrations</h2>
-            <p>To provide real-time price comparisons and AI-assisted shopping insights, PriceDrop AI communicates with the following external services:</p>
+            <h2><div class="section-icon">🤖</div> 4. AI Copilot & Third-Party Integrations</h2>
+            <p>To provide accurate shopping advice, price drop predictions, and real-time deal analysis, PriceDrop AI interfaces with the following service providers:</p>
             <ul>
-                <li><strong>Backend Aggregation Server (`pricedropai-backend.onrender.com`):</strong> Handles live price scraping and search requests across Amazon India, Flipkart, Meesho, and Myntra.</li>
-                <li><strong>Google Gemini AI API:</strong> Powers the AI Shopping Copilot to evaluate live product deals, suggest whether to buy or wait, and analyze offer pros and cons.</li>
-                <li><strong>Android Jetpack Libraries:</strong> Uses standard Android frameworks (Room, WorkManager, NotificationManager) for background price checks and local storage.</li>
+                <li><strong>Groq AI LPU Models:</strong> High-speed language inference (including <code>openai/gpt-oss-120b</code>, <code>openai/gpt-oss-20b</code>, and <code>qwen/qwen3.8-27b</code>) to answer conversational shopping queries with low latency.</li>
+                <li><strong>Google Gemini AI API:</strong> Fallback intelligent reasoning models (<code>gemini-2.0-flash</code>, <code>gemini-1.5-flash</code>) to synthesize buyer reviews, pros & cons, and market trends.</li>
+                <li><strong>PriceDrop Backend Gateway:</strong> Proxies store searches securely over HTTPS/TLS to protect client devices from direct web scraping overhead.</li>
+                <li><strong>Android Jetpack Architecture:</strong> Uses official Google Android libraries (Room, WorkManager, NotificationManager) for battery-efficient background price checks.</li>
             </ul>
-            <p>No personally identifiable information (PII) is sold, rented, or traded with any third-party advertising network.</p>
+            <p>No user identifiers, phone numbers, or personal accounts are ever sent to AI model providers. Only the public product name and search query are processed.</p>
         </div>
 
-        <!-- Section 4: Permissions -->
+        <!-- Section 5: Permissions -->
         <div class="content-card">
-            <h2><div class="section-icon">⚙️</div> 4. App Permissions & Usage Justification</h2>
-            <p>PriceDrop AI requests only essential permissions required to deliver its core shopping utilities:</p>
-
+            <h2><div class="section-icon">⚙️</div> 5. Android App Permissions & Purpose</h2>
+            <p>PriceDrop AI requests minimal permissions strictly needed for functionality:</p>
             <ul>
-                <li><strong>Notifications (`POST_NOTIFICATIONS`):</strong> Required on Android 13+ (API 33+) to alert you when a product in your Watchlist drops to or below your custom target price.</li>
-                <li><strong>Internet (`INTERNET` & `ACCESS_NETWORK_STATE`):</strong> Required to fetch current product pricing from online stores and verify network connectivity before initiating background checks.</li>
-            </ul>
-        </div>
-
-        <!-- Section 5: Data Retention & User Deletion Rights -->
-        <div class="content-card">
-            <h2><div class="section-icon">🗑️</div> 5. Data Retention & User Data Deletion</h2>
-            <p>Because PriceDrop AI utilizes an offline-first local database, you retain complete authority over your data:</p>
-            <ul>
-                <li><strong>Clear Search History:</strong> You can clear your recent search history directly from the search bar UI.</li>
-                <li><strong>Remove Tracked Products:</strong> Items can be removed from your Watchlist at any time, instantly deleting them from local storage.</li>
-                <li><strong>Account Logout & Wipe:</strong> Logging out clears the active local session and profile preferences.</li>
-                <li><strong>Full App Reset:</strong> Clearing application storage via Android Settings or uninstalling the app permanently erases all local databases, watchlist items, and saved credentials.</li>
+                <li><strong>System Notifications (<code>android.permission.POST_NOTIFICATIONS</code>):</strong> Required on Android 13+ (API 33+) to dispatch phone-level system notifications when a tracked product drops below your chosen target price or when in-app activity messages are delivered.</li>
+                <li><strong>Vibration (<code>android.permission.VIBRATE</code>):</strong> Allows optional haptic alerts when an urgent price drop alert fires. Can be customized in Settings.</li>
+                <li><strong>Network Access (<code>android.permission.INTERNET</code> & <code>ACCESS_NETWORK_STATE</code>):</strong> Required to fetch live store pricing and check connectivity before background price checks execute.</li>
             </ul>
         </div>
 
-        <!-- Section 6: Security -->
+        <!-- Section 6: Google Play Data Safety Summary -->
         <div class="content-card">
-            <h2><div class="section-icon">🔒</div> 6. Security Measures</h2>
-            <p>We enforce modern security best practices including HTTPS/TLS encryption for all backend communications, salted SHA-256 local hash storage for user accounts, and battery-optimized background WorkManager execution.</p>
+            <h2><div class="section-icon">📋</div> 6. Google Play Data Safety Summary</h2>
+            <p>For transparency with Google Play Store policies and requirements:</p>
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Questionnaire Field</th>
+                            <th>Declaration</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Data Shared with Third Parties</strong></td>
+                            <td><strong style="color: #10B981;">No data is shared</strong> with third parties for marketing or tracking.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Data Collected</strong></td>
+                            <td>App functionality data (search keywords for live results).</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Data Encrypted in Transit</strong></td>
+                            <td><strong>Yes</strong>. All data transmissions use modern HTTPS/TLS 1.2+ protocols.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Data Deletion Request</strong></td>
+                            <td><strong>Yes</strong>. Users can wipe search history, watchlist, or all app data instantly inside the app.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
 
-        <!-- Section 7: Children's Privacy -->
+        <!-- Section 7: User Data Rights & Deletion -->
         <div class="content-card">
-            <h2><div class="section-icon">👶</div> 7. Children's Privacy</h2>
-            <p>PriceDrop AI is intended for general audiences and does not knowingly collect or solicit personal data from children under the age of 13. If you believe a child has provided us with information, please contact us for immediate removal.</p>
+            <h2><div class="section-icon">🗑️</div> 7. Data Retention & User Deletion Rights</h2>
+            <p>Because PriceDrop AI is offline-first, you maintain full control over your stored data:</p>
+            <ul>
+                <li><strong>Clear Search History:</strong> Tap the "Clear" button in the search bar to erase all recent queries.</li>
+                <li><strong>Delete Tracked Products:</strong> Swipe or tap delete on any product in your Watchlist to permanently remove it from local storage.</li>
+                <li><strong>Clear Notifications:</strong> Tap "Clear All" in the Notifications Center to erase saved price drop logs.</li>
+                <li><strong>Account Logout & Data Wipe:</strong> Logging out resets the session; clearing app data in Android Settings or uninstalling the app permanently purges all local databases.</li>
+            </ul>
         </div>
 
-        <!-- Section 8: Changes & Contact -->
+        <!-- Section 8: Children's Privacy -->
         <div class="content-card">
-            <h2><div class="section-icon">📬</div> 8. Changes & Contact Information</h2>
-            <p>We may update this Privacy Policy periodically to reflect app updates or regulatory changes. Any modifications will be posted on this URL with an updated revision date.</p>
-            <p style="margin-top: 1rem;">If you have any questions or feedback regarding this Privacy Policy, please contact our support team:</p>
+            <h2><div class="section-icon">👶</div> 8. Children's Privacy</h2>
+            <p>PriceDrop AI is a general shopping utility intended for users aged 13 and older. We do not knowingly collect personal information from children under 13. If you believe such data has been collected, please contact us for immediate deletion.</p>
+        </div>
+
+        <!-- Section 9: Security & Updates -->
+        <div class="content-card">
+            <h2><div class="section-icon">🔒</div> 9. Security & Policy Updates</h2>
+            <p>We employ industry-standard security safeguards including TLS 1.3 encryption in transit, SHA-256 salted hashes on-device, and sandboxed Android application storage. We review this policy regularly with each app release.</p>
+        </div>
+
+        <!-- Section 10: Contact Information -->
+        <div class="content-card">
+            <h2><div class="section-icon">📬</div> 10. Contact Us</h2>
+            <p>If you have any questions, feedback, or requests regarding this Privacy Policy or your data, please contact our developer team:</p>
             <div class="highlight-box">
-                <p><strong>Email:</strong> <a href="mailto:support@pricedropai.web.app" style="color: #818CF8; text-decoration: underline;">support@pricedropai.web.app</a></p>
-                <p><strong>Application:</strong> PriceDrop AI (com.pricedropai.myapp)</p>
-                <p><strong>Website:</strong> <a href="https://pricedropai-backend.onrender.com" style="color: #818CF8; text-decoration: underline;">https://pricedropai-backend.onrender.com</a></p>
+                <p><strong>App:</strong> PriceDrop AI (<code>com.pricedropai.myapp</code>)</p>
+                <p><strong>Version:</strong> 2.2.0 (Build 17)</p>
+                <p><strong>Developer Email:</strong> <a href="mailto:support@pricedropai.web.app" style="color: #818CF8; text-decoration: underline;">support@pricedropai.web.app</a></p>
+                <p><strong>Official Web Portal:</strong> <a href="https://pricedropai-backend.onrender.com/privacy-policy" style="color: #818CF8; text-decoration: underline;">https://pricedropai-backend.onrender.com/privacy-policy</a></p>
             </div>
         </div>
 

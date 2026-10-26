@@ -29,6 +29,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pricedropai.myapp.SessionManager
+import com.pricedropai.myapp.data.local.InAppNotificationCategory
+import com.pricedropai.myapp.data.local.InAppNotificationManager
+import com.pricedropai.myapp.data.local.NotificationIconType
+import com.pricedropai.myapp.data.local.NotificationSeverity
 import com.pricedropai.myapp.ui.theme.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -46,9 +50,9 @@ fun SettingsScreen(
     val scrollState = rememberScrollState()
 
     var showNotificationsCenter by remember { mutableStateOf(startInNotificationsCenter) }
-    var notificationsEnabled by remember { mutableStateOf(true) }
+    var notificationsEnabled by remember { mutableStateOf(sessionManager.isPhoneNotificationsEnabled()) }
     var backgroundCheckFrequency by remember { mutableStateOf("Every 6 Hours") }
-    var soundEnabled by remember { mutableStateOf(true) }
+    var soundEnabled by remember { mutableStateOf(sessionManager.isSoundEnabled()) }
     var autoTrackShareLinks by remember { mutableStateOf(true) }
     var showLogoutDialog by remember { mutableStateOf(false) }
 
@@ -178,18 +182,44 @@ fun SettingsScreen(
 
             SettingsSwitchTile(
                 icon = Icons.Outlined.NotificationsActive,
-                title = "Price Drop Alerts",
-                subtitle = "Receive in-app alerts when tracked items drop in price",
+                title = "Phone & In-App Alerts",
+                subtitle = "Deliver real-time alerts to phone status bar, lock screen & notification center",
                 checked = notificationsEnabled,
-                onCheckedChange = { notificationsEnabled = it }
+                onCheckedChange = {
+                    notificationsEnabled = it
+                    sessionManager.setPhoneNotificationsEnabled(it)
+                    InAppNotificationManager.setPhoneNotificationsEnabled(it)
+                    Toast.makeText(context, if (it) "Phone notifications enabled" else "Phone notifications muted", Toast.LENGTH_SHORT).show()
+                }
             )
 
             SettingsSwitchTile(
                 icon = Icons.Outlined.VolumeUp,
-                title = "Alert Sounds",
-                subtitle = "Play gentle notification tone on price drop",
+                title = "Alert Sounds & Haptics",
+                subtitle = "Play notification tone and haptic vibration on phone alerts",
                 checked = soundEnabled,
-                onCheckedChange = { soundEnabled = it }
+                onCheckedChange = {
+                    soundEnabled = it
+                    sessionManager.setSoundEnabled(it)
+                    Toast.makeText(context, if (it) "Alert sounds enabled" else "Alert sounds muted", Toast.LENGTH_SHORT).show()
+                }
+            )
+
+            SettingsActionTile(
+                icon = Icons.Outlined.NotificationAdd,
+                title = "Test Phone Notification",
+                subtitle = "Send a test notification to your phone's notification bar right now",
+                onClick = {
+                    InAppNotificationManager.postNotification(
+                        title = "PriceDrop AI Phone Alert",
+                        description = "Phone notifications are active! Live price drops & search updates will appear in your status bar.",
+                        category = InAppNotificationCategory.SYSTEM,
+                        iconType = NotificationIconType.SYSTEM,
+                        severity = NotificationSeverity.INFO,
+                        postToPhone = true
+                    )
+                    Toast.makeText(context, "Test notification dispatched to phone!", Toast.LENGTH_SHORT).show()
+                }
             )
 
             // -------------------------------------------------------------

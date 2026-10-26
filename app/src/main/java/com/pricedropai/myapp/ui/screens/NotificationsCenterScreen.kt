@@ -34,6 +34,8 @@ import androidx.activity.compose.BackHandler
 import com.pricedropai.myapp.data.local.InAppNotificationCategory
 import com.pricedropai.myapp.data.local.InAppNotificationItem
 import com.pricedropai.myapp.data.local.InAppNotificationManager
+import com.pricedropai.myapp.data.local.NotificationIconType
+import com.pricedropai.myapp.data.local.NotificationSeverity
 import com.pricedropai.myapp.ui.theme.bounceClick
 import com.pricedropai.myapp.ui.theme.glowBackdrop
 import com.pricedropai.myapp.ui.theme.neonGlow
@@ -103,6 +105,27 @@ fun NotificationsCenterScreen(
                     }
                 },
                 actions = {
+                    IconButton(
+                        onClick = {
+                            InAppNotificationManager.postNotification(
+                                title = "Activity Notification Test",
+                                description = "Live in-app message mirrored to phone notification tray successfully!",
+                                category = InAppNotificationCategory.SYSTEM,
+                                iconType = NotificationIconType.SYSTEM,
+                                severity = NotificationSeverity.INFO,
+                                postToPhone = true
+                            )
+                            Toast.makeText(context, "Test alert sent to phone notification bar!", Toast.LENGTH_SHORT).show()
+                        },
+                        modifier = Modifier.bounceClick(targetScale = 0.92f) { }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.NotificationAdd,
+                            contentDescription = "Test notification",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+
                     if (notifications.isNotEmpty()) {
                         IconButton(
                             onClick = {
@@ -221,12 +244,34 @@ fun NotificationsCenterScreen(
                         Spacer(Modifier.height(6.dp))
 
                         Text(
-                            text = "Real-time in-app alerts appear here when you search products, track price targets, interact with AI Copilot, or when stores update.",
+                            text = "Real-time in-app alerts appear here and on your phone notification bar when you search products, track price targets, interact with AI Copilot, or when stores update.",
                             fontSize = 12.sp,
                             lineHeight = 18.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center
                         )
+
+                        Spacer(Modifier.height(16.dp))
+
+                        FilledTonalButton(
+                            onClick = {
+                                InAppNotificationManager.postNotification(
+                                    title = "Activity Notification Test",
+                                    description = "Live in-app message mirrored to phone notification tray successfully!",
+                                    category = InAppNotificationCategory.SYSTEM,
+                                    iconType = NotificationIconType.SYSTEM,
+                                    severity = NotificationSeverity.INFO,
+                                    postToPhone = true
+                                )
+                                Toast.makeText(context, "Test alert sent to phone notification bar!", Toast.LENGTH_SHORT).show()
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.bounceClick(targetScale = 0.95f) { }
+                        ) {
+                            Icon(Icons.Outlined.NotificationsActive, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Send Test Phone Alert", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             } else {

@@ -411,6 +411,80 @@ function similarityScore(strA: string, strB: string): number {
   return (2 * intersection) / (wordsA.size + wordsB.size);
 }
 
+function isProductCategorySupportedByStore(store: Store, query: string, category: string): boolean {
+  const q = query.toLowerCase();
+  const cat = category.toLowerCase();
+
+  const isTechOrElectronics = cat.includes('mobile') || cat.includes('computer') || cat.includes('tablet') ||
+    cat.includes('tv') || cat.includes('audio') || cat.includes('video') ||
+    q.includes('iphone') || q.includes('macbook') || q.includes('laptop') || q.includes('phone') ||
+    q.includes('television') || q.includes('samsung galaxy') || q.includes('refrigerator') ||
+    q.includes('washing machine') || q.includes('air conditioner') || q.includes('ac') ||
+    q.includes('microwave') || q.includes('desktop') || q.includes('monitor') || q.includes('ipad');
+
+  const isFashionOrFootwear = cat.includes('fashion') || cat.includes('footwear') ||
+    q.includes('shirt') || q.includes('t-shirt') || q.includes('pant') || q.includes('jeans') ||
+    q.includes('saree') || q.includes('kurti') || q.includes('dress') || q.includes('jacket') ||
+    q.includes('shoe') || q.includes('sneaker') || q.includes('boot') || q.includes('sandal') ||
+    q.includes('heel') || q.includes('slipper') || q.includes('lehenga') || q.includes('kurta');
+
+  const isBeautyOrCosmetics = cat.includes('beauty') || cat.includes('personal care') || cat.includes('grooming') ||
+    q.includes('lipstick') || q.includes('makeup') || q.includes('skincare') || q.includes('serum') ||
+    q.includes('sunscreen') || q.includes('moisturizer') || q.includes('shampoo') || q.includes('perfume') ||
+    q.includes('fragrance') || q.includes('foundation') || q.includes('eyeliner') || q.includes('cream');
+
+  const isGrocery = cat.includes('grocer') || q.includes('atta') || q.includes('rice') || q.includes('milk') ||
+    q.includes('dal') || q.includes('oil') || q.includes('ghee') || q.includes('sugar') || q.includes('tea') ||
+    q.includes('coffee') || q.includes('biscuit') || q.includes('snack') || q.includes('chips') ||
+    q.includes('vegetable') || q.includes('fruit');
+
+  const isHeavyFurniture = cat.includes('furniture') || q.includes('sofa') || q.includes('bed') ||
+    q.includes('wardrobe') || q.includes('mattress') || q.includes('dining table');
+
+  const isHighEndFlagship = q.includes('macbook') || q.includes('iphone 15') || q.includes('iphone 16') ||
+    q.includes('iphone 14') || q.includes('s24') || q.includes('s23') || q.includes('fold') ||
+    q.includes('playstation 5') || q.includes('ps5') || q.includes('xbox series') || q.includes('rtx');
+
+  switch (store) {
+    case Store.CROMA:
+    case Store.RELIANCE_DIGITAL:
+      return !isFashionOrFootwear && !isBeautyOrCosmetics && !isGrocery && !isHeavyFurniture;
+
+    case Store.MYNTRA:
+    case Store.AJIO:
+      return !isTechOrElectronics && !isGrocery && !isHeavyFurniture;
+
+    case Store.NYKAA:
+      return !isTechOrElectronics && !isGrocery && !isHeavyFurniture && (isBeautyOrCosmetics || isFashionOrFootwear);
+
+    case Store.BLINKIT:
+      return !isHighEndFlagship && !isHeavyFurniture && (isGrocery || isBeautyOrCosmetics || q.includes('cable') || q.includes('charger') || q.includes('bulb') || q.includes('earphone'));
+
+    case Store.MEESHO:
+      return !isHighEndFlagship && !q.includes('macbook') && !q.includes('playstation') && !q.includes('oled');
+
+    case Store.JIOMART:
+      return !q.includes('zara') && !q.includes('h&m');
+
+    case Store.TATACLIQ:
+      return !isGrocery;
+
+    case Store.WALMART:
+    case Store.TARGET:
+      return !q.includes('amul') && !q.includes('patanjali') && !q.includes('haldiram') && !q.includes('saree') && !q.includes('kurti');
+
+    case Store.EBAY:
+      return !isGrocery;
+
+    case Store.AMAZON:
+    case Store.FLIPKART:
+      return true;
+
+    default:
+      return true;
+  }
+}
+
 export async function aggregateSearchResults(query: string): Promise<Product[]> {
   const cleanQ = query.trim();
   if (!cleanQ) return [];
@@ -631,6 +705,25 @@ export async function aggregateSearchResults(query: string): Promise<Product[]> 
 
     // Add Gemini 6-store offers with dynamically allocated rate, link, and image
     for (const store of geminiMissing) {
+      const isSupported = isProductCategorySupportedByStore(store, cleanQ, category);
+      if (!isSupported) {
+        storeOffers.push({
+          id: `${productId}_${store.toLowerCase()}`,
+          productId,
+          store,
+          productUrl: buildStoreUrl(store, cluster.title),
+          price: 0,
+          originalPrice: 0,
+          discountPercentage: 0,
+          currency: 'INR',
+          availability: Availability.OUT_OF_STOCK,
+          deliveryInfo: '(Product Unavailable..)',
+          imageUrl: highResImage,
+          lastUpdated: Date.now(),
+        });
+        continue;
+      }
+
       const aiData = geminiAnalysis[store.toUpperCase()];
       const mult = storeMultiplier[store] || 1.0;
       const price = aiData?.price || Math.round(refPrice * mult);
@@ -655,6 +748,25 @@ export async function aggregateSearchResults(query: string): Promise<Product[]> 
 
     // Add Groq 6-store offers with dynamically allocated rate, link, and image
     for (const store of groqMissing) {
+      const isSupported = isProductCategorySupportedByStore(store, cleanQ, category);
+      if (!isSupported) {
+        storeOffers.push({
+          id: `${productId}_${store.toLowerCase()}`,
+          productId,
+          store,
+          productUrl: buildStoreUrl(store, cluster.title),
+          price: 0,
+          originalPrice: 0,
+          discountPercentage: 0,
+          currency: 'INR',
+          availability: Availability.OUT_OF_STOCK,
+          deliveryInfo: '(Product Unavailable..)',
+          imageUrl: highResImage,
+          lastUpdated: Date.now(),
+        });
+        continue;
+      }
+
       const aiData = groqAnalysis[store.toUpperCase()];
       const mult = storeMultiplier[store] || 1.0;
       const price = aiData?.price || Math.round(refPrice * mult);

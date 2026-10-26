@@ -8,6 +8,10 @@ import com.pricedropai.myapp.data.local.PriceDropDatabase
 import com.pricedropai.myapp.data.remote.datasource.MultiStoreProductDataSource
 import com.pricedropai.myapp.data.repository.ProductRepository
 import com.pricedropai.myapp.data.repository.WatchlistRepository
+import com.pricedropai.myapp.data.local.InAppNotificationCategory
+import com.pricedropai.myapp.data.local.InAppNotificationManager
+import com.pricedropai.myapp.data.local.NotificationIconType
+import com.pricedropai.myapp.data.local.NotificationSeverity
 import com.pricedropai.myapp.notification.NotificationHelper
 import java.util.concurrent.TimeUnit
 
@@ -97,7 +101,19 @@ class PriceCheckWorker(
                                 notificationId = item.id.toInt()
                             )
 
-                            // 4. Update notified state
+                            // 4. Update in-app activity center as well
+                            val storeInfo = lowestOffer.store.displayName.let { " on $it" }
+                            InAppNotificationManager.postNotification(
+                                title = "🔥 Price Drop: ${item.productTitle.take(30)}",
+                                description = "Now ₹${"%,.0f".format(currentPrice)}$storeInfo (Target: ₹${"%,.0f".format(item.targetPrice)})",
+                                category = InAppNotificationCategory.ALERTS,
+                                iconType = NotificationIconType.ALERT,
+                                accentColor = androidx.compose.ui.graphics.Color(0xFF10B981),
+                                severity = NotificationSeverity.ALERT,
+                                postToPhone = false // Avoid double alert since showPriceDropNotification posted
+                            )
+
+                            // 5. Update notified state
                             watchlistRepo.markNotified(item.id, currentPrice)
                             Log.d(TAG, "Notification sent for ${item.productTitle} at ₹$currentPrice")
                         }
