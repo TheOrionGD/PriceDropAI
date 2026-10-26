@@ -1,4 +1,5 @@
 import { Product, StoreOffer, Store, Availability, RawScrapedItem, ProductVariant, PaymentOffer, PaymentOfferType } from '../types/index.js';
+import { calculatePaymentOffers, calculateEmiPlans } from './bankingService.js';
 import { scrapeAmazon } from '../scrapers/amazon.js';
 import { scrapeFlipkart } from '../scrapers/flipkart.js';
 import { scrapeMeesho } from '../scrapers/meesho.js';
@@ -88,7 +89,7 @@ function detectCategory(q: string): string {
   return 'General E-Commerce';
 }
 
-function detectBrand(q: string): string | null {
+export function detectBrand(q: string): string | null {
   const lower = q.toLowerCase();
 
   // Curated brands list with exact professional casing
@@ -365,27 +366,90 @@ function detectBrand(q: string): string | null {
     'chicco': 'Chicco',
     'sebamed': 'Sebamed',
 
-    // Food, Gourmet & Groceries
-    'nestle': 'Nestlé',
-    'amul': 'Amul',
-    'cadbury': 'Cadbury',
-    'ferrero': 'Ferrero Rocher',
-    'kelloggs': "Kellogg's",
+    // Food, Gourmet, Atta / Flours, Grains & Groceries
+    'aashirvaad': 'Aashirvaad',
+    'fortune': 'Fortune',
+    'pillsbury': 'Pillsbury',
+    'nature fresh': 'Nature Fresh',
+    'shakti bhog': 'Shakti Bhog',
+    'rajdhani': 'Rajdhani',
+    'patanjali': 'Patanjali',
+    'tata sampann': 'Tata Sampann',
     'tata': 'Tata',
+    'daawat': 'Daawat',
+    'india gate': 'India Gate',
+    'kohinoor': 'Kohinoor',
+    'slurrp farm': 'Slurrp Farm',
+    'true elements': 'True Elements',
+    'organic tattva': 'Organic Tattva',
+    '24 mantra': '24 Mantra',
+    'catch': 'Catch',
+    'everest': 'Everest',
+    'mdh': 'MDH',
+    'badshah': 'Badshah',
+    'suhana': 'Suhana',
+    'eastern': 'Eastern',
+    'ramdev': 'Ramdev',
+    'saffola': 'Saffola',
+    'dhara': 'Dhara',
+    'gemini cooking oil': 'Gemini',
+    'emami': 'Emami',
+    'dalda': 'Dalda',
+    'ananda': 'Ananda',
+    'gowardhan': 'Gowardhan',
+    'amul': 'Amul',
+    'mother dairy': 'Mother Dairy',
+    'milky mist': 'Milky Mist',
+    'nestle': 'Nestlé',
     'britannia': 'Britannia',
     'sunfeast': 'Sunfeast',
     'parle': 'Parle',
-    'saffola': 'Saffola',
-    'fortune': 'Fortune',
+    'cadbury': 'Cadbury',
+    'ferrero': 'Ferrero Rocher',
+    'kelloggs': "Kellogg's",
+    'bagrrys': "Bagrry's",
+    'haldiram': 'Haldiram',
+    'bikaji': 'Bikaji',
+    'bikano': 'Bikano',
+    'balaji': 'Balaji',
+    'lays': "Lay's",
+    'kurkure': 'Kurkure',
+    'bingo': 'Bingo!',
+    'doritos': 'Doritos',
+    'pringles': 'Pringles',
+    'quaker': 'Quaker',
+    'kissan': 'Kissan',
+    'maggi': 'Maggi',
+    'top ramen': 'Top Ramen',
+    'knorr': 'Knorr',
+    "ching's": "Ching's Secret",
+    'chings': "Ching's Secret",
+    'veeba': 'Veeba',
+    'dr oetker': 'Dr. Oetker',
+    'del monte': 'Del Monte',
+    'nutella': 'Nutella',
+    'hersheys': "Hershey's",
+    'bournvita': 'Bournvita',
+    'horlicks': 'Horlicks',
+    'boost': 'Boost',
+    'complan': 'Complan',
+    'pediasure': 'PediaSure',
+    'ensure': 'Ensure',
+    'protinex': 'Protinex',
     'dabur': 'Dabur',
-    'aashirvaad': 'Aashirvaad',
     'tropicana': 'Tropicana',
+    'real fruit': 'Real',
+    'paper boat': 'Paper Boat',
     'red bull': 'Red Bull',
     'monster': 'Monster Energy',
     'nescafe': 'Nescafé',
     'bru': 'BRU',
     'starbucks': 'Starbucks',
     'blue tokai': 'Blue Tokai',
+    'sleepy owl': 'Sleepy Owl',
+    'wagh bakri': 'Wagh Bakri',
+    'taj mahal': 'Taj Mahal',
+    'red label': 'Red Label',
   };
 
   for (const [key, displayName] of Object.entries(brandCatalog)) {
@@ -399,14 +463,48 @@ function detectBrand(q: string): string | null {
   return null;
 }
 
+// Common Indian e-commerce synonym pairs to bridge user searches (e.g., 'flour' <-> 'atta', 'mobile' <-> 'phone')
+const SYNONYMS: Record<string, string[]> = {
+  'flour': ['flour', 'atta', 'chakki', 'gehu', 'maida', 'besan'],
+  'atta': ['atta', 'flour', 'chakki', 'gehu'],
+  'wheat': ['wheat', 'atta', 'gehu', 'chakki'],
+  'oil': ['oil', 'tel', 'refined'],
+  'rice': ['rice', 'chawal', 'basmati'],
+  'pulses': ['pulses', 'pulse', 'dal', 'daal', 'lentil', 'lentils'],
+  'dal': ['dal', 'daal', 'pulses', 'lentils'],
+  'sugar': ['sugar', 'cheeni', 'shakar'],
+  'tea': ['tea', 'chai', 'patti'],
+  'coffee': ['coffee', 'kafi'],
+  'ghee': ['ghee', 'butter'],
+  'phone': ['phone', 'mobile', 'smartphone'],
+  'mobile': ['mobile', 'phone', 'smartphone'],
+  'earbuds': ['earbuds', 'earphone', 'earphones', 'tws', 'airpods', 'headphones', 'neckband'],
+  'headphones': ['headphones', 'headphone', 'earphone', 'earphones', 'tws', 'earbuds'],
+  'laptop': ['laptop', 'notebook', 'macbook'],
+};
+
 function similarityScore(strA: string, strB: string): number {
+  // CRITICAL: Different brands must NEVER be clustered together into the same product!
+  const brandA = detectBrand(strA);
+  const brandB = detectBrand(strB);
+  if (brandA && brandB && brandA.toLowerCase() !== brandB.toLowerCase()) {
+    return 0;
+  }
+
   const wordsA = new Set(strA.toLowerCase().replace(/[^a-z0-9 ]/g, '').split(/\s+/).filter(w => w.length > 2));
   const wordsB = new Set(strB.toLowerCase().replace(/[^a-z0-9 ]/g, '').split(/\s+/).filter(w => w.length > 2));
   if (wordsA.size === 0 || wordsB.size === 0) return 0;
 
   let intersection = 0;
   for (const w of wordsA) {
-    if (wordsB.has(w)) intersection++;
+    if (wordsB.has(w)) {
+      intersection++;
+    } else {
+      const syns = SYNONYMS[w];
+      if (syns && syns.some(s => wordsB.has(s))) {
+        intersection += 0.8;
+      }
+    }
   }
   return (2 * intersection) / (wordsA.size + wordsB.size);
 }
@@ -423,7 +521,27 @@ export function calculateRelevanceScore(query: string, title: string, isSponsore
     score += 60;
   }
 
-  // 2. Query words matching ratio
+  // 2. Brand-Aware Prioritization & Competitor Brand Penalty
+  const queryBrand = detectBrand(cleanQ);
+  const titleBrand = detectBrand(titleLower);
+
+  if (queryBrand) {
+    const qbLower = queryBrand.toLowerCase();
+    const hasQueryBrand = titleLower.includes(qbLower) || (titleBrand && titleBrand.toLowerCase() === qbLower);
+
+    if (hasQueryBrand) {
+      // User specifically asked for this brand and title delivers it
+      score += 80;
+    } else if (titleBrand && titleBrand.toLowerCase() !== qbLower) {
+      // User asked for Brand A (e.g. Fortune), but this item belongs to Brand B (e.g. Aashirvaad)
+      score -= 120;
+    } else {
+      // Item completely omits the requested brand
+      score -= 50;
+    }
+  }
+
+  // 3. Query words matching ratio with synonym expansion (e.g. 'flour' matches 'atta')
   const queryTokens = cleanQ.replace(/[^a-z0-9 ]/g, '').split(/\s+/).filter(w => w.length > 0);
   const titleTokens = new Set(titleLower.replace(/[^a-z0-9 ]/g, '').split(/\s+/).filter(w => w.length > 0));
 
@@ -432,6 +550,11 @@ export function calculateRelevanceScore(query: string, title: string, isSponsore
     for (const token of queryTokens) {
       if (titleTokens.has(token) || titleLower.includes(token)) {
         matchedCount++;
+      } else {
+        const syns = SYNONYMS[token];
+        if (syns && syns.some(s => titleTokens.has(s) || titleLower.includes(s))) {
+          matchedCount += 0.9;
+        }
       }
     }
     const tokenMatchRatio = matchedCount / queryTokens.length;
@@ -442,7 +565,7 @@ export function calculateRelevanceScore(query: string, title: string, isSponsore
     }
   }
 
-  // 3. Sponsored penalty: Prioritize organic product matches over paid advertisements
+  // 4. Sponsored penalty: Prioritize organic product matches over paid advertisements
   if (isSponsored) {
     score -= 25;
   }
@@ -560,11 +683,31 @@ export async function aggregateSearchResults(query: string): Promise<Product[]> 
   // Filter items by relevance for multi-word queries. For 1-2 word queries (e.g. "shoes"), trust store search relevance
   const isShortQuery = cleanQ.split(/\s+/).length <= 2;
   const queryWords = cleanQ.toLowerCase().replace(/[^a-z0-9 ]/g, '').split(/\s+/).filter(w => w.length > 1);
-  
+  const queryBrand = detectBrand(cleanQ);
+
   const relevantItems = allItems.filter(item => {
     if (isShortQuery || queryWords.length === 0) return true;
     const titleLower = item.title.toLowerCase();
-    const matchCount = queryWords.filter(w => titleLower.includes(w)).length;
+
+    // If query specified a brand and this item belongs to that brand, ALWAYS preserve it
+    if (queryBrand) {
+      const qbLower = queryBrand.toLowerCase();
+      if (titleLower.includes(qbLower) || detectBrand(titleLower)?.toLowerCase() === qbLower) {
+        return true;
+      }
+    }
+
+    let matchCount = 0;
+    for (const w of queryWords) {
+      if (titleLower.includes(w)) {
+        matchCount++;
+      } else {
+        const syns = SYNONYMS[w];
+        if (syns && syns.some(s => titleLower.includes(s))) {
+          matchCount++;
+        }
+      }
+    }
     return matchCount >= Math.max(1, Math.ceil(queryWords.length * 0.4));
   });
 
@@ -579,7 +722,17 @@ export async function aggregateSearchResults(query: string): Promise<Product[]> 
   }> = [];
 
   for (const item of itemsToCluster) {
-    let matchedCluster = productClusters.find(c => similarityScore(c.title, item.title) > 0.45);
+    const itemBrand = detectBrand(item.title);
+
+    let matchedCluster = productClusters.find(c => {
+      const clusterBrand = detectBrand(c.title);
+      // STRICT BRAND ISOLATION: Never merge different brands into the same cluster!
+      if (clusterBrand && itemBrand && clusterBrand.toLowerCase() !== itemBrand.toLowerCase()) {
+        return false;
+      }
+      return similarityScore(c.title, item.title) > 0.45;
+    });
+
     const itemScore = calculateRelevanceScore(cleanQ, item.title, item.isSponsored);
 
     if (matchedCluster) {
@@ -593,6 +746,8 @@ export async function aggregateSearchResults(query: string): Promise<Product[]> 
       }
       if (itemScore > matchedCluster.relevanceScore) {
         matchedCluster.relevanceScore = itemScore;
+        // Promote the better-matching organic item title as the cluster title
+        matchedCluster.title = item.title;
       }
     } else {
       productClusters.push({
@@ -604,8 +759,17 @@ export async function aggregateSearchResults(query: string): Promise<Product[]> 
     }
   }
 
-  // Sort clusters by query relevance so the best organic match to the user's query is at index 0
-  productClusters.sort((a, b) => b.relevanceScore - a.relevanceScore);
+  // Sort clusters so requested brand and best organic match to user's query is at index 0
+  productClusters.sort((a, b) => {
+    if (queryBrand) {
+      const qbLower = queryBrand.toLowerCase();
+      const aBrandMatch = a.title.toLowerCase().includes(qbLower) || detectBrand(a.title)?.toLowerCase() === qbLower;
+      const bBrandMatch = b.title.toLowerCase().includes(qbLower) || detectBrand(b.title)?.toLowerCase() === qbLower;
+      if (aBrandMatch && !bBrandMatch) return -1;
+      if (!aBrandMatch && bBrandMatch) return 1;
+    }
+    return b.relevanceScore - a.relevanceScore;
+  });
 
   // 3. Transform clusters into Product objects with dynamic rate, link, and verified image allocation
   const products: Product[] = [];
@@ -840,47 +1004,23 @@ export async function aggregateSearchResults(query: string): Promise<Product[]> 
       });
     }
 
-    const paymentOffers: PaymentOffer[] = [
-      {
-        id: `offer_${productId}_hdfc`,
-        provider: 'HDFC Bank',
-        type: PaymentOfferType.INSTANT_DISCOUNT,
-        description: 'Flat ₹1,000 Instant Discount on HDFC Bank Credit Cards',
-        amount: 1000,
-        percentage: null,
-        minimumPurchase: 5000,
-        maximumDiscount: 1000,
-        validUntil: Date.now() + 86400000 * 7,
-      },
-      {
-        id: `offer_${productId}_icici`,
-        provider: 'ICICI Bank',
-        type: PaymentOfferType.CASHBACK,
-        description: '5% Unlimited Cashback on ICICI Bank Cards',
-        amount: null,
-        percentage: 5,
-        minimumPurchase: 1000,
-        maximumDiscount: 2000,
-        validUntil: Date.now() + 86400000 * 14,
-      }
-    ];
+    const primaryOffer = storeOffers.find((s) => s.price !== null && s.price > 0);
+    const lowestOfferPrice = primaryOffer?.price ?? null;
+    const primaryStore = primaryOffer?.store ?? null;
+    const productCategory = detectCategory(cluster.title);
 
-    // AI Review Summary generation across all queried stores (Gemini on primary cluster)
-    const availableStores = storeOffers.map(s => s.store);
-    const reviewSummary = clusterIdx === 0
-      ? await generateProductReviewSummaryWithGemini(
-          cluster.title,
-          availableStores,
-          avgRating,
-          totalReviews
-        )
-      : {
-          sentimentScore: avgRating ? Math.round(avgRating * 20) : 88,
-          pros: [`High customer rating (${avgRating || 4.2}★)`, 'Available across verified retail stores', 'Instant delivery available'],
-          cons: ['Limited promotional discounts on select models'],
-          totalAnalyzed: totalReviews || 50,
-          isAvailable: true,
-        };
+    // Calculate real dynamic bank offers & No-Cost EMI plans
+    const paymentOffers = calculatePaymentOffers(lowestOfferPrice, primaryStore, productCategory);
+    const emiPlans = calculateEmiPlans(lowestOfferPrice, primaryStore);
+
+    // AI Review Summary generation across all queried stores
+    const availableStores = storeOffers.map((s) => s.store);
+    const reviewSummary = await generateProductReviewSummaryWithGemini(
+      cluster.title,
+      availableStores,
+      avgRating,
+      totalReviews
+    );
 
     products.push({
       id: productId,
@@ -889,7 +1029,7 @@ export async function aggregateSearchResults(query: string): Promise<Product[]> 
       title: cleanTitle(cluster.title),
       description: `Live price comparison across online stores for ${cluster.title}.`,
       imageUrl: highResImage || null,
-      category: detectCategory(cluster.title),
+      category: productCategory,
       brand: detectBrand(cluster.title),
       rating: avgRating,
       reviewCount: totalReviews,
@@ -897,6 +1037,7 @@ export async function aggregateSearchResults(query: string): Promise<Product[]> 
       stores: storeOffers,
       reviewSummary,
       paymentOffers,
+      emiPlans,
       lastUpdated: Date.now(),
     });
   }

@@ -51,7 +51,7 @@ fun SettingsScreen(
 
     var showNotificationsCenter by remember { mutableStateOf(startInNotificationsCenter) }
     var notificationsEnabled by remember { mutableStateOf(sessionManager.isPhoneNotificationsEnabled()) }
-    var backgroundCheckFrequency by remember { mutableStateOf("Every 6 Hours") }
+    var currentInterval by remember { mutableStateOf(sessionManager.getPriceCheckInterval()) }
     var soundEnabled by remember { mutableStateOf(sessionManager.isSoundEnabled()) }
     var autoTrackShareLinks by remember { mutableStateOf(true) }
     var showLogoutDialog by remember { mutableStateOf(false) }
@@ -235,20 +235,47 @@ fun SettingsScreen(
                 onCheckedChange = { autoTrackShareLinks = it }
             )
 
+            val lastCheckTime = remember { sessionManager.getLastCheckTimestamp() }
+            val lastCheckDiag = remember { sessionManager.getLastCheckDiagnostics() }
+            val formattedLastCheck = remember(lastCheckTime) {
+                if (lastCheckTime > 0) {
+                    val sdf = java.text.SimpleDateFormat("dd MMM, hh:mm a", java.util.Locale.getDefault())
+                    "Last run: ${sdf.format(java.util.Date(lastCheckTime))}"
+                } else {
+                    "Background worker scheduled"
+                }
+            }
+
             SettingsActionTile(
                 icon = Icons.Outlined.Schedule,
                 title = "Background Check Interval",
-                subtitle = backgroundCheckFrequency,
+                subtitle = "${currentInterval.displayName} • $formattedLastCheck",
                 onClick = {
-                    backgroundCheckFrequency = when (backgroundCheckFrequency) {
-                        "Every 3 Hours" -> "Every 6 Hours"
-                        "Every 6 Hours" -> "Every 12 Hours"
-                        "Every 12 Hours" -> "Once Daily"
-                        else -> "Every 3 Hours"
+                    val nextInterval = when (currentInterval) {
+                        com.pricedropai.myapp.core.model.PriceCheckInterval.EVERY_3_HOURS -> com.pricedropai.myapp.core.model.PriceCheckInterval.EVERY_6_HOURS
+                        com.pricedropai.myapp.core.model.PriceCheckInterval.EVERY_6_HOURS -> com.pricedropai.myapp.core.model.PriceCheckInterval.EVERY_12_HOURS
+                        com.pricedropai.myapp.core.model.PriceCheckInterval.EVERY_12_HOURS -> com.pricedropai.myapp.core.model.PriceCheckInterval.ONCE_DAILY
+                        com.pricedropai.myapp.core.model.PriceCheckInterval.ONCE_DAILY -> com.pricedropai.myapp.core.model.PriceCheckInterval.EVERY_3_HOURS
                     }
-                    Toast.makeText(context, "Interval set to: $backgroundCheckFrequency", Toast.LENGTH_SHORT).show()
+                    try {
+                        sessionManager.setPriceCheckInterval(nextInterval)
+                        currentInterval = nextInterval
+                        com.pricedropai.myapp.worker.PriceCheckWorker.schedulePeriodicCheck(context, nextInterval.hours)
+                        Toast.makeText(context, "Interval set & scheduled: ${nextInterval.displayName}", Toast.LENGTH_SHORT).show()
+                    } catch (e: Exception) {
+                        Toast.makeText(context, "Reschedule failed: ${e.message}", Toast.LENGTH_SHORT).show()
+                    }
                 }
             )
+
+            if (!lastCheckDiag.isNullOrBlank()) {
+                Text(
+                    text = "Operational: $lastCheckDiag",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    modifier = Modifier.padding(horizontal = 6.dp)
+                )
+            }
 
             // -------------------------------------------------------------
             // Appearance & Themes (Theme mode + Accent Color)

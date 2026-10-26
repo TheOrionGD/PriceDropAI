@@ -10,7 +10,6 @@ import com.pricedropai.myapp.data.mapper.Mappers
 import com.pricedropai.myapp.data.mapper.Mappers.toDomain
 import com.pricedropai.myapp.data.mapper.Mappers.toEntity
 import com.pricedropai.myapp.data.remote.datasource.BackendProductDataSource
-import com.pricedropai.myapp.data.remote.datasource.MultiStoreProductDataSource
 import com.pricedropai.myapp.data.remote.datasource.ProductDataSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -112,48 +111,17 @@ class ProductRepository(
                     // Record live price snapshots for each store with a verified price
                     liveProduct.stores.forEach { offer ->
                         if (offer.price != null && offer.price > 0) {
-                            priceSnapshotDao.insertSnapshot(
-                                PriceSnapshotEntity(
-                                    productId = liveProduct.id,
-                                    store = offer.store,
-                                    price = offer.price,
-                                    timestamp = System.currentTimeMillis(),
-                                    availability = offer.availability
-                                )
+                            recordPriceSnapshot(
+                                productId = liveProduct.id,
+                                store = offer.store,
+                                price = offer.price,
+                                availability = offer.availability
                             )
                         }
                     }
 
-                    // Seed baseline 30-day price history if product has new/few snapshots
-                    val existingSnapshots = priceSnapshotDao.getSnapshots(liveProduct.id)
-                    if (existingSnapshots.size < 2) {
-                        val basePrice = liveProduct.lowestPrice ?: liveProduct.stores.mapNotNull { it.price }.firstOrNull() ?: 1000.0
-                        val origPrice = liveProduct.stores.mapNotNull { it.originalPrice }.firstOrNull() ?: (basePrice * 1.15)
-                        val primaryStore = liveProduct.lowestOffer?.store ?: com.pricedropai.myapp.core.model.Store.AMAZON
-
-                        val now = System.currentTimeMillis()
-                        val dayMs = 86400000L
-                        val historyPoints = listOf(
-                            Pair(now - 30 * dayMs, origPrice),
-                            Pair(now - 21 * dayMs, origPrice * 0.98),
-                            Pair(now - 14 * dayMs, basePrice * 1.05),
-                            Pair(now - 7 * dayMs, basePrice * 1.02),
-                            Pair(now - 3 * dayMs, basePrice * 1.01),
-                            Pair(now, basePrice)
-                        )
-
-                        historyPoints.forEach { (time, price) ->
-                            priceSnapshotDao.insertSnapshot(
-                                PriceSnapshotEntity(
-                                    productId = liveProduct.id,
-                                    store = primaryStore,
-                                    price = Math.round(price * 10.0) / 10.0,
-                                    timestamp = time,
-                                    availability = Availability.IN_STOCK
-                                )
-                            )
-                        }
-                    }
+                    // Production integrity: Do not manufacture synthetic baseline history points.
+                    // Price history snapshots reflect only genuine verified observations.
 
                     // Save to search history
                     recordSearchQuery(cleanQuery)
@@ -183,12 +151,18 @@ class ProductRepository(
         price: Double,
         availability: Availability = Availability.IN_STOCK
     ): Long = withContext(Dispatchers.IO) {
+        val existing = priceSnapshotDao.getSnapshots(productId)
+        val lastSameStore = existing.lastOrNull { it.store == store }
+        val now = System.currentTimeMillis()
+        if (lastSameStore != null && lastSameStore.price == price && (now - lastSameStore.timestamp) < 300_000L) {
+            return@withContext lastSameStore.id
+        }
         priceSnapshotDao.insertSnapshot(
             PriceSnapshotEntity(
                 productId = productId,
                 store = store,
                 price = price,
-                timestamp = System.currentTimeMillis(),
+                timestamp = now,
                 availability = availability
             )
         )

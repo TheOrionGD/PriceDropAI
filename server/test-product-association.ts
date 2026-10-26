@@ -141,6 +141,28 @@ assert.strictEqual(normKey2, 'search_iphone 16', 'Query 2 normalized to search_i
 assert.strictEqual(cacheMap.get('search_iphone 15'), 'Result For iPhone 15');
 assert.strictEqual(cacheMap.get('search_iphone 16'), 'Result For iPhone 16');
 assert.notStrictEqual(cacheMap.get('search_iphone 15'), cacheMap.get('search_iphone 16'), 'Cache keys must never collide');
-console.log('  ✅ Test 5 Passed: Cache normalization and isolation verified.\n');
+// =========================================================================
+// Test 6: Brand-Specific Search & Competitor Brand Rejection (e.g. Flour/Atta)
+// =========================================================================
+console.log('▶ Test 6: Brand-Specific Search & Competitor Brand Isolation');
+const flourQuery = 'Fortune whole wheat flour';
+const fortuneItemTitle = 'Fortune Chakki Fresh Atta, 5kg';
+const aashirvaadItemTitle = 'Aashirvaad Superior MP Whole Wheat Atta 5kg';
+const genericFlourTitle = 'Chakki Fresh Whole Wheat Flour 5kg';
 
-console.log('🎉 ALL 5 REGRESSION TEST SCENARIOS PASSED WITH ZERO FAILURES!');
+const scoreFortune = calculateRelevanceScore(flourQuery, fortuneItemTitle, false);
+const scoreAashirvaad = calculateRelevanceScore(flourQuery, aashirvaadItemTitle, false);
+const scoreGeneric = calculateRelevanceScore(flourQuery, genericFlourTitle, false);
+
+console.log(`  - Query: "${flourQuery}"`);
+console.log(`  - Fortune Item Score: ${scoreFortune}`);
+console.log(`  - Aashirvaad Competitor Item Score: ${scoreAashirvaad}`);
+console.log(`  - Generic Item Score: ${scoreGeneric}`);
+
+assert(scoreFortune > scoreAashirvaad, 'Fortune item must strongly outrank competitor Aashirvaad for Fortune query');
+assert(scoreFortune > scoreGeneric, 'Fortune item must outrank generic flour item');
+assert(scoreAashirvaad < 10, 'Competitor brand must receive heavy penalty when user explicitly searches a brand');
+console.log('  ✅ Test 6 Passed: Brand-specific searches strictly prioritize the requested brand and penalize competitor brands.\n');
+
+console.log('🎉 ALL 6 REGRESSION TEST SCENARIOS PASSED WITH ZERO FAILURES!');
+

@@ -53,6 +53,11 @@ export interface ProductVariant {
   isAvailable: boolean;
 }
 
+export type PaymentMethod = 'CREDIT_CARD' | 'DEBIT_CARD' | 'UPI' | 'NET_BANKING' | 'EMI';
+export type CardType = 'CREDIT' | 'DEBIT' | 'ANY';
+export type DiscountType = 'PERCENTAGE' | 'FIXED' | 'CASHBACK';
+export type EligibilityStatus = 'ELIGIBLE' | 'INELIGIBLE_MIN_PURCHASE' | 'INELIGIBLE_STORE' | 'INELIGIBLE_EXPIRED' | 'UNVERIFIED';
+
 export interface PaymentOffer {
   id: string;
   provider: string;
@@ -63,7 +68,67 @@ export interface PaymentOffer {
   minimumPurchase: number | null;
   maximumDiscount: number | null;
   validUntil: number | null;
+  // Extended production fields
+  displayName?: string;
+  paymentMethod?: PaymentMethod;
+  cardType?: CardType;
+  discountType?: DiscountType;
+  discountValue?: number;
+  maximumEligibleDiscount?: number | null;
+  calculatedDiscount?: number;
+  payablePrice?: number;
+  eligibilityStatus?: EligibilityStatus;
+  ineligibilityReason?: string;
+  isEligible?: boolean;
+  terms?: string;
+  source?: string;
+  sourceUrl?: string;
+  lastVerifiedAt?: number;
+  isCashback?: boolean;
+  emiEligible?: boolean;
 }
+
+export interface EmiPlan {
+  id: string;
+  provider: string;
+  displayName: string;
+  tenureMonths: number;
+  monthlyInstallment: number;
+  totalInstallmentAmount: number;
+  interestAmount: number;
+  subventionDiscount: number;
+  processingFee: number;
+  taxes: number;
+  effectiveTotalCost: number;
+  isNoCostEmi: boolean;
+  eligibilityStatus: EligibilityStatus;
+  ineligibilityReason?: string;
+  source: string;
+  sourceUrl?: string;
+  terms?: string;
+}
+
+export interface RatingBreakdownItem {
+  count: number;
+  percentage: number;
+}
+
+export interface RatingDistribution {
+  fiveStar: RatingBreakdownItem;
+  fourStar: RatingBreakdownItem;
+  threeStar: RatingBreakdownItem;
+  twoStar: RatingBreakdownItem;
+  oneStar: RatingBreakdownItem;
+}
+
+export interface FeatureSentimentScores {
+  buildQuality: number | null;
+  valueForMoney: number | null;
+  performance: number | null;
+  durability: number | null;
+}
+
+export type ReviewAnalysisStatus = 'VERIFIED_ANALYSIS' | 'SAMPLE_BASED' | 'UNAVAILABLE' | 'INSUFFICIENT_DATA';
 
 export interface ReviewSummary {
   sentimentScore: number | null;
@@ -71,6 +136,13 @@ export interface ReviewSummary {
   cons: string[];
   totalAnalyzed: number | null;
   isAvailable: boolean;
+  ratingDistribution?: RatingDistribution | null;
+  featureScores?: FeatureSentimentScores | null;
+  confidenceScore?: number | null;
+  evidenceCoverage?: string | null;
+  dataFreshness?: number | null;
+  analysisStatus?: ReviewAnalysisStatus;
+  sourceMetadata?: string;
 }
 
 export interface Product {
@@ -88,6 +160,7 @@ export interface Product {
   stores: StoreOffer[];
   reviewSummary: ReviewSummary;
   paymentOffers: PaymentOffer[];
+  emiPlans?: EmiPlan[];
   lastUpdated: number;
 }
 

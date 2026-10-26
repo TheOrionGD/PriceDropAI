@@ -61,4 +61,17 @@ class Converters {
             emptyList()
         }
     }
+
+    @TypeConverter
+    fun fromEmiPlans(plans: List<com.pricedropai.myapp.core.model.EmiPlan>?): String? = plans?.let { gson.toJson(it) }
+
+    @TypeConverter
+    fun toEmiPlans(json: String?): List<com.pricedropai.myapp.core.model.EmiPlan>? = json?.let {
+        try {
+            val type = object : TypeToken<List<com.pricedropai.myapp.core.model.EmiPlan>>() {}.type
+            gson.fromJson<List<com.pricedropai.myapp.core.model.EmiPlan>>(it, type)
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
 }

@@ -82,12 +82,33 @@ class MultiStoreProductDataSource(
                 val validScraped = scrapedMap.values.filter { it.offer.price != null && it.offer.price > 10.0 }
                 val productId = cleanQuery.lowercase().replace("[^a-z0-9]+".toRegex(), "-").take(60)
 
-                // 1. Establish Title directly from scraped results
-                val primaryScraped = validScraped.firstOrNull { !it.offer.deliveryInfo.isNullOrBlank() }
-                val title = (primaryScraped?.offer?.deliveryInfo?.takeIf { it.isNotBlank() } ?: cleanQuery)
-                    .split(" ")
-                    .filter { it.isNotBlank() }
-                    .joinToString(" ") { word -> word.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() } }
+                // 1. Establish Title directly from scraped results (Brand-Aware)
+                val queryBrand = detectBrand(cleanQuery)
+                val primaryScraped = if (queryBrand != null) {
+                    val qbLower = queryBrand.lowercase()
+                    validScraped.firstOrNull {
+                        it.offer.deliveryInfo?.lowercase()?.contains(qbLower) == true
+                    } ?: validScraped.firstOrNull {
+                        val dInfo = it.offer.deliveryInfo?.lowercase() ?: ""
+                        val itemBrand = detectBrand(dInfo)
+                        itemBrand == null || itemBrand.equals(queryBrand, ignoreCase = true)
+                    }
+                } else {
+                    validScraped.firstOrNull { !it.offer.deliveryInfo.isNullOrBlank() }
+                }
+
+                val title = if (queryBrand != null && (primaryScraped == null || primaryScraped.offer.deliveryInfo?.lowercase()?.contains(queryBrand.lowercase()) != true)) {
+                    // Do NOT adopt a competitor brand title if scraped result is for a different brand
+                    cleanQuery
+                        .split(" ")
+                        .filter { it.isNotBlank() }
+                        .joinToString(" ") { word -> word.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() } }
+                } else {
+                    (primaryScraped?.offer?.deliveryInfo?.takeIf { it.isNotBlank() } ?: cleanQuery)
+                        .split(" ")
+                        .filter { it.isNotBlank() }
+                        .joinToString(" ") { word -> word.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() } }
+                }
 
                 // 2. Ensure ALL 14 stores are included with verified rates and category availability checks
                 val targetStores = listOf(
@@ -173,37 +194,18 @@ class MultiStoreProductDataSource(
                             lastUpdated = System.currentTimeMillis()
                         )
                     } else {
-                        val mult = when (store) {
-                            Store.AMAZON -> 1.0
-                            Store.FLIPKART -> 0.99
-                            Store.MEESHO -> 1.01
-                            Store.MYNTRA -> 1.02
-                            Store.CROMA -> 0.99
-                            Store.RELIANCE_DIGITAL -> 1.0
-                            Store.JIOMART -> 0.98
-                            Store.TATACLIQ -> 1.01
-                            Store.AJIO -> 0.98
-                            Store.NYKAA -> 1.0
-                            Store.BLINKIT -> 1.02
-                            Store.EBAY -> 1.03
-                            Store.WALMART -> 1.0
-                            Store.TARGET -> 1.0
-                        }
-                        val estPrice = Math.round(primaryPrice * mult).toDouble()
-                        val origPrice = Math.round(estPrice * 1.25).toDouble()
-                        val discPct = Math.round(((origPrice - estPrice) / origPrice) * 100).toDouble()
-
+                        // Store not found or listing unavailable for this product: Do not manufacture synthetic prices
                         StoreOffer(
                             id = "${productId}_${store.name.lowercase()}",
                             productId = productId,
                             store = store,
                             productUrl = storeUrl,
-                            price = estPrice,
-                            originalPrice = origPrice,
-                            discountPercentage = discPct,
+                            price = 0.0,
+                            originalPrice = 0.0,
+                            discountPercentage = 0.0,
                             currency = "INR",
-                            availability = Availability.IN_STOCK,
-                            deliveryInfo = "${store.displayName} Live Offer",
+                            availability = Availability.OUT_OF_STOCK,
+                            deliveryInfo = "(Product Unavailable..)",
                             imageUrl = dynamicImage,
                             lastUpdated = System.currentTimeMillis()
                         )
@@ -453,56 +455,90 @@ class MultiStoreProductDataSource(
             val html = response.body?.string() ?: return null
             val doc = Jsoup.parse(html)
 
-            val resultCard = doc.select("div[data-component-type=\"s-search-result\"]").firstOrNull()
-            if (resultCard != null) {
-                val priceWhole = resultCard.select("span.a-price-whole").firstOrNull()?.text()
+            val queryBrand = detectBrand(query)?.lowercase()
+            val cards = doc.select("div[data-component-type=\"s-search-result\"]")
+
+            var bestOffer: ScrapedOfferResult? = null
+
+            for (card in cards) {
+                val isCardSponsored = card.select(".puis-sponsored-label-text, .s-sponsored-label-info-icon, .s-label-popover-default, .puis-label-popover-default").isNotEmpty()
+                    || card.hasClass("AdHolder")
+                    || card.select("span:contains(Sponsored)").isNotEmpty()
+
+                val priceWhole = card.select("span.a-price-whole").firstOrNull()?.text()
+                    ?.replace("[^0-9]".toRegex(), "")?.toDoubleOrNull() ?: continue
+                if (priceWhole <= 10.0) continue
+
+                val linkEl = card.select("h2 a, a.a-link-normal.s-no-outline").firstOrNull()
+                val titleEl = card.select("h2 span, span.a-size-medium, span.a-size-base-plus").firstOrNull()
+                val titleText = titleEl?.text() ?: query
+                val titleLower = titleText.lowercase()
+
+                val cardBrand = detectBrand(titleLower)
+                val matchesQueryBrand = queryBrand != null && (titleLower.contains(queryBrand) || cardBrand?.lowercase() == queryBrand)
+                val isCompetitorBrand = queryBrand != null && cardBrand != null && cardBrand.lowercase() != queryBrand
+
+                // Strictly skip competitor brand ads/cards when user explicitly requested a brand
+                if (isCompetitorBrand) {
+                    continue
+                }
+
+                val originalPrice = card.select("span.a-price.a-text-price span.a-offscreen").firstOrNull()?.text()
                     ?.replace("[^0-9]".toRegex(), "")?.toDoubleOrNull()
-                val originalPrice = resultCard.select("span.a-price.a-text-price span.a-offscreen").firstOrNull()?.text()
-                    ?.replace("[^0-9]".toRegex(), "")?.toDoubleOrNull()
-                val linkEl = resultCard.select("h2 a, a.a-link-normal.s-no-outline").firstOrNull()
-                val titleEl = resultCard.select("h2 span, span.a-size-medium, span.a-size-base-plus").firstOrNull()
-                val imgEl = resultCard.select("img.s-image, img.a-dynamic-image, img[data-image-latency]").firstOrNull()
-                val ratingText = resultCard.select("span.a-icon-alt, i.a-icon-star-small span").firstOrNull()?.text()
-                val reviewCountText = resultCard.select("span.a-size-base.s-underline-text, span.s-underline-text").firstOrNull()?.text()
+                val relHref = linkEl?.attr("href") ?: ""
+                val productUrl = if (relHref.startsWith("http")) relHref else "https://www.amazon.in$relHref"
 
-                if (priceWhole != null && priceWhole > 10.0) {
-                    val relHref = linkEl?.attr("href") ?: ""
-                    val productUrl = if (relHref.startsWith("http")) relHref else "https://www.amazon.in$relHref"
-                    val title = titleEl?.text() ?: query
-                    
-                    val rawImg = imgEl?.attr("src")?.takeIf { it.startsWith("http") }
-                        ?: imgEl?.attr("data-src")?.takeIf { it.startsWith("http") }
-                        ?: imgEl?.attr("srcset")?.split(" ")?.firstOrNull { it.startsWith("http") }
-                    val imageUrl = rawImg?.takeIf { isValidImageUrl(it) }
+                val imgEl = card.select("img.s-image, img.a-dynamic-image, img[data-image-latency]").firstOrNull()
+                val rawImg = imgEl?.attr("src")?.takeIf { it.startsWith("http") }
+                    ?: imgEl?.attr("data-src")?.takeIf { it.startsWith("http") }
+                    ?: imgEl?.attr("srcset")?.split(" ")?.firstOrNull { it.startsWith("http") }
+                val imageUrl = rawImg?.takeIf { isValidImageUrl(it) }
 
-                    val rating = ratingText?.split(" ")?.firstOrNull()?.toDoubleOrNull()
-                    val reviewCount = reviewCountText?.replace("[^0-9]".toRegex(), "")?.toIntOrNull()
-                    val discountPercent = if (originalPrice != null && originalPrice > priceWhole) {
-                        ((originalPrice - priceWhole) / originalPrice * 100.0)
-                    } else null
+                val ratingText = card.select("span.a-icon-alt, i.a-icon-star-small span").firstOrNull()?.text()
+                val reviewCountText = card.select("span.a-size-base.s-underline-text, span.s-underline-text").firstOrNull()?.text()
+                val rating = ratingText?.split(" ")?.firstOrNull()?.toDoubleOrNull()
+                val reviewCount = reviewCountText?.replace("[^0-9]".toRegex(), "")?.toIntOrNull()
+                val discountPercent = if (originalPrice != null && originalPrice > priceWhole) {
+                    ((originalPrice - priceWhole) / originalPrice * 100.0)
+                } else null
 
-                    val offer = StoreOffer(
-                        id = "amazon_${query.hashCode().toUInt().toString(16)}",
-                        productId = "",
-                        store = Store.AMAZON,
-                        productUrl = productUrl,
-                        price = priceWhole,
-                        originalPrice = originalPrice,
-                        discountPercentage = discountPercent,
-                        availability = Availability.IN_STOCK,
-                        deliveryInfo = title,
-                        lastUpdated = System.currentTimeMillis()
-                    )
+                val offer = StoreOffer(
+                    id = "amazon_${query.hashCode().toUInt().toString(16)}",
+                    productId = "",
+                    store = Store.AMAZON,
+                    productUrl = productUrl,
+                    price = priceWhole,
+                    originalPrice = originalPrice,
+                    discountPercentage = discountPercent,
+                    availability = Availability.IN_STOCK,
+                    deliveryInfo = titleText,
+                    lastUpdated = System.currentTimeMillis()
+                )
 
-                    return ScrapedOfferResult(
-                        offer = offer,
-                        rating = rating,
-                        reviewCount = reviewCount,
-                        imageUrl = imageUrl
-                    )
+                val candidate = ScrapedOfferResult(
+                    offer = offer,
+                    rating = rating,
+                    reviewCount = reviewCount,
+                    imageUrl = imageUrl
+                )
+
+                // 1. Best: Requested brand match AND organic (not sponsored)
+                if (matchesQueryBrand && !isCardSponsored) {
+                    return candidate
+                }
+
+                // 2. Second best: Requested brand match even if sponsored
+                if (matchesQueryBrand && bestOffer == null) {
+                    bestOffer = candidate
+                }
+
+                // 3. Fallback when query has no specific brand: first organic result
+                if (queryBrand == null && !isCardSponsored && bestOffer == null) {
+                    bestOffer = candidate
                 }
             }
-            null
+
+            bestOffer
         } catch (e: Exception) {
             logD(TAG, "Amazon fetch notice: ${e.message}")
             null
@@ -744,8 +780,35 @@ class MultiStoreProductDataSource(
 
     private fun detectBrand(q: String): String? {
         val lower = q.lowercase()
-        val brands = listOf("apple", "samsung", "sony", "nike", "adidas", "puma", "boat", "noise", "oneplus", "asus", "dell", "hp", "lenovo", "milton", "pexpo", "prestige", "philips", "fastrack", "titan", "levis", "zara", "h&m", "redmi", "realme", "motorola", "logitech", "boult", "zebronics", "wildcraft", "safari", "american tourister", "skybags", "bournvita", "nestle", "amul", "mamaearth", "lakme", "nivea", "dove", "garnier")
-        return brands.firstOrNull { lower.contains(it) }?.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+        val brands = listOf(
+            // Food, Flours, Grains & Groceries
+            "aashirvaad", "fortune", "pillsbury", "nature fresh", "shakti bhog", "rajdhani",
+            "patanjali", "tata sampann", "tata", "daawat", "india gate", "kohinoor",
+            "slurrp farm", "true elements", "organic tattva", "24 mantra", "catch", "everest",
+            "mdh", "badshah", "suhana", "saffola", "dhara", "amul", "mother dairy",
+            "milky mist", "nestle", "britannia", "sunfeast", "parle", "cadbury", "haldiram",
+            "bikaji", "bikano", "balaji", "lays", "kurkure", "bingo", "quaker", "kellogg",
+            "kissan", "maggi", "horlicks", "boost", "complan", "pediasure", "ensure",
+            "protinex", "dabur", "tropicana", "paper boat", "bournvita",
+            // Tech & Electronics
+            "apple", "iphone", "ipad", "macbook", "airpods", "samsung", "sony", "google", "pixel",
+            "oneplus", "asus", "dell", "hp", "lenovo", "acer", "redmi", "realme", "xiaomi", "poco",
+            "motorola", "iqoo", "vivo", "oppo", "nothing", "infinix", "tecno", "logitech",
+            // Audio & Wearables
+            "boat", "noise", "boult", "fire-boltt", "zebronics", "jbl", "bose", "sennheiser",
+            "fastrack", "titan", "casio", "timex", "fossil", "amazfit",
+            // Home, Kitchen, Appliances
+            "milton", "pexpo", "prestige", "hawkins", "pigeon", "cello", "borosil", "philips", "bajaj", "havells", "crompton", "voltas", "godrej", "whirlpool", "lg", "ifb", "bosch",
+            // Footwear & Fashion
+            "nike", "adidas", "puma", "reebok", "skechers", "asics", "woodland", "bata", "sparx", "campus", "crocs", "levis", "zara", "h&m", "allen solly", "van heusen",
+            // Personal Care & Beauty
+            "mamaearth", "lakme", "nivea", "dove", "garnier", "loreal", "maybelline", "plum", "biotique", "himalaya", "dettol",
+            // Bags & Travel
+            "wildcraft", "safari", "american tourister", "skybags", "vip", "mokobara"
+        )
+        return brands.firstOrNull { lower.contains(it) }?.split(" ")?.joinToString(" ") { word ->
+            word.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+        }
     }
 
     /**

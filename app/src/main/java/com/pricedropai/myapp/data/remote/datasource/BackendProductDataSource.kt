@@ -19,7 +19,7 @@ import java.util.concurrent.TimeUnit
 class BackendProductDataSource(
     private val baseUrl: String = BASE_URL,
     private val client: OkHttpClient = defaultHttpClient(),
-    private val fallbackDataSource: ProductDataSource = MultiStoreProductDataSource(client)
+    private val fallbackDataSource: ProductDataSource? = null
 ) : ProductDataSource {
 
     companion object {
@@ -86,8 +86,9 @@ class BackendProductDataSource(
             Log.e(TAG, "[Audit] [reqId: $requestId] Backend search error: ${e.message}. Attempting on-device fallback.", e)
         }
 
-        // Fallback to on-device scraper if backend is unreachable / starting up
-        fallbackDataSource.searchProducts(cleanQuery)
+        // Fallback to on-device scraper if configured, otherwise return error without faking data
+        fallbackDataSource?.searchProducts(cleanQuery)
+            ?: Result.failure(Exception("Live price lookup returned no results from backend"))
     }
 
     override suspend fun getProduct(productId: String): Result<Product> = withContext(Dispatchers.IO) {
@@ -112,7 +113,8 @@ class BackendProductDataSource(
             Log.w(TAG, "Backend getProduct failed: ${e.message}")
         }
 
-        fallbackDataSource.getProduct(productId)
+        fallbackDataSource?.getProduct(productId)
+            ?: Result.failure(Exception("Product lookup for $productId returned no data from backend"))
     }
 
     override suspend fun getPrice(productId: String, store: Store): Result<PriceSnapshot> {
@@ -267,7 +269,53 @@ class BackendProductDataSource(
                         percentage = if (payObj.has("percentage") && !payObj.isNull("percentage")) payObj.optDouble("percentage") else null,
                         minimumPurchase = if (payObj.has("minimumPurchase") && !payObj.isNull("minimumPurchase")) payObj.optDouble("minimumPurchase") else null,
                         maximumDiscount = if (payObj.has("maximumDiscount") && !payObj.isNull("maximumDiscount")) payObj.optDouble("maximumDiscount") else null,
-                        validUntil = if (payObj.has("validUntil") && !payObj.isNull("validUntil")) payObj.optLong("validUntil") else null
+                        validUntil = if (payObj.has("validUntil") && !payObj.isNull("validUntil")) payObj.optLong("validUntil") else null,
+                        displayName = payObj.optString("displayName").takeIf { it.isNotBlank() },
+                        paymentMethod = payObj.optString("paymentMethod").takeIf { it.isNotBlank() },
+                        cardType = payObj.optString("cardType").takeIf { it.isNotBlank() },
+                        discountType = payObj.optString("discountType").takeIf { it.isNotBlank() },
+                        discountValue = if (payObj.has("discountValue") && !payObj.isNull("discountValue")) payObj.optDouble("discountValue") else null,
+                        calculatedDiscount = if (payObj.has("calculatedDiscount") && !payObj.isNull("calculatedDiscount")) payObj.optDouble("calculatedDiscount") else null,
+                        payablePrice = if (payObj.has("payablePrice") && !payObj.isNull("payablePrice")) payObj.optDouble("payablePrice") else null,
+                        isEligible = payObj.optBoolean("isEligible", true),
+                        eligibilityStatus = payObj.optString("eligibilityStatus", "ELIGIBLE"),
+                        ineligibilityReason = payObj.optString("ineligibilityReason").takeIf { it.isNotBlank() },
+                        terms = payObj.optString("terms").takeIf { it.isNotBlank() },
+                        source = payObj.optString("source").takeIf { it.isNotBlank() },
+                        sourceUrl = payObj.optString("sourceUrl").takeIf { it.isNotBlank() },
+                        lastVerifiedAt = if (payObj.has("lastVerifiedAt") && !payObj.isNull("lastVerifiedAt")) payObj.optLong("lastVerifiedAt") else null,
+                        isCashback = payObj.optBoolean("isCashback", false),
+                        emiEligible = payObj.optBoolean("emiEligible", false)
+                    )
+                )
+            }
+        }
+
+        // Parse EMI Plans
+        val emiPlansList = mutableListOf<EmiPlan>()
+        val emiArray = json.optJSONArray("emiPlans")
+        if (emiArray != null) {
+            for (k in 0 until emiArray.length()) {
+                val emiObj = emiArray.optJSONObject(k) ?: continue
+                emiPlansList.add(
+                    EmiPlan(
+                        id = emiObj.optString("id", "emi_$k"),
+                        provider = emiObj.optString("provider", "Bank EMI"),
+                        displayName = emiObj.optString("displayName", "EMI Plan"),
+                        tenureMonths = emiObj.optInt("tenureMonths", 3),
+                        monthlyInstallment = emiObj.optDouble("monthlyInstallment", 0.0),
+                        totalInstallmentAmount = emiObj.optDouble("totalInstallmentAmount", 0.0),
+                        interestAmount = emiObj.optDouble("interestAmount", 0.0),
+                        subventionDiscount = emiObj.optDouble("subventionDiscount", 0.0),
+                        processingFee = emiObj.optDouble("processingFee", 0.0),
+                        taxes = emiObj.optDouble("taxes", 0.0),
+                        effectiveTotalCost = emiObj.optDouble("effectiveTotalCost", 0.0),
+                        isNoCostEmi = emiObj.optBoolean("isNoCostEmi", true),
+                        eligibilityStatus = emiObj.optString("eligibilityStatus", "ELIGIBLE"),
+                        ineligibilityReason = emiObj.optString("ineligibilityReason").takeIf { it.isNotBlank() },
+                        source = emiObj.optString("source").takeIf { it.isNotBlank() },
+                        sourceUrl = emiObj.optString("sourceUrl").takeIf { it.isNotBlank() },
+                        terms = emiObj.optString("terms").takeIf { it.isNotBlank() }
                     )
                 )
             }
@@ -288,12 +336,49 @@ class BackendProductDataSource(
                 for (j in 0 until consArr.length()) consList.add(consArr.optString(j))
             }
 
+            // Rating Distribution
+            val distObj = reviewSummaryObj.optJSONObject("ratingDistribution")
+            val ratingDistribution = if (distObj != null) {
+                fun parseItem(key: String): RatingDistributionItem? {
+                    val item = distObj.optJSONObject(key) ?: return null
+                    return RatingDistributionItem(
+                        count = item.optInt("count", 0),
+                        percentage = item.optDouble("percentage", 0.0)
+                    )
+                }
+                RatingDistribution(
+                    fiveStar = parseItem("fiveStar"),
+                    fourStar = parseItem("fourStar"),
+                    threeStar = parseItem("threeStar"),
+                    twoStar = parseItem("twoStar"),
+                    oneStar = parseItem("oneStar")
+                )
+            } else null
+
+            // Feature Scores
+            val featObj = reviewSummaryObj.optJSONObject("featureScores")
+            val featureScores = if (featObj != null) {
+                FeatureSentimentScores(
+                    buildQuality = if (featObj.has("buildQuality") && !featObj.isNull("buildQuality")) featObj.optInt("buildQuality") else null,
+                    valueForMoney = if (featObj.has("valueForMoney") && !featObj.isNull("valueForMoney")) featObj.optInt("valueForMoney") else null,
+                    performance = if (featObj.has("performance") && !featObj.isNull("performance")) featObj.optInt("performance") else null,
+                    durability = if (featObj.has("durability") && !featObj.isNull("durability")) featObj.optInt("durability") else null
+                )
+            } else null
+
             ReviewSummary(
                 sentimentScore = if (reviewSummaryObj.has("sentimentScore") && !reviewSummaryObj.isNull("sentimentScore")) reviewSummaryObj.optInt("sentimentScore") else null,
                 pros = prosList,
                 cons = consList,
                 totalAnalyzed = if (reviewSummaryObj.has("totalAnalyzed") && !reviewSummaryObj.isNull("totalAnalyzed")) reviewSummaryObj.optInt("totalAnalyzed") else null,
-                isAvailable = reviewSummaryObj.optBoolean("isAvailable", false)
+                isAvailable = reviewSummaryObj.optBoolean("isAvailable", false),
+                ratingDistribution = ratingDistribution,
+                featureScores = featureScores,
+                confidenceScore = if (reviewSummaryObj.has("confidenceScore") && !reviewSummaryObj.isNull("confidenceScore")) reviewSummaryObj.optInt("confidenceScore") else null,
+                evidenceCoverage = reviewSummaryObj.optString("evidenceCoverage").takeIf { it.isNotBlank() },
+                dataFreshness = if (reviewSummaryObj.has("dataFreshness") && !reviewSummaryObj.isNull("dataFreshness")) reviewSummaryObj.optLong("dataFreshness") else null,
+                analysisStatus = reviewSummaryObj.optString("analysisStatus").takeIf { it.isNotBlank() },
+                sourceMetadata = reviewSummaryObj.optString("sourceMetadata").takeIf { it.isNotBlank() }
             )
         } else {
             ReviewSummary(isAvailable = false)
@@ -320,6 +405,7 @@ class BackendProductDataSource(
             stores = storesList,
             reviewSummary = reviewSummary,
             paymentOffers = paymentOffersList,
+            emiPlans = emiPlansList,
             lastUpdated = json.optLong("lastUpdated", System.currentTimeMillis())
         )
     }

@@ -1,5 +1,6 @@
 import axios from 'axios';
-import { Store, Availability } from '../types/index.js';
+import { z } from 'zod';
+import { Store, Availability, ReviewSummary, RatingDistribution, FeatureSentimentScores } from '../types/index.js';
 
 export interface AiStoreAnalysis {
   price: number;
@@ -373,66 +374,123 @@ Return strictly a RAW JSON object:
   };
 }
 
+const ReviewOutputSchema = z.object({
+  sentimentScore: z.number().min(0).max(100).nullable().optional(),
+  pros: z.array(z.string()).default([]),
+  cons: z.array(z.string()).default([]),
+  featureScores: z.object({
+    buildQuality: z.number().min(0).max(100).nullable().optional(),
+    valueForMoney: z.number().min(0).max(100).nullable().optional(),
+    performance: z.number().min(0).max(100).nullable().optional(),
+    durability: z.number().min(0).max(100).nullable().optional(),
+  }).optional(),
+  evidenceCoverage: z.string().optional(),
+});
+
 /**
- * Generates an intelligent, store-grounded AI product review summary (pros, cons, sentiment score)
- * for the queried product across all available stores (Amazon, Flipkart, Meesho, Myntra, etc.).
+ * Generates an evidence-grounded AI product review summary and feature sentiment scores
+ * (Build Quality, Value for Money, Performance, Durability) using Gemini AI.
+ * If reviews or rating evidence are unavailable, returns an honest unavailable status.
  */
 export async function generateProductReviewSummaryWithGemini(
   productTitle: string,
   stores: Store[],
   avgRating: number | null,
-  reviewCount: number | null
-): Promise<{
-  sentimentScore: number | null;
-  pros: string[];
-  cons: string[];
-  totalAnalyzed: number;
-  isAvailable: boolean;
-}> {
+  reviewCount: number | null,
+  actualRatingDistribution: RatingDistribution | null = null
+): Promise<ReviewSummary> {
   const storeNames = stores.length > 0 ? stores.join(', ') : 'Amazon, Flipkart, Meesho, Myntra';
-  const ratingScore = avgRating ? Math.round(avgRating * 20) : 85;
+  const hasReviewData = (avgRating !== null && avgRating > 0) || (reviewCount !== null && reviewCount > 0);
+
+  // If no review data exists at all, return an honest unavailable status immediately
+  if (!hasReviewData) {
+    return {
+      sentimentScore: null,
+      pros: [],
+      cons: [],
+      totalAnalyzed: 0,
+      isAvailable: false,
+      ratingDistribution: actualRatingDistribution,
+      featureScores: null,
+      confidenceScore: null,
+      evidenceCoverage: 'No customer review or rating evidence available for this product listing.',
+      dataFreshness: Date.now(),
+      analysisStatus: 'UNAVAILABLE',
+    };
+  }
+
   const prompt = `You are an expert e-commerce product analyst. Synthesize verified customer reviews and buyer feedback across online stores (${storeNames}) for: "${productTitle}".
-Current store rating: ${avgRating || '4.2'}/5 based on ${reviewCount || 'hundreds of'} verified purchases.
+Current store rating: ${avgRating ? `${avgRating}/5` : 'N/A'} based on ${reviewCount || 'sample'} verified purchases.
 
-Output strictly a RAW JSON object with:
-- "sentimentScore": number between 40 and 100
-- "pros": array of 2 to 4 concise bullet points highlighting build quality, value for money, key specs, or buyer praise
-- "cons": array of 1 or 2 concise realistic caveats or things to consider before buying
-
-Example format:
+Output strictly a RAW JSON object adhering to this schema:
 {
-  "sentimentScore": 86,
-  "pros": ["Exceptional build quality and premium finish", "Best-in-class performance for this price point"],
-  "cons": ["Included accessories are basic"]
-}`;
+  "sentimentScore": number between 40 and 100 representing positive buyer sentiment percentage,
+  "pros": array of 2 to 4 concise bullet points highlighting verified positive feedback (build quality, performance, value, etc.),
+  "cons": array of 1 or 2 concise realistic caveats or things to consider before buying,
+  "featureScores": {
+    "buildQuality": number between 0 and 100, or null if insufficient evidence,
+    "valueForMoney": number between 0 and 100, or null if insufficient evidence,
+    "performance": number between 0 and 100, or null if insufficient evidence,
+    "durability": number between 0 and 100, or null if insufficient evidence
+  },
+  "evidenceCoverage": "Sample-based" or "Aggregated multi-store verified reviews"
+}
+
+Do not invent fabricated data. If there is no evidence for a specific feature, set it to null.`;
 
   const rawResult = await callGeminiApi(prompt, GEMINI_ANALYSIS_MODELS, true);
   if (rawResult) {
-    const parsed = safeParseJson<{ sentimentScore?: number; pros?: string[]; cons?: string[] }>(rawResult);
-    if (parsed && Array.isArray(parsed.pros) && parsed.pros.length > 0) {
+    const rawParsed = safeParseJson(rawResult);
+    const parseResult = ReviewOutputSchema.safeParse(rawParsed);
+
+    if (parseResult.success) {
+      const data = parseResult.data;
+      const total = reviewCount || 0;
+      const isSampleBased = total > 0 && total < 15;
+      const analysisStatus = isSampleBased ? 'SAMPLE_BASED' : 'VERIFIED_ANALYSIS';
+
+      const featureScores: FeatureSentimentScores = {
+        buildQuality: data.featureScores?.buildQuality ?? null,
+        valueForMoney: data.featureScores?.valueForMoney ?? null,
+        performance: data.featureScores?.performance ?? null,
+        durability: data.featureScores?.durability ?? null,
+      };
+
+      const pros = data.pros.filter((p) => typeof p === 'string' && p.trim().length > 0).slice(0, 4);
+      const cons = data.cons.filter((c) => typeof c === 'string' && c.trim().length > 0).slice(0, 3);
+
       return {
-        sentimentScore: parsed.sentimentScore || ratingScore,
-        pros: parsed.pros.slice(0, 4),
-        cons: Array.isArray(parsed.cons) ? parsed.cons.slice(0, 3) : [],
-        totalAnalyzed: reviewCount || 120,
-        isAvailable: true,
+        sentimentScore: data.sentimentScore ?? (avgRating ? Math.round(avgRating * 20) : null),
+        pros,
+        cons,
+        totalAnalyzed: total,
+        isAvailable: pros.length > 0 || cons.length > 0,
+        ratingDistribution: actualRatingDistribution,
+        featureScores,
+        confidenceScore: isSampleBased ? 65 : 90,
+        evidenceCoverage: data.evidenceCoverage || (isSampleBased ? 'Sample-based customer review analysis' : 'Multi-store customer reviews analysis'),
+        dataFreshness: Date.now(),
+        analysisStatus,
+        sourceMetadata: storeNames,
       };
     }
   }
 
-  // Fallback realistic synthesis based on store information & product title
+  // Graceful degradation when AI analysis is temporarily unavailable (rate-limited / cooldown / API down)
+  // Honest unavailable state - NEVER manufacture fake pros/cons
   return {
-    sentimentScore: avgRating ? Math.round(avgRating * 20) : 84,
-    pros: [
-      `High buyer rating across ${storeNames}`,
-      'Verified authentic listing with live price drops tracked',
-      'Positive buyer feedback for everyday utility and durability',
-    ],
-    cons: [
-      'Prices vary across sellers; verify warranty and return policies',
-    ],
-    totalAnalyzed: reviewCount || 85,
-    isAvailable: true,
+    sentimentScore: null,
+    pros: [],
+    cons: [],
+    totalAnalyzed: reviewCount || 0,
+    isAvailable: false,
+    ratingDistribution: actualRatingDistribution,
+    featureScores: null,
+    confidenceScore: null,
+    evidenceCoverage: 'AI sentiment analysis temporarily unavailable. Check marketplace links directly.',
+    dataFreshness: Date.now(),
+    analysisStatus: 'UNAVAILABLE',
+    sourceMetadata: storeNames,
   };
 }
 

@@ -382,14 +382,19 @@ fun ProductDetailsScreen(
             if (lowestPrice != null) {
                 PaymentOfferCalculator(
                     basePrice = lowestPrice,
-                    offers = product.paymentOffers
+                    offers = product.paymentOffers,
+                    emiPlans = product.emiPlans
                 )
             }
         }
 
         // AI Review Summary
         item {
-            ReviewSummarySection(summary = product.reviewSummary)
+            ReviewSummarySection(
+                summary = product.reviewSummary,
+                avgRating = product.rating,
+                totalReviews = product.reviewCount
+            )
         }
 
         // Live Multi-Store Deals Section Header

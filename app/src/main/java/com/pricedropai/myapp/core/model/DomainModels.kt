@@ -102,6 +102,19 @@ enum class PaymentOfferType {
     REWARDS
 }
 
+enum class PriceCheckInterval(val displayName: String, val hours: Long) {
+    EVERY_3_HOURS("Every 3 Hours", 3),
+    EVERY_6_HOURS("Every 6 Hours", 6),
+    EVERY_12_HOURS("Every 12 Hours", 12),
+    ONCE_DAILY("Once Daily", 24);
+
+    companion object {
+        fun fromDisplayName(name: String?): PriceCheckInterval {
+            return entries.firstOrNull { it.displayName.equals(name, ignoreCase = true) } ?: EVERY_6_HOURS
+        }
+    }
+}
+
 data class PaymentOffer(
     val id: String,
     val provider: String,
@@ -111,7 +124,64 @@ data class PaymentOffer(
     val percentage: Double? = null,
     val minimumPurchase: Double? = null,
     val maximumDiscount: Double? = null,
-    val validUntil: Long? = null
+    val validUntil: Long? = null,
+    // Production banking engine fields
+    val displayName: String? = null,
+    val paymentMethod: String? = null, // "CREDIT_CARD", "DEBIT_CARD", "UPI", "EMI"
+    val cardType: String? = null,
+    val discountType: String? = null,
+    val discountValue: Double? = null,
+    val calculatedDiscount: Double? = null,
+    val payablePrice: Double? = null,
+    val isEligible: Boolean = true,
+    val eligibilityStatus: String = "ELIGIBLE",
+    val ineligibilityReason: String? = null,
+    val terms: String? = null,
+    val source: String? = null,
+    val sourceUrl: String? = null,
+    val lastVerifiedAt: Long? = null,
+    val isCashback: Boolean = false,
+    val emiEligible: Boolean = false
+)
+
+data class EmiPlan(
+    val id: String,
+    val provider: String,
+    val displayName: String,
+    val tenureMonths: Int,
+    val monthlyInstallment: Double,
+    val totalInstallmentAmount: Double,
+    val interestAmount: Double = 0.0,
+    val subventionDiscount: Double = 0.0,
+    val processingFee: Double = 0.0,
+    val taxes: Double = 0.0,
+    val effectiveTotalCost: Double,
+    val isNoCostEmi: Boolean = true,
+    val eligibilityStatus: String = "ELIGIBLE",
+    val ineligibilityReason: String? = null,
+    val source: String? = null,
+    val sourceUrl: String? = null,
+    val terms: String? = null
+)
+
+data class RatingDistributionItem(
+    val count: Int,
+    val percentage: Double
+)
+
+data class RatingDistribution(
+    val fiveStar: RatingDistributionItem? = null,
+    val fourStar: RatingDistributionItem? = null,
+    val threeStar: RatingDistributionItem? = null,
+    val twoStar: RatingDistributionItem? = null,
+    val oneStar: RatingDistributionItem? = null
+)
+
+data class FeatureSentimentScores(
+    val buildQuality: Int? = null,
+    val valueForMoney: Int? = null,
+    val performance: Int? = null,
+    val durability: Int? = null
 )
 
 data class ReviewSummary(
@@ -119,7 +189,14 @@ data class ReviewSummary(
     val pros: List<String> = emptyList(),
     val cons: List<String> = emptyList(),
     val totalAnalyzed: Int? = null,
-    val isAvailable: Boolean = false
+    val isAvailable: Boolean = false,
+    val ratingDistribution: RatingDistribution? = null,
+    val featureScores: FeatureSentimentScores? = null,
+    val confidenceScore: Int? = null,
+    val evidenceCoverage: String? = null,
+    val dataFreshness: Long? = null,
+    val analysisStatus: String? = null,
+    val sourceMetadata: String? = null
 )
 
 data class Product(
@@ -137,6 +214,7 @@ data class Product(
     val stores: List<StoreOffer> = emptyList(),
     val reviewSummary: ReviewSummary = ReviewSummary(),
     val paymentOffers: List<PaymentOffer> = emptyList(),
+    val emiPlans: List<EmiPlan> = emptyList(),
     val lastUpdated: Long = System.currentTimeMillis()
 ) {
     val lowestOffer: StoreOffer?

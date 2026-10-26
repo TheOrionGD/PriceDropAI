@@ -22,6 +22,37 @@ class SessionManager(context: Context) {
         private const val KEY_ACCENT_COLOR = "accent_color" // hex e.g. "#6366F1"
         private const val KEY_PHONE_NOTIFICATIONS_ENABLED = "phone_notifications_enabled"
         private const val KEY_ALERT_SOUND_ENABLED = "alert_sound_enabled"
+        private const val KEY_BACKGROUND_CHECK_INTERVAL = "background_check_interval"
+        private const val KEY_LAST_CHECK_TIMESTAMP = "last_check_timestamp"
+        private const val KEY_LAST_CHECK_DIAGNOSTICS = "last_check_diagnostics"
+    }
+
+    /**
+     * Persisted background price check frequency
+     */
+    fun getPriceCheckInterval(): com.pricedropai.myapp.core.model.PriceCheckInterval {
+        val name = prefs.getString(KEY_BACKGROUND_CHECK_INTERVAL, com.pricedropai.myapp.core.model.PriceCheckInterval.EVERY_6_HOURS.name)
+        return try {
+            com.pricedropai.myapp.core.model.PriceCheckInterval.valueOf(name ?: com.pricedropai.myapp.core.model.PriceCheckInterval.EVERY_6_HOURS.name)
+        } catch (_: Exception) {
+            com.pricedropai.myapp.core.model.PriceCheckInterval.fromDisplayName(name)
+        }
+    }
+
+    fun setPriceCheckInterval(interval: com.pricedropai.myapp.core.model.PriceCheckInterval) {
+        prefs.edit().putString(KEY_BACKGROUND_CHECK_INTERVAL, interval.name).apply()
+    }
+
+    fun getLastCheckTimestamp(): Long = prefs.getLong(KEY_LAST_CHECK_TIMESTAMP, 0L)
+
+    fun setLastCheckTimestamp(timestamp: Long) {
+        prefs.edit().putLong(KEY_LAST_CHECK_TIMESTAMP, timestamp).apply()
+    }
+
+    fun getLastCheckDiagnostics(): String? = prefs.getString(KEY_LAST_CHECK_DIAGNOSTICS, null)
+
+    fun setLastCheckDiagnostics(diagnostics: String) {
+        prefs.edit().putString(KEY_LAST_CHECK_DIAGNOSTICS, diagnostics).apply()
     }
 
     /**
