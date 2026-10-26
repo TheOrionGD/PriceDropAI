@@ -88,9 +88,29 @@ export async function fetchPageHtml(url: string, optionsOrReferer?: string | Fet
     }
   }
 
-  // Tier 1.5: ScrapingAnt gateway failover (10,000 free credits/month)
+  // Tier 1.5: ScraperAPI gateway failover (Allows Amazon on free tier)
+  const scraperApiKey = process.env.SCRAPERAPI_KEY?.trim();
+  if (scraperApiKey) {
+    try {
+      const saUrl = `http://api.scraperapi.com?api_key=${scraperApiKey}&url=${encodeURIComponent(url)}&country_code=in`;
+      const response = await axios.get(saUrl, {
+        timeout: 30000,
+        maxContentLength: 8 * 1024 * 1024,
+        maxBodyLength: 8 * 1024 * 1024,
+        validateStatus: (status) => status === 200,
+      });
+
+      if (response.status === 200 && response.data) {
+        return typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
+      }
+    } catch (err: any) {
+      console.warn(`[ScraperAPI Notice] ${url}: ${err.message}`);
+    }
+  }
+
+  // Tier 1.6: ScrapingAnt gateway failover (10,000 free credits/month, non-Amazon domains on free plan)
   const scrapingAntKey = process.env.SCRAPINGANT_KEY?.trim();
-  if (scrapingAntKey && !isScrapingAntKeyDisabled(scrapingAntKey)) {
+  if (scrapingAntKey && !isAmazonUrl && !isScrapingAntKeyDisabled(scrapingAntKey)) {
     try {
       const saParams = new URLSearchParams();
       saParams.append('url', url);
