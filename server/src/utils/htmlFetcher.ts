@@ -2,6 +2,7 @@ import axios from 'axios';
 import { getBrowserHeaders } from './headers.js';
 import { isZenRowsKeyDisabled, disableZenRowsKey } from './zenrowsState.js';
 import { isScrapingAntKeyDisabled, disableScrapingAntKey } from './scrapingAntState.js';
+import { isScraperApiKeyDisabled, disableScraperApiKey } from './scraperApiState.js';
 import { scrapePage } from './puppeteer.js';
 import { getZenRowsKeyForStore } from './keyManager.js';
 import dotenv from 'dotenv';
@@ -90,7 +91,7 @@ export async function fetchPageHtml(url: string, optionsOrReferer?: string | Fet
 
   // Tier 1.5: ScraperAPI gateway failover (Allows Amazon on free tier)
   const scraperApiKey = process.env.SCRAPERAPI_KEY?.trim();
-  if (scraperApiKey) {
+  if (scraperApiKey && !isScraperApiKeyDisabled(scraperApiKey)) {
     try {
       const saUrl = `http://api.scraperapi.com?api_key=${scraperApiKey}&url=${encodeURIComponent(url)}&country_code=in`;
       const response = await axios.get(saUrl, {
@@ -104,7 +105,12 @@ export async function fetchPageHtml(url: string, optionsOrReferer?: string | Fet
         return typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
       }
     } catch (err: any) {
-      console.warn(`[ScraperAPI Notice] ${url}: ${err.message}`);
+      const status = err.response?.status;
+      if (status === 401 || status === 403 || status === 429) {
+        disableScraperApiKey(scraperApiKey, `Usage limit / Auth error (status ${status}) on ScraperAPI.`);
+      } else {
+        console.warn(`[ScraperAPI Notice] ${url}: ${err.message}`);
+      }
     }
   }
 
