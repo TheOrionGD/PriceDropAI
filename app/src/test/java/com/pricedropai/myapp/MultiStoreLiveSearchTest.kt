@@ -96,17 +96,25 @@ class MultiStoreLiveSearchTest {
 
     @Test
     fun testCategoryIncompatibleStoreReturnsPriceZeroWithUnavailableTag() = runBlocking {
-        // iPhone 15 should be marked unavailable (price 0.0) on fashion/cosmetics platforms like Nykaa & Myntra
+        // iPhone 15 should be marked unavailable (price 0.0) on fashion platform Myntra
         val result = dataSource.searchProducts("Apple iPhone 15")
         assertTrue(result.isSuccess)
         val product = result.getOrNull()!!.first()
 
-        val nykaaOffer = product.stores.firstOrNull { it.store == Store.NYKAA }
-        assertNotNull("Nykaa offer should exist", nykaaOffer)
-        assertEquals("Nykaa price should be 0.0 for iPhone", 0.0, nykaaOffer?.price ?: -1.0, 0.001)
-        assertEquals("(Product Unavailable..)", nykaaOffer?.deliveryInfo)
+        // 1. Strictly verify 4 active stores allowlist
+        val returnedStores = product.stores.map { it.store }.toSet()
+        assertEquals("Returned stores must strictly match the 4 active stores", Store.ACTIVE_STORES.toSet(), returnedStores)
+        assertNull("Obsolete store Nykaa must not exist in product.stores", product.stores.firstOrNull { it.store == Store.NYKAA })
+        assertNull("Obsolete store Croma must not exist in product.stores", product.stores.firstOrNull { it.store == Store.CROMA })
 
-        // Amazon & Croma must carry iPhone with positive price
+        // 2. Myntra category incompatibility handling
+        val myntraOffer = product.stores.firstOrNull { it.store == Store.MYNTRA }
+        assertNotNull("Myntra offer should exist", myntraOffer)
+        assertEquals("Myntra price should be 0.0 for iPhone", 0.0, myntraOffer?.price ?: -1.0, 0.001)
+        assertEquals("(Product Unavailable..)", myntraOffer?.deliveryInfo)
+        assertEquals(com.pricedropai.myapp.core.model.MarketplaceStatus.UNSUPPORTED_CATEGORY, myntraOffer?.status)
+
+        // 3. Amazon & Flipkart must carry iPhone with positive price
         val amazonOffer = product.stores.firstOrNull { it.store == Store.AMAZON }
         assertNotNull(amazonOffer)
         assertTrue(amazonOffer!!.price != null && amazonOffer.price!! > 0)

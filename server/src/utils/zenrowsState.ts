@@ -8,7 +8,7 @@ export function isZenRowsKeyDisabled(key?: string): boolean {
 export function disableZenRowsKey(key?: string, reason?: string): void {
   if (key && !disabledKeys.has(key)) {
     disabledKeys.add(key);
-    console.warn(`[ZenRows Notice] Key ${key.slice(0, 8)}... disabled: ${reason || 'Auth / Quota limit reached'}`);
+    console.warn(`[ZenRows Notice] Key disabled: ${reason || 'Auth / Quota limit reached'}`);
   }
 }
 

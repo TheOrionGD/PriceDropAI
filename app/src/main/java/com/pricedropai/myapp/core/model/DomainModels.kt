@@ -16,7 +16,12 @@ enum class Store(val displayName: String, val hostPattern: String) {
     WALMART("Walmart", "walmart"),
     TARGET("Target", "target");
 
+    val isActive: Boolean
+        get() = this in ACTIVE_STORES
+
     companion object {
+        val ACTIVE_STORES: List<Store> = listOf(AMAZON, FLIPKART, MEESHO, MYNTRA)
+
         fun fromUrl(url: String): Store? {
             val lower = url.lowercase()
             return when {
@@ -239,11 +244,11 @@ data class Product(
     val lastUpdated: Long = System.currentTimeMillis()
 ) {
     val lowestOffer: StoreOffer?
-        get() = stores.filter { it.price != null && it.price > 0 && it.availability != Availability.OUT_OF_STOCK }
+        get() = stores.filter { it.store.isActive && it.price != null && it.price > 0 && it.availability != Availability.OUT_OF_STOCK }
             .minByOrNull { it.price!! }
 
     val highestOffer: StoreOffer?
-        get() = stores.filter { it.price != null && it.price > 0 }
+        get() = stores.filter { it.store.isActive && it.price != null && it.price > 0 }
             .maxByOrNull { it.price!! }
 
     val lowestPrice: Double?
@@ -251,7 +256,7 @@ data class Product(
 
     val maxDiscountPercent: Double?
         get() {
-            val offersWithDiscount = stores.mapNotNull { it.discountPercentage }.filter { it > 0 }
+            val offersWithDiscount = stores.filter { it.store.isActive }.mapNotNull { it.discountPercentage }.filter { it > 0 }
             return offersWithDiscount.maxOrNull()
         }
 }

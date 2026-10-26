@@ -17,11 +17,16 @@ export async function scrapeAmazon(query: string): Promise<RawScrapedItem[]> {
     $('div[data-component-type="s-search-result"]').each((_, el) => {
       const card = $(el);
       
-      let title = card.find('h2 a span').last().text().trim() ||
-                  card.find('h2 a').text().trim() ||
-                  card.find('h2').text().trim() ||
-                  card.find('span.a-size-medium, span.a-size-base-plus').last().text().trim();
-      title = title.replace(/\s+/g, ' ').trim();
+      const titleSpans = card.find('h2 a span').map((_, s) => $(s).text().trim()).get().filter(Boolean);
+      let title = titleSpans.length > 0
+        ? titleSpans.join(' ')
+        : (card.find('h2 a').text().trim() ||
+           card.find('h2').text().trim() ||
+           card.find('span.a-size-medium, span.a-size-base-plus').last().text().trim());
+      title = title
+        .replace(/([A-Z]{2,})([A-Z][a-z]+)/g, '$1 $2')
+        .replace(/\s+/g, ' ')
+        .trim();
       
       const priceText = card.find('span.a-price-whole').first().text().replace(/[^0-9]/g, '');
       const originalPriceText = card.find('span.a-price.a-text-price span.a-offscreen').first().text().replace(/[^0-9]/g, '');
@@ -33,7 +38,8 @@ export async function scrapeAmazon(query: string): Promise<RawScrapedItem[]> {
       // Extract ASIN from card attribute or URL
       let asin = card.attr('data-asin')?.trim() || null;
       if (!asin && relHref) {
-        const asinMatch = relHref.match(/\/dp\/([A-Z0-9]{10})/i) || relHref.match(/\/gp\/product\/([A-Z0-9]{10})/i);
+        const decodedHref = decodeURIComponent(relHref);
+        const asinMatch = decodedHref.match(/\/dp\/([A-Z0-9]{10})/i) || decodedHref.match(/\/gp\/product\/([A-Z0-9]{10})/i);
         if (asinMatch) {
           asin = asinMatch[1].toUpperCase();
         }
@@ -66,7 +72,7 @@ export async function scrapeAmazon(query: string): Promise<RawScrapedItem[]> {
       const originalPrice = originalPriceText ? parseFloat(originalPriceText) : null;
 
       if (title && price && price > 10) {
-        let fullUrl = relHref || '';
+        let fullUrl = asin ? `https://www.amazon.in/dp/${asin}` : (relHref || '');
         if (fullUrl && !fullUrl.startsWith('http')) {
           fullUrl = `https://www.amazon.in${fullUrl}`;
         }

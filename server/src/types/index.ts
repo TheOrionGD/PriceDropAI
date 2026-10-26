@@ -15,6 +15,13 @@ export enum Store {
   TARGET = 'TARGET',
 }
 
+export const ACTIVE_STORES: Store[] = [
+  Store.AMAZON,
+  Store.FLIPKART,
+  Store.MEESHO,
+  Store.MYNTRA,
+];
+
 export enum Availability {
   IN_STOCK = 'IN_STOCK',
   OUT_OF_STOCK = 'OUT_OF_STOCK',

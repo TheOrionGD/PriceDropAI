@@ -43,11 +43,11 @@ fun OnboardingScreen(
         listOf(
             OnboardingStep(
                 title = "Multi-Store Price Tracking",
-                subtitle = "Track real-time pricing across Flipkart, Amazon, Croma, Reliance Digital, Vijay Sales, Tata CLiQ, and Nykaa all in one place.",
+                subtitle = "Track real-time pricing across Amazon, Meesho, Flipkart, and Myntra all in one place.",
                 icon = Icons.Default.Storefront,
                 accentColors = listOf(Color(0xFF6366F1), Color(0xFF4F46E5)),
                 badgeText = "Step 1 of 8 • Multi-Store",
-                keyHighlight = "Compare live prices across 14+ verified retailers simultaneously."
+                keyHighlight = "Compare live prices across 4 verified retailers simultaneously."
             ),
             OnboardingStep(
                 title = "Instant Price-Drop Alerts",

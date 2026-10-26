@@ -189,20 +189,13 @@ fun LandingScreen(
             // -------------------------------------------------------------
             // SEGMENT 3: Supported Store Ecosystem (Glassmorphism Badges)
             // -------------------------------------------------------------
-            SectionTitle(title = "Supported Retail Ecosystem", subtitle = "Track prices from any verified Indian retailer")
+            SectionTitle(title = "Supported Retail Ecosystem", subtitle = "Track prices from 4 verified Indian platforms")
 
             val stores = listOf(
                 "Amazon" to Color(0xFFFF9900),
+                "Meesho" to Color(0xFFE40066),
                 "Flipkart" to Color(0xFF2874F0),
-                "Meesho" to Color(0xFF9B27B0),
-                "Myntra" to Color(0xFFFF3F6C),
-                "Croma" to Color(0xFF00E676),
-                "Reliance Digital" to Color(0xFFE53935),
-                "JioMart" to Color(0xFF0C73EB),
-                "Tata CLiQ" to Color(0xFF8E24AA),
-                "Ajio" to Color(0xFF2C4152),
-                "Nykaa" to Color(0xFFEC407A),
-                "Blinkit" to Color(0xFFF7C325)
+                "Myntra" to Color(0xFFFF3F6C)
             )
 
             Row(
@@ -213,15 +206,14 @@ fun LandingScreen(
             ) {
                 // Display in 2 balanced columns
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    stores.take(6).forEach { (name, color) ->
+                    stores.take(2).forEach { (name, color) ->
                         GlassStoreBadge(storeName = name, accentColor = color)
                     }
                 }
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    stores.drop(6).take(5).forEach { (name, color) ->
+                    stores.drop(2).forEach { (name, color) ->
                         GlassStoreBadge(storeName = name, accentColor = color)
                     }
-                    GlassStoreBadge(storeName = "+ 12+ Stores", accentColor = Color(0xFF10B981))
                 }
             }
 

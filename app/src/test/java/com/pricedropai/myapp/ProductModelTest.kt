@@ -191,4 +191,76 @@ class ProductModelTest {
         assertTrue(productA.imageUrl!!.contains("media-amazon.com"))
         assertTrue(productB.imageUrl!!.contains("flixcart.com"))
     }
+
+    @Test
+    fun testActiveStoresAllowlistAndIsActive() {
+        // Must contain strictly the four platforms
+        val expectedActive = listOf(Store.AMAZON, Store.FLIPKART, Store.MEESHO, Store.MYNTRA)
+        assertEquals("Store.ACTIVE_STORES must have size 4", 4, Store.ACTIVE_STORES.size)
+        assertEquals(expectedActive, Store.ACTIVE_STORES)
+
+        // Active stores return true
+        assertTrue(Store.AMAZON.isActive)
+        assertTrue(Store.FLIPKART.isActive)
+        assertTrue(Store.MEESHO.isActive)
+        assertTrue(Store.MYNTRA.isActive)
+
+        // All obsolete stores return false
+        val obsoleteStores = listOf(
+            Store.CROMA, Store.RELIANCE_DIGITAL, Store.JIOMART,
+            Store.TATACLIQ, Store.AJIO, Store.NYKAA, Store.BLINKIT,
+            Store.EBAY, Store.WALMART, Store.TARGET
+        )
+        for (store in obsoleteStores) {
+            assertFalse("Obsolete store ${store.name} must have isActive == false", store.isActive)
+        }
+    }
+
+    @Test
+    fun testObsoleteStoresExcludedFromProductGettersSafely() {
+        // Even if legacy records from Room DB exist with obsolete stores, Product getters must only consider active stores
+        val legacyCromaOffer = StoreOffer(
+            id = "p1_croma",
+            productId = "p1",
+            store = Store.CROMA,
+            productUrl = "https://www.croma.com/item",
+            price = 500.0, // lower than active stores
+            originalPrice = 2000.0,
+            discountPercentage = 75.0,
+            availability = Availability.IN_STOCK
+        )
+
+        val amazonOffer = StoreOffer(
+            id = "p1_amazon",
+            productId = "p1",
+            store = Store.AMAZON,
+            productUrl = "https://www.amazon.in/dp/B001",
+            price = 1200.0,
+            originalPrice = 2000.0,
+            discountPercentage = 40.0,
+            availability = Availability.IN_STOCK
+        )
+
+        val meeshoOffer = StoreOffer(
+            id = "p1_meesho",
+            productId = "p1",
+            store = Store.MEESHO,
+            productUrl = "https://www.meesho.com/item",
+            price = 999.0,
+            originalPrice = 1500.0,
+            discountPercentage = 33.3,
+            availability = Availability.IN_STOCK
+        )
+
+        val product = Product(
+            id = "p1",
+            title = "Test Product",
+            stores = listOf(legacyCromaOffer, amazonOffer, meeshoOffer)
+        )
+
+        // Croma (500.0) must be safely ignored because it is not an active marketplace
+        assertEquals("Lowest offer must be Meesho (999.0), not obsolete Croma (500.0)", Store.MEESHO, product.lowestOffer?.store)
+        assertEquals(999.0, product.lowestPrice ?: 0.0, 0.01)
+        assertEquals("Max discount must come from active store Amazon (40%), not Croma (75%)", 40.0, product.maxDiscountPercent ?: 0.0, 0.01)
+    }
 }

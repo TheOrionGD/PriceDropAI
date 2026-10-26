@@ -456,7 +456,7 @@ fun SettingsScreen(
             SettingsActionTile(
                 icon = Icons.Outlined.Info,
                 title = "About PriceDrop AI",
-                subtitle = "v2.1.7 • Multi-Store Architecture with Groq & Gemini",
+                subtitle = "v2.2.3 • Multi-Store Architecture with Groq LPU",
                 onClick = {
                     showAboutDialog = true
                 }
@@ -488,12 +488,12 @@ fun SettingsScreen(
                     text = {
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text(
-                                text = "PriceDrop AI v2.1.7",
+                                text = "PriceDrop AI v2.2.3",
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.primary
                             )
                             Text(
-                                text = "PriceDrop AI is an autonomous, intelligent multi-store price monitoring app engineered with real-time web engines, Groq, and Gemini AI.\n\nKey Highlights:\n• Live multi-store querying across 12+ top retail platforms\n• Dynamic product image & high-resolution catalog resolution\n• Offline-first SQLite database caching with instant alert triggers\n• Brand-specific glowing card accents and real-time deal discovery",
+                                text = "PriceDrop AI is an autonomous, intelligent multi-store price monitoring app engineered with real-time web engines and ultra-fast Groq LPU AI.\n\nKey Highlights:\n• Live multi-store querying across top retail platforms\n• Dynamic product image & high-resolution catalog resolution\n• Offline-first SQLite database caching with instant alert triggers\n• Brand-specific glowing card accents and real-time deal discovery",
                                 fontSize = 12.sp,
                                 lineHeight = 18.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant

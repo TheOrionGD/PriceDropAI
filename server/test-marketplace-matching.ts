@@ -136,3 +136,64 @@ test('8. Marketplace status enum contracts are standardized', () => {
   assert.equal(MarketplaceStatus.RATE_LIMITED, 'RATE_LIMITED');
   assert.equal(MarketplaceStatus.UNKNOWN, 'UNKNOWN');
 });
+
+test('9. Active marketplaces restricted strictly to Amazon, Flipkart, Meesho, Myntra', async () => {
+  const { ACTIVE_MARKETPLACES } = await import('./src/services/productAggregator.js');
+  const { Store } = await import('./src/types/index.js');
+  assert.equal(ACTIVE_MARKETPLACES.length, 4);
+  assert.ok(ACTIVE_MARKETPLACES.includes(Store.AMAZON));
+  assert.ok(ACTIVE_MARKETPLACES.includes(Store.FLIPKART));
+  assert.ok(ACTIVE_MARKETPLACES.includes(Store.MEESHO));
+  assert.ok(ACTIVE_MARKETPLACES.includes(Store.MYNTRA));
+});
+
+test('10. Non-Amazon candidate with concise title matches verbose Amazon candidate', async () => {
+  const { evaluateProductMatch } = await import('./src/services/productAggregator.js');
+  const verboseAmazon = 'truke New Launch Buds Elite V2 True Wireless in Ear Earbuds with 13mm Dynamic Driver, 70Hrs Battery & Fast Charging, 40ms Low Latency Gaming Mode, Quad Mic ENC, BT 5.4 (Pure White)';
+  const conciseFlipkart = 'truke Buds Elite V2 Truly Wireless Earbuds';
+
+  const matchEval = evaluateProductMatch(verboseAmazon, conciseFlipkart, 'truke', 'Buds Elite V2', 'truke', 'Buds Elite V2');
+  assert.equal(matchEval.isMatch, true, `Should match concise title with verbose title: score=${matchEval.score}`);
+  assert.equal(matchEval.rejectionReason, null);
+});
+
+test('11. Strict Brand conflict rejection prevents mixing brands into same cluster', async () => {
+  const { evaluateProductMatch } = await import('./src/services/productAggregator.js');
+  const trukeItem = 'truke Buds Elite V2 Truly Wireless Earbuds';
+  const boatItem = 'boAt Airdopes 141 Truly Wireless Earbuds';
+
+  const matchEval = evaluateProductMatch(trukeItem, boatItem, 'truke', 'Buds Elite V2', 'boAt', 'Airdopes 141');
+  assert.equal(matchEval.isMatch, false);
+  assert.equal(matchEval.rejectionReason, 'BRAND_CONFLICT');
+});
+
+test('12. Model conflict rejection distinguishes distinct sub-models', async () => {
+  const { evaluateProductMatch } = await import('./src/services/productAggregator.js');
+  const btgItem = 'truke New Launch BTG Ultra True Wireless in Ear Earbuds';
+  const megaItem = 'truke New Launch Mega 10 True Wireless in Ear Earbuds';
+
+  const matchEval = evaluateProductMatch(btgItem, megaItem, 'truke', 'BTG Ultra', 'truke', 'Mega 10');
+  assert.equal(matchEval.isMatch, false);
+  assert.equal(matchEval.rejectionReason, 'MODEL_CONFLICT');
+});
+
+test('13. Numeric Model conflict distinguishes different numbered versions', async () => {
+  const { evaluateProductMatch } = await import('./src/services/productAggregator.js');
+  const mega10 = 'truke Mega 10 True Wireless Earbuds';
+  const mega7 = 'truke Mega 7 True Wireless Earbuds';
+
+  const matchEval = evaluateProductMatch(mega10, mega7, 'truke', 'Mega 10', 'truke', 'Mega 7');
+  assert.equal(matchEval.isMatch, false);
+  assert.equal(matchEval.rejectionReason, 'MODEL_CONFLICT');
+});
+
+test('14. Version discrepancy conflict distinguishes V1 from V2', async () => {
+  const { evaluateProductMatch } = await import('./src/services/productAggregator.js');
+  const v1 = 'truke Buds Elite True Wireless Earbuds';
+  const v2 = 'truke Buds Elite V2 True Wireless Earbuds';
+
+  const matchEval = evaluateProductMatch(v1, v2, 'truke', 'Buds Elite', 'truke', 'Buds Elite V2');
+  assert.equal(matchEval.isMatch, false);
+  assert.equal(matchEval.rejectionReason, 'MODEL_CONFLICT');
+});
+

@@ -110,23 +110,8 @@ class MultiStoreProductDataSource(
                         .joinToString(" ") { word -> word.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() } }
                 }
 
-                // 2. Ensure ALL 14 stores are included with verified rates and category availability checks
-                val targetStores = listOf(
-                    Store.AMAZON,
-                    Store.FLIPKART,
-                    Store.MEESHO,
-                    Store.MYNTRA,
-                    Store.CROMA,
-                    Store.RELIANCE_DIGITAL,
-                    Store.JIOMART,
-                    Store.TATACLIQ,
-                    Store.AJIO,
-                    Store.NYKAA,
-                    Store.BLINKIT,
-                    Store.EBAY,
-                    Store.WALMART,
-                    Store.TARGET
-                )
+                // 2. Restrict to strictly the 4 active marketplaces
+                val targetStores = Store.ACTIVE_STORES
                 val detectedCategory = detectCategory(cleanQuery)
                 val basePriceEstimate = when {
                     cleanQuery.contains("macbook", ignoreCase = true) -> 82990.0
@@ -159,16 +144,7 @@ class MultiStoreProductDataSource(
                         Store.FLIPKART -> "https://www.flipkart.com/search?q=$encoded"
                         Store.MEESHO -> "https://www.meesho.com/search?q=$encoded&searchType=manual&searchIdentifier=text_search"
                         Store.MYNTRA -> "https://www.myntra.com/$hyphenatedQuery"
-                        Store.CROMA -> "https://www.croma.com/searchB?q=${encoded}%3Arelevance"
-                        Store.RELIANCE_DIGITAL -> "https://www.reliancedigital.in/products?q=$encoded"
-                        Store.JIOMART -> "https://www.jiomart.com/products?q=${cleanQuery.replace(" ", "+")}"
-                        Store.TATACLIQ -> "https://www.tatacliq.com/search/page-1?q=$encoded%3Arelevance"
-                        Store.AJIO -> "https://www.ajio.com/search/?text=$encoded"
-                        Store.NYKAA -> "https://www.nykaa.com/search/result/?q=${encoded}&root=search"
-                        Store.BLINKIT -> "https://blinkit.com/s/?q=$encoded"
-                        Store.EBAY -> "https://www.ebay.com/sch/i.html?_nkw=$encoded"
-                        Store.WALMART -> "https://www.walmart.com/search?q=$encoded"
-                        Store.TARGET -> "https://www.target.com/s?searchTerm=$encoded"
+                        else -> ""
                     }
 
                     if (existingScraped != null) {
@@ -866,12 +842,22 @@ class MultiStoreProductDataSource(
                 q.contains("iphone 14") || q.contains("s24") || q.contains("s23") || q.contains("fold") ||
                 q.contains("playstation 5") || q.contains("ps5") || q.contains("xbox series") || q.contains("rtx")
 
+        val isAudioOrWearables = cat.contains("audio") || cat.contains("wearable") ||
+                q.contains("earbud") || q.contains("earphone") || q.contains("headphone") ||
+                q.contains("neckband") || q.contains("tws") || q.contains("smartwatch") ||
+                q.contains("watch") || q.contains("truke") || q.contains("boat") ||
+                q.contains("noise") || q.contains("boult") || q.contains("airpod")
+
         return when (store) {
             Store.CROMA, Store.RELIANCE_DIGITAL -> {
                 // Electronics & Appliances specialist: Does NOT sell sports gear, clothes, shoes, cosmetics, groceries or heavy furniture
                 !isSportsOrFitness && !isFashionOrFootwear && !isBeautyOrCosmetics && !isGrocery && !isHeavyFurniture
             }
-            Store.MYNTRA, Store.AJIO -> {
+            Store.MYNTRA -> {
+                // Fashion, Footwear, Lifestyle, Personal Care, Audio & Wearables
+                !isSportsOrFitness && !isGrocery && !isHeavyFurniture && (!isTechOrElectronics || isAudioOrWearables)
+            }
+            Store.AJIO -> {
                 // Fashion, Footwear, Lifestyle & Personal Care: Does NOT sell gym equipment, laptops, mobiles, TVs, large appliances or groceries
                 !isSportsOrFitness && !isTechOrElectronics && !isGrocery && !isHeavyFurniture
             }

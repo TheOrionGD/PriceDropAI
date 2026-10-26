@@ -113,7 +113,7 @@ fun GetStartedScreen(
                 GetStartedFeatureRow(
                     icon = Icons.Default.Bolt,
                     title = "Instant Price Drop Tracking",
-                    description = "Flipkart, Amazon, Croma, Reliance Digital & more."
+                    description = "Amazon, Meesho, Flipkart, and Myntra."
                 )
             }
 

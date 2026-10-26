@@ -53,7 +53,7 @@ router.get('/search', async (req: Request, res: Response) => {
   }
 
   try {
-    const products = await aggregateSearchResults(normalizedQuery);
+    const products = await aggregateSearchResults(normalizedQuery, reqId);
     cache.set(cacheKey, products);
     const durationMs = Date.now() - startTime;
     const top = products[0];
@@ -75,7 +75,7 @@ router.get('/product/:id', async (req: Request, res: Response) => {
   const rawQuery = productId.replace(/-/g, ' ');
 
   try {
-    const products = await aggregateSearchResults(rawQuery);
+    const products = await aggregateSearchResults(rawQuery, `req_prod_${productId}`);
     const product = products.find(p => p.id === productId) || products[0];
     if (!product) {
       res.status(404).json({ error: 'Product not found' });

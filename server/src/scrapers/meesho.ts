@@ -1,3 +1,4 @@
+import * as cheerio from 'cheerio';
 import { RawScrapedItem, Store, Availability } from '../types/index.js';
 import { scrapePage } from '../utils/puppeteer.js';
 import { fetchPageHtml } from '../utils/htmlFetcher.js';
@@ -5,37 +6,45 @@ import { optimizeProductImageUrl } from './webFallback.js';
 
 function extractFromHtml(html: string): any[] {
   const products: any[] = [];
-  // Match each product card: <a href="/.../p/..."> ... </a>
-  const cardRe = /<a\s+href="(\/[^"]*\/p\/[^"]+)"[^>]*>([\s\S]*?)<\/a>/g;
-  let m;
-  while ((m = cardRe.exec(html)) !== null) {
-    const href = m[1];
-    const body = m[2];
+  const $ = cheerio.load(html);
 
-    // Title from img alt or <p> text
-    const altMatch = body.match(/<img[^>]*\balt="([^"]*)"/);
-    const pMatch = body.match(/<p[^>]*>([^<]{3,120})<\/p>/);
-    const title = (altMatch ? altMatch[1] : (pMatch ? pMatch[1] : '')).trim();
-    if (!title || title.length < 3) continue;
+  $('a[href*="/p/"]').each((_, el) => {
+    const card = $(el);
+    const href = card.attr('href');
+    if (!href) return;
 
-    // Price from <h5> or <span> with ₹
-    const priceMatch = body.match(/₹\s*([\d,]+)/);
-    if (!priceMatch) continue;
+    let title = card.find('p, span[class*="title"], h5').first().text().trim() ||
+                card.find('img').first().attr('alt')?.trim() || '';
+    title = title.replace(/₹[\d,]+.*$/, '').trim();
+    if (!title || title.length < 3 || title.startsWith('+')) {
+      const alt = card.find('img').first().attr('alt')?.trim();
+      if (alt && alt.length >= 3) title = alt;
+    }
+    if (!title || title.length < 3) return;
+
+    const text = card.text();
+    const priceMatch = text.match(/₹\s*([\d,]+)/);
+    if (!priceMatch) return;
     const price = parseFloat(priceMatch[1].replace(/,/g, ''));
-    if (isNaN(price) || price <= 10) continue;
+    if (isNaN(price) || price <= 10) return;
 
-    // Image
-    const imgMatch = body.match(/<img[^>]*\bsrc="([^"]+)"/);
-    let imageUrl = imgMatch ? imgMatch[1] : null;
+    const allPrices = [...text.matchAll(/₹\s*([\d,]+)/g)]
+      .map(m => parseFloat(m[1].replace(/,/g, '')))
+      .filter(p => !isNaN(p) && p > 10);
+    const originalPrice = allPrices.length > 1 && allPrices[1] > price ? allPrices[1] : null;
+
+    const imgEl = card.find('img').first();
+    let imageUrl = imgEl.attr('src') || imgEl.attr('data-src') || null;
 
     products.push({
       title,
       price,
-      originalPrice: null,
+      originalPrice,
       imageUrl,
       landingPageUrl: href,
     });
-  }
+  });
+
   return products;
 }
 
@@ -45,7 +54,9 @@ function extractFromNextData(html: string): any[] {
   if (nextDataMatch) {
     try {
       const data = JSON.parse(nextDataMatch[1]);
-      const list = data?.props?.pageProps?.initialState?.search?.products ||
+      const list = data?.props?.pageProps?.initialState?.searchListing?.listing?.products ||
+                   data?.props?.pageProps?.initialState?.plpListing?.listing?.products ||
+                   data?.props?.pageProps?.initialState?.search?.products ||
                    data?.props?.pageProps?.data?.products ||
                    data?.props?.pageProps?.products || [];
       for (const item of list) {
@@ -68,12 +79,17 @@ function extractFromNextData(html: string): any[] {
 
 export async function scrapeMeesho(query: string): Promise<RawScrapedItem[]> {
   const encoded = encodeURIComponent(query.trim());
-  const url = `https://www.meesho.com/search?q=${encoded}`;
+  const url = `https://www.meesho.com/search?q=${encoded}&searchType=manual&searchIdentifier=text_search`;
 
-  // Primary: Fast direct HTML fetch without requiring Chrome/Puppeteer
-  let html = await fetchPageHtml(url, 'https://www.meesho.com/');
+  // Primary: Fetch with jsRender so React search cards hydrate
+  let html = await fetchPageHtml(url, { jsRender: true, storeName: 'MEESHO', referer: 'https://www.meesho.com/' });
 
-  // Secondary fallback: Puppeteer browser rendering if direct HTML fetch returned null
+  // Fallback 1: Direct fast fetch
+  if (!html) {
+    html = await fetchPageHtml(url, 'https://www.meesho.com/');
+  }
+
+  // Fallback 2: Puppeteer browser rendering
   if (!html) {
     html = await scrapePage(url, async (page: any) => {
       return await page.content();

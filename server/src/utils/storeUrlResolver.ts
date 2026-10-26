@@ -132,7 +132,8 @@ export function isVerifiedProductUrl(store: Store | string, url: string | null |
   switch (storeEnum) {
     case Store.AMAZON:
       // Amazon product detail pages have /dp/<ASIN> or /gp/product/<ASIN>
-      return (/\/dp\/[a-z0-9]{10}/i.test(cleanUrl) || /\/gp\/product\/[a-z0-9]{10}/i.test(cleanUrl)) && !/[?&]k=/i.test(cleanUrl);
+      const decodedAmazon = decodeURIComponent(cleanUrl);
+      return (/\/dp\/[a-z0-9]{10}/i.test(decodedAmazon) || /\/gp\/product\/[a-z0-9]{10}/i.test(decodedAmazon)) && !/[?&]k=/i.test(cleanUrl);
 
     case Store.FLIPKART:
       // Flipkart product detail pages have /p/itm... or pid=... or /itm...
@@ -284,6 +285,13 @@ export function isCategorySupportedByStore(store: Store | string, category: stri
       return isTechOrElectronics;
 
     case Store.MYNTRA:
+      // Fashion, Footwear, Lifestyle, Beauty, Audio/Headphones & Wearables
+      if (isSportsOrFitness) return false;
+      if (isGrocery) return false;
+      if (isHeavyFurniture) return false;
+      if (/\b(refrigerator|fridge|washing\s*machine|air\s*conditioner|ac|microwave|oven|chimney|dishwasher|geyser|television|tv|oled|qled|projector)\b/i.test(q)) return false;
+      return true;
+
     case Store.AJIO:
       // Fashion, Footwear, Lifestyle & Personal Care:
       // They do NOT sell gym fitness equipment, electronics, heavy appliances, or groceries!

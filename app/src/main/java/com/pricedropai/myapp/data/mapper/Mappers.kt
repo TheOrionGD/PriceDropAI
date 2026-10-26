@@ -15,7 +15,7 @@ object Mappers {
         val variants = converters.toProductVariants(product.variantsJson) ?: emptyList()
         val reviewSummary = converters.toReviewSummary(product.reviewSummaryJson) ?: ReviewSummary()
         val paymentOffers = converters.toPaymentOffers(product.paymentOffersJson) ?: emptyList()
-        val domainOffers = offers.map { it.toDomain() }
+        val domainOffers = offers.map { it.toDomain() }.filter { it.store.isActive }
 
         return Product(
             id = product.id,

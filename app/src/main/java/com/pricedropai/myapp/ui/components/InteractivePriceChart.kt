@@ -37,10 +37,11 @@ fun InteractivePriceChart(
 
     val filteredSnapshots = remember(snapshots, selectedRangeIndex) {
         val now = System.currentTimeMillis()
+        val activeSnapshots = snapshots.filter { it.store.isActive }
         when (selectedRangeIndex) {
-            0 -> snapshots.filter { now - it.timestamp <= TimeUnit.DAYS.toMillis(7) }
-            1 -> snapshots.filter { now - it.timestamp <= TimeUnit.DAYS.toMillis(30) }
-            else -> snapshots
+            0 -> activeSnapshots.filter { now - it.timestamp <= TimeUnit.DAYS.toMillis(7) }
+            1 -> activeSnapshots.filter { now - it.timestamp <= TimeUnit.DAYS.toMillis(30) }
+            else -> activeSnapshots
         }
     }
 

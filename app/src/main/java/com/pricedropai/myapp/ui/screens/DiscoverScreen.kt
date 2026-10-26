@@ -236,13 +236,11 @@ fun DiscoverScreen(
                 // Multi-stage animated progression during live multi-store comparison
                 val steps = remember {
                     listOf(
-                        "Connecting to 12 retail platforms & initializing anti-bot gateways..." to 0.12f,
-                        "Querying Amazon India & Flipkart live inventory..." to 0.25f,
-                        "Scanning Meesho & Myntra catalog and checking keyword relevance..." to 0.38f,
-                        "Fetching electronics deals from Croma & Reliance Digital..." to 0.50f,
-                        "Scanning Tata CLiQ, Ajio, Nykaa & JioMart store listings..." to 0.62f,
-                        "Querying Blinkit quick-commerce & eBay international inventory..." to 0.75f,
-                        "Engaging Gemini & Groq dual-AI market validation & price normalization..." to 0.88f,
+                        "Connecting to 4 retail platforms & initializing anti-bot gateways..." to 0.15f,
+                        "Querying Amazon India live catalog & ASIN inventory..." to 0.35f,
+                        "Querying Flipkart & Meesho real-time deals..." to 0.55f,
+                        "Scanning Myntra catalog & checking keyword relevance..." to 0.75f,
+                        "Engaging Groq LPU real-time AI market validation & price normalization..." to 0.90f,
                         "Clustering live offers, picking verified HD image & calculating lowest deals..." to 0.98f
                     )
                 }
@@ -709,7 +707,7 @@ private fun HomeDiscoveryContent(
                         Spacer(Modifier.height(6.dp))
 
                         Text(
-                            text = "Search across 12+ stores including Amazon, Flipkart, Croma, Reliance Digital, Tata CLiQ, Ajio, Nykaa, Meesho, Myntra, and eBay with instant price comparison.",
+                            text = "Search across Amazon, Meesho, Flipkart, and Myntra with instant price comparison and AI matching.",
                             fontSize = 13.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center,

@@ -37,23 +37,125 @@ function detectStoreFromUrl(url: string): string {
   return 'OTHER';
 }
 
-export async function fetchPageHtml(url: string, optionsOrReferer?: string | FetchHtmlOptions): Promise<string | null> {
+export interface FetchResultDetails {
+  html: string | null;
+  provider: string;
+  outcome: 'SUCCESS' | 'FAILED' | 'TIMEOUT' | 'USAGE_LIMIT' | 'RATE_LIMITED';
+  durationMs: number;
+}
+
+export async function fetchPageHtmlWithDetails(url: string, optionsOrReferer?: string | FetchHtmlOptions): Promise<FetchResultDetails> {
   const options: FetchHtmlOptions = typeof optionsOrReferer === 'string'
     ? { referer: optionsOrReferer }
     : (optionsOrReferer || {});
 
   const detectedStore = options.storeName || detectStoreFromUrl(url);
   const isAmazonUrl = detectedStore === 'AMAZON' || url.toLowerCase().includes('amazon.');
-  
-  // Tier 1: Anti-bot gateway with automatic failover between available ZenRows keys
+  const t0 = Date.now();
+
+  // Tier 1: ScraperAPI gateway (Active primary provider with country targeting)
+  const scraperApiKey = process.env.SCRAPERAPI_KEY?.trim();
+  if (scraperApiKey && !isScraperApiKeyDisabled(scraperApiKey)) {
+    try {
+      let saUrl = `http://api.scraperapi.com?api_key=${scraperApiKey}&url=${encodeURIComponent(url)}&country_code=in`;
+      if (options.jsRender) {
+        saUrl += '&render=true';
+      }
+      const response = await axios.get(saUrl, {
+        timeout: 30000,
+        maxContentLength: 8 * 1024 * 1024,
+        maxBodyLength: 8 * 1024 * 1024,
+        validateStatus: (status) => status === 200,
+      });
+
+      if (response.status === 200 && response.data) {
+        const html = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
+        return {
+          html,
+          provider: 'ScraperAPI',
+          outcome: 'SUCCESS',
+          durationMs: Date.now() - t0,
+        };
+      }
+    } catch (err: any) {
+      const status = err.response?.status;
+      if (status === 401 || status === 403 || status === 429) {
+        disableScraperApiKey(scraperApiKey, `Usage limit / Auth error (status ${status})`);
+      } else {
+        console.warn(`[ScraperAPI Notice] ${url}: ${err.message}`);
+      }
+    }
+  }
+
+  // Tier 2: ScrapingAnt gateway failover (non-Amazon domains)
+  const scrapingAntKey = process.env.SCRAPINGANT_KEY?.trim();
+  if (scrapingAntKey && !isAmazonUrl && !isScrapingAntKeyDisabled(scrapingAntKey)) {
+    try {
+      const saParams = new URLSearchParams();
+      saParams.append('url', url);
+      saParams.append('x-api-key', scrapingAntKey);
+      saParams.append('browser', options.jsRender ? 'true' : 'false');
+
+      const saUrl = `https://api.scrapingant.com/v2/general?${saParams.toString()}`;
+      const response = await axios.get(saUrl, {
+        timeout: 25000,
+        maxContentLength: 8 * 1024 * 1024,
+        maxBodyLength: 8 * 1024 * 1024,
+        validateStatus: (status) => status === 200,
+      });
+
+      if (response.status === 200 && response.data) {
+        const html = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
+        return {
+          html,
+          provider: 'ScrapingAnt',
+          outcome: 'SUCCESS',
+          durationMs: Date.now() - t0,
+        };
+      }
+    } catch (err: any) {
+      const status = err.response?.status;
+      if (status === 402 || status === 401 || status === 403) {
+        disableScrapingAntKey(scrapingAntKey, `Usage limit (status ${status})`);
+      } else {
+        console.warn(`[ScrapingAnt Notice] ${url}: ${err.message}`);
+      }
+    }
+  }
+
+  // Tier 3: Direct stealth fetch with rotating realistic headers
+  try {
+    const response = await axios.get(url, {
+      headers: getBrowserHeaders(options.referer || 'https://www.google.com/'),
+      timeout: 20000,
+      maxContentLength: 5 * 1024 * 1024,
+      maxBodyLength: 5 * 1024 * 1024,
+      validateStatus: (status) => status < 400,
+    });
+
+    if (response.status === 200 && response.data) {
+      const htmlStr = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
+      if (!htmlStr.includes('api-services-support@amazon.com') && !htmlStr.includes('Type the characters you see in this image')) {
+        return {
+          html: htmlStr,
+          provider: 'DirectStealth',
+          outcome: 'SUCCESS',
+          durationMs: Date.now() - t0,
+        };
+      }
+    }
+  } catch (err: any) {
+    // Continue to next tier
+  }
+
+  // Tier 4: ZenRows anti-bot gateway (Fallback - only attempted if keys are active & not disabled)
   const candidateKeys = [
     getZenRowsKeyForStore(detectedStore),
     process.env.ZENROWS_KEY1?.trim(),
     process.env.ZENROWS_KEY2?.trim(),
     process.env.ZENROWS_KEY?.trim()
   ].filter((k): k is string => !!k && !isZenRowsKeyDisabled(k));
-  
-  // Deduplicate keys preserving priority order
+
   const uniqueKeys = Array.from(new Set(candidateKeys));
 
   for (const zenrowsKey of uniqueKeys) {
@@ -68,126 +170,58 @@ export async function fetchPageHtml(url: string, optionsOrReferer?: string | Fet
       if (options.jsRender && !zenrowsUrl.includes('mode=auto')) zenrowsUrl += `&js_render=true`;
 
       const response = await axios.get(zenrowsUrl, {
-        timeout: 30000,
+        timeout: 25000,
         maxContentLength: 8 * 1024 * 1024,
         maxBodyLength: 8 * 1024 * 1024,
         validateStatus: (status) => status === 200,
       });
 
       if (response.status === 200 && response.data) {
-        return typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
+        const html = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
+        return {
+          html,
+          provider: 'ZenRows',
+          outcome: 'SUCCESS',
+          durationMs: Date.now() - t0,
+        };
       }
     } catch (err: any) {
       const status = err.response?.status;
-      const respData = err.response?.data;
-      const detail = respData ? (typeof respData === 'object' ? JSON.stringify(respData) : respData) : err.message;
       if (status === 402 || status === 401 || status === 403) {
-        disableZenRowsKey(zenrowsKey, `Usage limit / Auth error (status ${status}) on key ${zenrowsKey.slice(0, 8)}... Trying alternate key.`);
-      } else {
-        console.warn(`[ZenRows Gateway Notice] ${url}: Request failed${status ? ` (status ${status})` : ''}: ${detail}.`);
+        disableZenRowsKey(zenrowsKey, `Usage limit (status ${status})`);
       }
     }
   }
 
-  // Tier 1.5: ScraperAPI gateway failover (Allows Amazon on free tier)
-  const scraperApiKey = process.env.SCRAPERAPI_KEY?.trim();
-  if (scraperApiKey && !isScraperApiKeyDisabled(scraperApiKey)) {
-    try {
-      const saUrl = `http://api.scraperapi.com?api_key=${scraperApiKey}&url=${encodeURIComponent(url)}&country_code=in`;
-      const response = await axios.get(saUrl, {
-        timeout: 30000,
-        maxContentLength: 8 * 1024 * 1024,
-        maxBodyLength: 8 * 1024 * 1024,
-        validateStatus: (status) => status === 200,
-      });
-
-      if (response.status === 200 && response.data) {
-        return typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
-      }
-    } catch (err: any) {
-      const status = err.response?.status;
-      if (status === 401 || status === 403 || status === 429) {
-        disableScraperApiKey(scraperApiKey, `Usage limit / Auth error (status ${status}) on ScraperAPI.`);
-      } else {
-        console.warn(`[ScraperAPI Notice] ${url}: ${err.message}`);
-      }
-    }
-  }
-
-  // Tier 1.6: ScrapingAnt gateway failover (10,000 free credits/month, non-Amazon domains on free plan)
-  const scrapingAntKey = process.env.SCRAPINGANT_KEY?.trim();
-  if (scrapingAntKey && !isAmazonUrl && !isScrapingAntKeyDisabled(scrapingAntKey)) {
-    try {
-      const saParams = new URLSearchParams();
-      saParams.append('url', url);
-      saParams.append('x-api-key', scrapingAntKey);
-      if (options.proxyCountry) saParams.append('proxy_country', options.proxyCountry.toLowerCase());
-      else saParams.append('proxy_country', 'in');
-
-      if (options.jsRender) {
-        saParams.append('browser', 'true');
-      } else {
-        saParams.append('browser', 'false');
-      }
-
-      const saUrl = `https://api.scrapingant.com/v2/general?${saParams.toString()}`;
-      const response = await axios.get(saUrl, {
-        timeout: 30000,
-        maxContentLength: 8 * 1024 * 1024,
-        maxBodyLength: 8 * 1024 * 1024,
-        validateStatus: (status) => status === 200,
-      });
-
-      if (response.status === 200 && response.data) {
-        return typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
-      }
-    } catch (err: any) {
-      const status = err.response?.status;
-      const respData = err.response?.data;
-      const detail = respData ? (typeof respData === 'object' ? JSON.stringify(respData) : respData) : err.message;
-
-      if (status === 402 || status === 401 || status === 403) {
-        disableScrapingAntKey(scrapingAntKey, `Usage limit / Auth error (status ${status}) on ScrapingAnt key.`);
-      } else {
-        console.warn(`[ScrapingAnt Gateway Notice] ${url}: Request failed${status ? ` (status ${status})` : ''}: ${detail}.`);
-      }
-    }
-  }
-
-  // Tier 2: Direct stealth fetch with rotating realistic headers
-  try {
-    const response = await axios.get(url, {
-      headers: getBrowserHeaders(options.referer || 'https://www.google.com/'),
-      timeout: 20000,
-      maxContentLength: 5 * 1024 * 1024,
-      maxBodyLength: 5 * 1024 * 1024,
-      validateStatus: (status) => status < 400,
-    });
-
-    if (response.status === 200 && response.data) {
-      const htmlStr = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
-      // Ensure response is not a captcha block
-      if (!htmlStr.includes('api-services-support@amazon.com') && !htmlStr.includes('Type the characters you see in this image')) {
-        return htmlStr;
-      }
-    }
-  } catch (err: any) {
-    console.warn(`[Direct Fetch Notice] ${url}: ${err.message}. Trying Puppeteer browser rendering.`);
-  }
-
-  // Tier 3: Puppeteer Headless Chrome browser scraping fallback
+  // Tier 5: Puppeteer Headless Chrome browser scraping fallback
   try {
     const puppeteerHtml = await scrapePage(url, async (page) => {
       return await page.content();
     }, { timeout: 35000, waitUntil: 'domcontentloaded' });
 
     if (puppeteerHtml && puppeteerHtml.length > 500) {
-      return puppeteerHtml;
+      return {
+        html: puppeteerHtml,
+        provider: 'Puppeteer',
+        outcome: 'SUCCESS',
+        durationMs: Date.now() - t0,
+      };
     }
   } catch (e: any) {
     console.warn(`[Puppeteer Fetch Warning] ${url}: ${e.message}`);
   }
 
-  return null;
+  return {
+    html: null,
+    provider: 'None',
+    outcome: 'FAILED',
+    durationMs: Date.now() - t0,
+  };
 }
+
+export async function fetchPageHtml(url: string, optionsOrReferer?: string | FetchHtmlOptions): Promise<string | null> {
+  const details = await fetchPageHtmlWithDetails(url, optionsOrReferer);
+  return details.html;
+}
+
 

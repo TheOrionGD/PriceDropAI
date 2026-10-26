@@ -73,16 +73,20 @@ fun ProductDetailsScreen(
     val lowestPrice = product.lowestPrice
     val lowestOffer = product.lowestOffer
 
-    val sortedOffers = remember(product.stores, storeFilter) {
+    val activeStoresOffers = remember(product.stores) {
+        product.stores.filter { it.store.isActive }
+    }
+
+    val sortedOffers = remember(activeStoresOffers, storeFilter) {
         when (storeFilter) {
             1 -> {
-                val available = product.stores.filter { it.price != null && it.price > 0 && it.availability != Availability.OUT_OF_STOCK }
+                val available = activeStoresOffers.filter { it.price != null && it.price > 0 && it.availability != Availability.OUT_OF_STOCK }
                     .sortedBy { it.price }
-                val unavailable = product.stores.filter { it.price == null || it.price <= 0 || it.availability == Availability.OUT_OF_STOCK }
+                val unavailable = activeStoresOffers.filter { it.price == null || it.price <= 0 || it.availability == Availability.OUT_OF_STOCK }
                 available + unavailable
             }
-            2 -> product.stores.filter { it.price != null && it.price > 0 && it.availability != Availability.OUT_OF_STOCK }
-            else -> product.stores
+            2 -> activeStoresOffers.filter { it.price != null && it.price > 0 && it.availability != Availability.OUT_OF_STOCK }
+            else -> activeStoresOffers
         }
     }
 
@@ -146,7 +150,7 @@ fun ProductDetailsScreen(
     if (showRewardAnimation) {
         RewardSuccessModal(
             title = "Price Drop Tracker Activated! 🎉",
-            subtitle = "You earned +50 PriceDrop Points! We're monitoring 12+ stores around the clock for your discount.",
+            subtitle = "You earned +50 PriceDrop Points! We're monitoring 4 verified stores around the clock for your discount.",
             onDismiss = { showRewardAnimation = false }
         )
     }

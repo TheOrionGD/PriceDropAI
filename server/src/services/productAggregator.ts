@@ -4,17 +4,10 @@ import { scrapeAmazon } from '../scrapers/amazon.js';
 import { scrapeFlipkart } from '../scrapers/flipkart.js';
 import { scrapeMeesho } from '../scrapers/meesho.js';
 import { scrapeMyntra } from '../scrapers/myntra.js';
-import { scrapeCroma } from '../scrapers/croma.js';
-import { scrapeRelianceDigital } from '../scrapers/relianceDigital.js';
-import { scrapeTataCliq } from '../scrapers/tatacliq.js';
-import { scrapeAjio } from '../scrapers/ajio.js';
-import { scrapeNykaa } from '../scrapers/nykaa.js';
-import { scrapeEbay } from '../scrapers/ebay.js';
-import { scrapeWalmart } from '../scrapers/walmart.js';
-import { scrapeTarget } from '../scrapers/target.js';
-import { fetchZenRowsProductImage, fetchWebImageFallback, isValidImageUrl, optimizeProductImageUrl } from '../scrapers/webFallback.js';
-import { analyzeStorePricesWithGemini, GEMINI_STORES, generateProductReviewSummaryWithGemini } from './geminiService.js';
-import { analyzeStoresWithGroq, GROQ_STORES } from './groqService.js';
+import { fetchWebImageFallback, isValidImageUrl, optimizeProductImageUrl } from '../scrapers/webFallback.js';
+import { generateProductReviewSummaryWithGroq } from './groqService.js';
+import axios from 'axios';
+import { getGroqKey } from '../utils/keyManager.js';
 import {
   normalizeSearchQuery,
   extractProductSpecs,
@@ -24,8 +17,18 @@ import {
   isCategorySupportedByStore
 } from '../utils/storeUrlResolver.js';
 
+export type ActiveStore = Store.AMAZON | Store.FLIPKART | Store.MEESHO | Store.MYNTRA;
+
+export const ACTIVE_MARKETPLACES: ActiveStore[] = [
+  Store.AMAZON,
+  Store.FLIPKART,
+  Store.MEESHO,
+  Store.MYNTRA,
+];
+
 function cleanTitle(title: string): string {
   return title
+    .replace(/([A-Z]{2,})([A-Z][a-z]+)/g, '$1 $2')
     .replace(/\s+/g, ' ')
     .replace(/\(.*?\)/g, '')
     .trim();
@@ -91,8 +94,18 @@ export function detectCategory(q: string): string {
   return 'General E-Commerce';
 }
 
+export function cleanFeaturesBeforeBrandDetection(text: string): string {
+  return text
+    .replace(/([A-Z]{2,})([A-Z][a-z]+)/g, '$1 $2')
+    .replace(/\b(?:active\s+)?noise\s+(?:cancellation|cancelling|reduction|isolation)\b/gi, ' ')
+    .replace(/\bnoise\s+cancel(?:ling)?\b/gi, ' ')
+    .replace(/\bpaper\s+boat\b/gi, ' ')
+    .replace(/\breal\s+(?:leather|wood|fruit|juice)\b/gi, ' ')
+    .replace(/\bapple\s+(?:cider|flavor|flavour|scent)\b/gi, ' ');
+}
+
 export function detectBrand(q: string): string | null {
-  const lower = q.toLowerCase();
+  const lower = cleanFeaturesBeforeBrandDetection(q).toLowerCase();
 
   // Curated brands list with exact professional casing
   const brandCatalog: Record<string, string> = {
@@ -157,10 +170,16 @@ export function detectBrand(q: string): string | null {
     'nvidia': 'NVIDIA',
 
     // Audio & Wearables
+    'truke': 'truke',
     'boat': 'boAt',
     'noise': 'Noise',
     'boult': 'Boult',
     'fire-boltt': 'Fire-Boltt',
+    'fireboltt': 'Fire-Boltt',
+    'ptron': 'pTron',
+    'hammer': 'Hammer',
+    'wings': 'Wings',
+    'cmf': 'CMF',
     'jbl': 'JBL',
     'bose': 'Bose',
     'sennheiser': 'Sennheiser',
@@ -454,6 +473,12 @@ export function detectBrand(q: string): string | null {
     'red label': 'Red Label',
   };
 
+  // Prioritize matching brand name if it appears at the start of the title/query
+  const firstWordMatch = lower.trim().match(/^([a-z0-9\-]+)\b/);
+  if (firstWordMatch && brandCatalog[firstWordMatch[1]]) {
+    return brandCatalog[firstWordMatch[1]];
+  }
+
   for (const [key, displayName] of Object.entries(brandCatalog)) {
     // Match whole words or boundary patterns
     const regex = new RegExp(`\\b${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
@@ -485,44 +510,323 @@ const SYNONYMS: Record<string, string[]> = {
   'laptop': ['laptop', 'notebook', 'macbook'],
 };
 
-function similarityScore(strA: string, strB: string): number {
-  // CRITICAL: Different brands must NEVER be clustered together into the same product!
-  const brandA = detectBrand(strA);
-  const brandB = detectBrand(strB);
-  if (brandA && brandB && brandA.toLowerCase() !== brandB.toLowerCase()) {
-    return 0;
+export type DiagnosticRejectionReason =
+  | 'BRAND_CONFLICT'
+  | 'MODEL_CONFLICT'
+  | 'SPECIFICATION_CONFLICT'
+  | 'LOW_TITLE_SIMILARITY'
+  | 'MISSING_REQUIRED_IDENTITY'
+  | 'PROVIDER_FAILED'
+  | 'PARSE_FAILED';
+
+export interface MatchEvaluation {
+  isMatch: boolean;
+  score: number;
+  threshold: number;
+  rejectionReason: DiagnosticRejectionReason | null;
+  modelA: string;
+  modelB: string;
+  brandA: string | null;
+  brandB: string | null;
+}
+
+export interface ExtractedProductEntity {
+  index: number;
+  brand: string;
+  model: string;
+  category: string;
+}
+
+const COMMON_STOP_WORDS = new Set([
+  'new', 'launch', 'newly', 'launched', 'latest', 'original', 'genuine', 'authentic',
+  'best', 'top', 'exclusive', 'special', 'edition', 'sale', 'hot', 'deal', 'offer',
+  'made', 'in', 'india', 'true', 'truly', 'wireless', 'bluetooth', 'earbuds', 'earbud',
+  'earphone', 'earphones', 'headphone', 'headphones', 'headset', 'tws', 'neckband',
+  'inear', 'in-ear', 'gaming', 'calls', 'calling', 'stereo', 'sound', 'audio', 'bass',
+  'hifi', 'mic', 'mics', 'microphone', 'enc', 'anc', 'noise', 'cancellation', 'cancelling',
+  'driver', 'drivers', 'battery', 'playtime', 'playback', 'hours', 'hour', 'hrs',
+  'fast', 'charging', 'charge', 'case', 'cover', 'with', 'and', 'for', 'the', 'w/', 'by',
+  'deep', 'pure', 'crystal', 'clear', 'rich', 'hd', 'pro', 'max', 'plus',
+  'black', 'white', 'blue', 'green', 'red', 'gold', 'silver', 'grey', 'gray', 'matte',
+  'carbon', 'midnight', 'charcoal', 'indigo', 'raven', 'ash', 'finish', 'leather',
+  'spatial', 'lossless', 'dynamic', 'titanium', 'beryllium', 'battle', 'mode', 'modes'
+]);
+
+export function extractModelTokens(title: string, brand?: string | null): string[] {
+  let clean = title.toLowerCase()
+    .replace(/\(.*?\)/g, ' ')
+    .replace(/\[.*?\]/g, ' ')
+    .replace(/\|.*$/g, ' ')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (brand) {
+    clean = clean.replace(new RegExp(`\\b${brand.toLowerCase()}\\b`, 'g'), ' ');
   }
 
-  // CRITICAL: Different specific categories must NEVER be merged! (e.g. camera grip vs fitness hand gripper)
-  const catA = detectCategory(strA);
-  const catB = detectCategory(strB);
-  if (catA !== 'General E-Commerce' && catB !== 'General E-Commerce' && catA !== catB) {
-    return 0;
+  clean = clean
+    .replace(/\b(new launch|newly launched|true wireless in ear|true wireless|truly wireless|bluetooth headset|gaming earbuds|gaming tws)\b/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const words = clean.split(' ').filter(w => w.length > 0);
+  const tokens: string[] = [];
+
+  for (const w of words) {
+    if (/^\d+(?:ms|mm|h|hrs|hour|hours|mah|db|bit)$/i.test(w) || /^bt\d+/i.test(w)) {
+      break;
+    }
+    if (COMMON_STOP_WORDS.has(w) && w !== 'buds' && w !== 'air' && w !== 'flex' && w !== 'v2' && w !== 'ultra') {
+      continue;
+    }
+    tokens.push(w);
+    if (tokens.length >= 4) break;
   }
 
-  // CRITICAL: Incompatible specs (e.g. 5kg fixed vs 5-60kg adjustable, 128gb vs 256gb) must NOT be merged!
-  const specsA = extractProductSpecs(strA);
-  const specsB = extractProductSpecs(strB);
-  if (areSpecsIncompatible(specsA, specsB)) {
-    return 0;
-  }
+  return tokens;
+}
 
-  const wordsA = new Set(strA.toLowerCase().replace(/[^a-z0-9 ]/g, '').split(/\s+/).filter(w => w.length > 2));
-  const wordsB = new Set(strB.toLowerCase().replace(/[^a-z0-9 ]/g, '').split(/\s+/).filter(w => w.length > 2));
-  if (wordsA.size === 0 || wordsB.size === 0) return 0;
+/**
+ * Real-time AI batch entity extractor powered by Groq LPU models.
+ * Runs in parallel across candidate titles to identify canonical brand and clean model names.
+ */
+export async function extractEntitiesWithAi(titles: string[], timeoutMs: number = 5500): Promise<ExtractedProductEntity[]> {
+  const apiKey = getGroqKey(1) || getGroqKey(2) || process.env.GROQ_API_KEY?.trim() || process.env.GROQ_API_KEY1?.trim();
+  if (!apiKey || titles.length === 0) return [];
 
-  let intersection = 0;
-  for (const w of wordsA) {
-    if (wordsB.has(w)) {
-      intersection++;
-    } else {
-      const syns = SYNONYMS[w];
-      if (syns && syns.some(s => wordsB.has(s))) {
-        intersection += 0.8;
+  try {
+    const payload = titles.map((t, idx) => ({ index: idx, title: t }));
+    const res = await axios.post(
+      'https://api.groq.com/openai/v1/chat/completions',
+      {
+        model: 'openai/gpt-oss-120b',
+        messages: [
+          {
+            role: 'system',
+            content: `You are an expert e-commerce product entity extractor. For each product title in the JSON list, extract:
+- "brand": Canonical brand/manufacturer name (e.g. "Apple", "Samsung", "boAt", "Sony", "truke", "Nike", "Puma", "Milton", "Philips", "Realme", "OnePlus").
+- "model": Core model line/name/number without SEO fluff or marketing keywords (e.g. "iPhone 15", "Galaxy S24", "Airdopes 141", "BTG Ultra", "Mega 10", "Buds Elite V2", "Air Max 90", "WH-1000XM5").
+- "category": Concise product category.
+Output strictly JSON:
+{
+  "products": [
+    { "index": 0, "brand": "Brand", "model": "Model", "category": "Category" }
+  ]
+}`
+          },
+          {
+            role: 'user',
+            content: JSON.stringify(payload)
+          }
+        ],
+        temperature: 0.1,
+        response_format: { type: 'json_object' }
+      },
+      {
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        timeout: timeoutMs
       }
+    );
+
+    const parsed = JSON.parse(res.data?.choices?.[0]?.message?.content || '{}');
+    if (Array.isArray(parsed?.products)) {
+      return parsed.products;
+    }
+  } catch (err: any) {
+    // Fall back smoothly to deterministic extractor
+  }
+  return [];
+}
+
+export function evaluateProductMatch(
+  titleA: string,
+  titleB: string,
+  knownBrandA?: string | null,
+  knownModelA?: string | null,
+  knownBrandB?: string | null,
+  knownModelB?: string | null
+): MatchEvaluation {
+  const brandA = knownBrandA || detectBrand(titleA);
+  const brandB = knownBrandB || detectBrand(titleB);
+
+  // 1. Strict Brand Conflict Check
+  if (brandA && brandB && brandA.toLowerCase() !== brandB.toLowerCase()) {
+    return {
+      isMatch: false,
+      score: 0,
+      threshold: 60,
+      rejectionReason: 'BRAND_CONFLICT',
+      modelA: knownModelA || '',
+      modelB: knownModelB || '',
+      brandA,
+      brandB,
+    };
+  }
+
+  // 2. Category mismatch check
+  const catA = detectCategory(titleA);
+  const catB = detectCategory(titleB);
+  if (catA !== 'General E-Commerce' && catB !== 'General E-Commerce' && catA !== catB) {
+    return {
+      isMatch: false,
+      score: 0,
+      threshold: 60,
+      rejectionReason: 'SPECIFICATION_CONFLICT',
+      modelA: knownModelA || '',
+      modelB: knownModelB || '',
+      brandA,
+      brandB,
+    };
+  }
+
+  // 3. Incompatible specs check (resistance, weight, adjustability, storage, volume)
+  const specsA = extractProductSpecs(titleA);
+  const specsB = extractProductSpecs(titleB);
+  if (areSpecsIncompatible(specsA, specsB)) {
+    return {
+      isMatch: false,
+      score: 0,
+      threshold: 60,
+      rejectionReason: 'SPECIFICATION_CONFLICT',
+      modelA: knownModelA || '',
+      modelB: knownModelB || '',
+      brandA,
+      brandB,
+    };
+  }
+
+  // 4. Model extraction and numeric verification
+  const mTokensA = knownModelA ? knownModelA.toLowerCase().split(/\s+/) : extractModelTokens(titleA, brandA);
+  const mTokensB = knownModelB ? knownModelB.toLowerCase().split(/\s+/) : extractModelTokens(titleB, brandB);
+  const modelA = mTokensA.join(' ');
+  const modelB = mTokensB.join(' ');
+
+  // Numeric Model Conflict (e.g. Mega 10 vs Mega 7, iPhone 15 vs 16, S24 vs S23)
+  const numbersA = mTokensA.filter(t => /^\d+$/.test(t));
+  const numbersB = mTokensB.filter(t => /^\d+$/.test(t));
+  if (numbersA.length > 0 && numbersB.length > 0) {
+    const hasSharedNumber = numbersA.some(n => numbersB.includes(n));
+    if (!hasSharedNumber) {
+      return {
+        isMatch: false,
+        score: 10,
+        threshold: 60,
+        rejectionReason: 'MODEL_CONFLICT',
+        modelA,
+        modelB,
+        brandA,
+        brandB,
+      };
     }
   }
-  return (2 * intersection) / (wordsA.size + wordsB.size);
+
+  // Distinct Sub-Model Conflict Check
+  const SUB_MODELS = ['btg', 'mega', 'elite', 'aura', 'flex', 'echo', 'vibe', 'liberty', 'resonancex', 'dyno', 'bass', 'q1', 'air', 'clarity'];
+  const subModelA = mTokensA.find(t => SUB_MODELS.includes(t));
+  const subModelB = mTokensB.find(t => SUB_MODELS.includes(t));
+
+  if (subModelA && subModelB && subModelA !== subModelB) {
+    return {
+      isMatch: false,
+      score: 15,
+      threshold: 60,
+      rejectionReason: 'MODEL_CONFLICT',
+      modelA,
+      modelB,
+      brandA,
+      brandB,
+    };
+  }
+
+  // Version Discrepancy (e.g. Buds Elite V1 vs V2)
+  const hasV2A = /\bv2\b/i.test(titleA);
+  const hasV2B = /\bv2\b/i.test(titleB);
+  if (hasV2A !== hasV2B) {
+    return {
+      isMatch: false,
+      score: 25,
+      threshold: 60,
+      rejectionReason: 'MODEL_CONFLICT',
+      modelA,
+      modelB,
+      brandA,
+      brandB,
+    };
+  }
+
+  // 5. Symmetric Token Overlap & Dice Ratio
+  const normalizeTokens = (str: string) => {
+    return new Set(
+      str.toLowerCase()
+        .replace(/[^a-z0-9\s]/g, ' ')
+        .split(/\s+/)
+        .filter(w => w.length > 2 && !COMMON_STOP_WORDS.has(w))
+    );
+  };
+
+  const tokensA = normalizeTokens(titleA);
+  const tokensB = normalizeTokens(titleB);
+
+  if (tokensA.size === 0 || tokensB.size === 0) {
+    return {
+      isMatch: false,
+      score: 0,
+      threshold: 60,
+      rejectionReason: 'MISSING_REQUIRED_IDENTITY',
+      modelA,
+      modelB,
+      brandA,
+      brandB,
+    };
+  }
+
+  let matchedCount = 0;
+  for (const t of tokensA) {
+    if (tokensB.has(t)) {
+      matchedCount++;
+    }
+  }
+
+  const minSize = Math.min(tokensA.size, tokensB.size);
+  const overlapRatio = minSize > 0 ? (matchedCount / minSize) : 0;
+  const diceRatio = (2 * matchedCount) / (tokensA.size + tokensB.size);
+
+  const mIntersection = mTokensA.filter(w => mTokensB.includes(w));
+  let isModelMatch = false;
+
+  if (subModelA && subModelB && subModelA === subModelB) {
+    isModelMatch = true;
+  } else if (mIntersection.length >= 2 || (mIntersection.length === 1 && mTokensA.length === 1 && mTokensB.length === 1)) {
+    isModelMatch = true;
+  }
+
+  let score = Math.round((overlapRatio * 60) + (diceRatio * 40));
+  if (isModelMatch) {
+    score = Math.max(score, 88);
+  }
+
+  const threshold = 60;
+  const isMatch = score >= threshold;
+
+  return {
+    isMatch,
+    score,
+    threshold,
+    rejectionReason: isMatch ? null : 'LOW_TITLE_SIMILARITY',
+    modelA,
+    modelB,
+    brandA,
+    brandB,
+  };
+}
+
+export function similarityScore(strA: string, strB: string): number {
+  const evalRes = evaluateProductMatch(strA, strB);
+  return evalRes.isMatch ? (evalRes.score / 100) : 0;
 }
 
 export function calculateRelevanceScore(query: string, title: string, isSponsored?: boolean): number {
@@ -617,73 +921,171 @@ function isProductCategorySupportedByStore(store: Store, query: string, category
   return isCategorySupportedByStore(store, category, query);
 }
 
-export async function aggregateSearchResults(query: string): Promise<Product[]> {
+
+export interface StoreAuditInfo {
+  store: Store;
+  searchAttempted: boolean;
+  provider: string;
+  providerOutcome: 'SUCCESS' | 'EMPTY' | 'FAILED' | 'UNSUPPORTED_CATEGORY';
+  rawCandidatesCount: number;
+  parsedCandidatesCount: number;
+  candidatesSample: Array<{ title: string; price: number | null }>;
+  rejectedCount: number;
+  rejections: Array<{ title: string; reason: DiagnosticRejectionReason; matchedAgainst?: string }>;
+  survivedAggregationCount: number;
+  serializedOffersCount: number;
+}
+
+export async function aggregateSearchResults(query: string, reqId?: string): Promise<Product[]> {
   const cleanQ = normalizeSearchQuery(query);
   if (!cleanQ) return [];
 
   const detectedCategory = detectCategory(cleanQ);
+  const queryBrand = detectBrand(cleanQ);
 
-  // 1. Scrape Amazon as primary source of items, prices, and high-res images
-  let amazonItems: RawScrapedItem[] = [];
+  const storeAudits: Record<ActiveStore, StoreAuditInfo> = {
+    [Store.AMAZON]: {
+      store: Store.AMAZON,
+      searchAttempted: false,
+      provider: 'ScraperAPI',
+      providerOutcome: 'EMPTY',
+      rawCandidatesCount: 0,
+      parsedCandidatesCount: 0,
+      candidatesSample: [],
+      rejectedCount: 0,
+      rejections: [],
+      survivedAggregationCount: 0,
+      serializedOffersCount: 0,
+    },
+    [Store.FLIPKART]: {
+      store: Store.FLIPKART,
+      searchAttempted: false,
+      provider: 'ScraperAPI',
+      providerOutcome: 'EMPTY',
+      rawCandidatesCount: 0,
+      parsedCandidatesCount: 0,
+      candidatesSample: [],
+      rejectedCount: 0,
+      rejections: [],
+      survivedAggregationCount: 0,
+      serializedOffersCount: 0,
+    },
+    [Store.MEESHO]: {
+      store: Store.MEESHO,
+      searchAttempted: false,
+      provider: 'Direct/ScraperAPI',
+      providerOutcome: 'EMPTY',
+      rawCandidatesCount: 0,
+      parsedCandidatesCount: 0,
+      candidatesSample: [],
+      rejectedCount: 0,
+      rejections: [],
+      survivedAggregationCount: 0,
+      serializedOffersCount: 0,
+    },
+    [Store.MYNTRA]: {
+      store: Store.MYNTRA,
+      searchAttempted: false,
+      provider: 'Direct/ScraperAPI',
+      providerOutcome: 'EMPTY',
+      rawCandidatesCount: 0,
+      parsedCandidatesCount: 0,
+      candidatesSample: [],
+      rejectedCount: 0,
+      rejections: [],
+      survivedAggregationCount: 0,
+      serializedOffersCount: 0,
+    },
+  };
 
-  try {
-    amazonItems = await scrapeAmazon(cleanQ);
-  } catch (err: any) {
-    console.warn(`[Amazon Scraper Notice] ${err.message}`);
-  }
+  // 1. Parallel scrape of strictly the 4 active marketplaces
+  const scrapeTasks: Array<{ store: ActiveStore; fn: () => Promise<RawScrapedItem[]> }> = [];
 
-  // 2. Fetch other stores in parallel, but ONLY if they support the detected category
-  const otherTasks: Array<() => Promise<RawScrapedItem[]>> = [];
-  if (isCategorySupportedByStore(Store.FLIPKART, detectedCategory, cleanQ)) {
-    otherTasks.push(() => scrapeFlipkart(cleanQ).catch(() => []));
-  }
-  if (isCategorySupportedByStore(Store.MEESHO, detectedCategory, cleanQ)) {
-    otherTasks.push(() => scrapeMeesho(cleanQ).catch(() => []));
-  }
-  if (isCategorySupportedByStore(Store.MYNTRA, detectedCategory, cleanQ)) {
-    otherTasks.push(() => scrapeMyntra(cleanQ).catch(() => []));
-  }
-  if (isCategorySupportedByStore(Store.CROMA, detectedCategory, cleanQ)) {
-    otherTasks.push(() => scrapeCroma(cleanQ).catch(() => []));
-  }
-  if (isCategorySupportedByStore(Store.RELIANCE_DIGITAL, detectedCategory, cleanQ)) {
-    otherTasks.push(() => scrapeRelianceDigital(cleanQ).catch(() => []));
-  }
-  if (isCategorySupportedByStore(Store.TATACLIQ, detectedCategory, cleanQ)) {
-    otherTasks.push(() => scrapeTataCliq(cleanQ).catch(() => []));
-  }
-  if (isCategorySupportedByStore(Store.AJIO, detectedCategory, cleanQ)) {
-    otherTasks.push(() => scrapeAjio(cleanQ).catch(() => []));
-  }
-  if (isCategorySupportedByStore(Store.EBAY, detectedCategory, cleanQ)) {
-    otherTasks.push(() => scrapeEbay(cleanQ).catch(() => []));
-  }
-  if (isCategorySupportedByStore(Store.NYKAA, detectedCategory, cleanQ)) {
-    otherTasks.push(() => scrapeNykaa(cleanQ).catch(() => []));
-  }
-
-  const allItems: RawScrapedItem[] = [...amazonItems];
-  const otherResults = await Promise.allSettled(otherTasks.map(fn => fn()));
-  for (const res of otherResults) {
-    if (res.status === 'fulfilled' && Array.isArray(res.value)) {
-      allItems.push(...res.value);
+  for (const store of ACTIVE_MARKETPLACES) {
+    const activeStore = store as ActiveStore;
+    if (isCategorySupportedByStore(activeStore, detectedCategory, cleanQ)) {
+      storeAudits[activeStore].searchAttempted = true;
+      if (activeStore === Store.AMAZON) scrapeTasks.push({ store: activeStore, fn: () => scrapeAmazon(cleanQ) });
+      else if (activeStore === Store.FLIPKART) scrapeTasks.push({ store: activeStore, fn: () => scrapeFlipkart(cleanQ) });
+      else if (activeStore === Store.MEESHO) scrapeTasks.push({ store: activeStore, fn: () => scrapeMeesho(cleanQ) });
+      else if (activeStore === Store.MYNTRA) scrapeTasks.push({ store: activeStore, fn: () => scrapeMyntra(cleanQ) });
+    } else {
+      storeAudits[activeStore].searchAttempted = false;
+      storeAudits[activeStore].providerOutcome = 'UNSUPPORTED_CATEGORY';
     }
   }
 
-  if (allItems.length === 0) {
+  const taskResults = await Promise.allSettled(
+    scrapeTasks.map(t => t.fn().then(items => ({ store: t.store, items })))
+  );
+
+  const validStoreItems: Record<ActiveStore, RawScrapedItem[]> = {
+    [Store.AMAZON]: [],
+    [Store.FLIPKART]: [],
+    [Store.MEESHO]: [],
+    [Store.MYNTRA]: [],
+  };
+
+  for (const res of taskResults) {
+    if (res.status === 'fulfilled') {
+      const { store, items } = res.value;
+      storeAudits[store].rawCandidatesCount = items.length;
+      const valid = items.filter(it => it.title && it.price && it.price > 10 && it.url);
+      storeAudits[store].parsedCandidatesCount = valid.length;
+      storeAudits[store].providerOutcome = valid.length > 0 ? 'SUCCESS' : 'EMPTY';
+      storeAudits[store].candidatesSample = valid.slice(0, 3).map(it => ({ title: it.title.slice(0, 60), price: it.price ?? 0 }));
+      validStoreItems[store] = valid;
+    } else {
+      // Find which store failed
+      const failedIdx = taskResults.indexOf(res);
+      const failedStore = scrapeTasks[failedIdx]?.store;
+      if (failedStore) {
+        storeAudits[failedStore].providerOutcome = 'FAILED';
+      }
+    }
+  }
+
+  // 2. Build candidate pool for real-time AI entity extraction (top 4-5 items per store)
+  const candidatePool: RawScrapedItem[] = [];
+  for (const store of ACTIVE_MARKETPLACES) {
+    candidatePool.push(...validStoreItems[store].slice(0, 5));
+  }
+
+  let aiEntities: ExtractedProductEntity[] = [];
+  if (candidatePool.length > 0) {
+    try {
+      aiEntities = await extractEntitiesWithAi(candidatePool.map(c => c.title), 5500);
+    } catch {
+      aiEntities = [];
+    }
+  }
+
+  const aiEntityMap = new Map<string, ExtractedProductEntity>();
+  aiEntities.forEach((ent, idx) => {
+    if (candidatePool[idx]) {
+      aiEntityMap.set(`${candidatePool[idx].store}_${candidatePool[idx].title}`, ent);
+    }
+  });
+
+  // 3. Collect all items to cluster (relevance filtered for multi-word queries)
+  const allScraped: RawScrapedItem[] = [
+    ...validStoreItems[Store.AMAZON],
+    ...validStoreItems[Store.FLIPKART],
+    ...validStoreItems[Store.MEESHO],
+    ...validStoreItems[Store.MYNTRA],
+  ];
+
+  if (allScraped.length === 0) {
     return [];
   }
 
-  // Filter items by relevance for multi-word queries. For 1-2 word queries (e.g. "shoes"), trust store search relevance
   const isShortQuery = cleanQ.split(/\s+/).length <= 2;
   const queryWords = cleanQ.toLowerCase().replace(/[^a-z0-9 ]/g, '').split(/\s+/).filter(w => w.length > 1);
-  const queryBrand = detectBrand(cleanQ);
 
-  const relevantItems = allItems.filter(item => {
+  const relevantItems = allScraped.filter(item => {
     if (isShortQuery || queryWords.length === 0) return true;
     const titleLower = item.title.toLowerCase();
 
-    // If query specified a brand and this item belongs to that brand, ALWAYS preserve it
     if (queryBrand) {
       const qbLower = queryBrand.toLowerCase();
       if (titleLower.includes(qbLower) || detectBrand(titleLower)?.toLowerCase() === qbLower) {
@@ -705,67 +1107,129 @@ export async function aggregateSearchResults(query: string): Promise<Product[]> 
     return matchCount >= Math.max(1, Math.ceil(queryWords.length * 0.4));
   });
 
-  const itemsToCluster = relevantItems.length > 0 ? relevantItems : allItems;
+  const itemsToCluster = relevantItems.length > 0 ? relevantItems : allScraped;
 
-  // 2. Cluster / Group items into distinct products
-  const productClusters: Array<{
+  // 4. Real-Time AI Entity Segregation & Clustering
+  interface ProductCluster {
+    brand: string;
+    model: string;
+    category: string;
     title: string;
     items: RawScrapedItem[];
     relevanceScore: number;
     asin?: string | null;
-  }> = [];
+  }
+
+  const productClusters: ProductCluster[] = [];
 
   for (const item of itemsToCluster) {
-    const itemBrand = detectBrand(item.title);
+    const aiKey = `${item.store}_${item.title}`;
+    const aiEnt = aiEntityMap.get(aiKey);
 
-    let matchedCluster = productClusters.find(c => {
-      const clusterBrand = detectBrand(c.title);
-      // STRICT BRAND ISOLATION: Never merge different brands into the same cluster!
-      if (clusterBrand && itemBrand && clusterBrand.toLowerCase() !== itemBrand.toLowerCase()) {
-        return false;
-      }
-      return similarityScore(c.title, item.title) > 0.45;
-    });
-
+    const itemBrand = (aiEnt?.brand || detectBrand(item.title) || 'Generic').trim();
+    const itemModel = (aiEnt?.model || extractModelTokens(item.title, itemBrand).join(' ')).trim();
+    const itemCategory = (aiEnt?.category || detectCategory(item.title)).trim();
     const itemScore = calculateRelevanceScore(cleanQ, item.title, item.isSponsored);
 
+    let matchedCluster: ProductCluster | undefined;
+
+    for (const c of productClusters) {
+      // 1. Strict Brand Isolation: Never merge distinct brands
+      if (c.brand && itemBrand && c.brand.toLowerCase() !== itemBrand.toLowerCase()) {
+        storeAudits[item.store as ActiveStore]?.rejections.push({
+          title: item.title.slice(0, 50),
+          reason: 'BRAND_CONFLICT',
+          matchedAgainst: c.title.slice(0, 50),
+        });
+        continue;
+      }
+
+      // 2. AI Model Matching (Generic across all brands & models)
+      const cNorm = c.model.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const iNorm = itemModel.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+      if (cNorm && iNorm) {
+        if (cNorm === iNorm) {
+          matchedCluster = c;
+          break;
+        }
+
+        // Substring / variant model match check
+        if (cNorm.includes(iNorm) || iNorm.includes(cNorm)) {
+          const cNums: string[] = c.model.match(/\d+/g) || [];
+          const iNums: string[] = itemModel.match(/\d+/g) || [];
+          const numConflict = cNums.length > 0 && iNums.length > 0 && !cNums.some(n => iNums.includes(n));
+          const hasV2C = /\bv2\b/i.test(c.title);
+          const hasV2I = /\bv2\b/i.test(item.title);
+
+          if (!numConflict && (hasV2C === hasV2I)) {
+            matchedCluster = c;
+            break;
+          }
+        }
+      }
+
+      // 3. Fallback: evaluateProductMatch
+      const evalRes = evaluateProductMatch(c.title, item.title, c.brand, c.model, itemBrand, itemModel);
+      if (evalRes.isMatch) {
+        matchedCluster = c;
+        break;
+      } else if (evalRes.rejectionReason) {
+        storeAudits[item.store as ActiveStore]?.rejections.push({
+          title: item.title.slice(0, 50),
+          reason: evalRes.rejectionReason,
+          matchedAgainst: c.title.slice(0, 50),
+        });
+      }
+    }
+
     if (matchedCluster) {
-      // Don't add duplicate store offers for the same cluster if one already exists
-      const hasStore = matchedCluster.items.some(i => i.store === item.store);
-      if (!hasStore) {
+      if (!matchedCluster.items.some(i => i.store === item.store)) {
         matchedCluster.items.push(item);
+        if (storeAudits[item.store as ActiveStore]) {
+          storeAudits[item.store as ActiveStore].survivedAggregationCount++;
+        }
       }
       if (!matchedCluster.asin && item.asin) {
         matchedCluster.asin = item.asin;
       }
       if (itemScore > matchedCluster.relevanceScore) {
         matchedCluster.relevanceScore = itemScore;
-        // Promote the better-matching organic item title as the cluster title
         matchedCluster.title = item.title;
       }
     } else {
       productClusters.push({
+        brand: itemBrand,
+        model: itemModel,
+        category: itemCategory,
         title: item.title,
         items: [item],
         relevanceScore: itemScore,
         asin: item.asin || null,
       });
+      if (storeAudits[item.store as ActiveStore]) {
+        storeAudits[item.store as ActiveStore].survivedAggregationCount++;
+      }
     }
   }
 
-  // Sort clusters so requested brand and best organic match to user's query is at index 0
+  // 5. Sort clusters: queried brand matches first, then multi-store clusters & relevance
   productClusters.sort((a, b) => {
     if (queryBrand) {
       const qbLower = queryBrand.toLowerCase();
-      const aBrandMatch = a.title.toLowerCase().includes(qbLower) || detectBrand(a.title)?.toLowerCase() === qbLower;
-      const bBrandMatch = b.title.toLowerCase().includes(qbLower) || detectBrand(b.title)?.toLowerCase() === qbLower;
+      const aBrandMatch = a.brand.toLowerCase() === qbLower || a.title.toLowerCase().includes(qbLower);
+      const bBrandMatch = b.brand.toLowerCase() === qbLower || b.title.toLowerCase().includes(qbLower);
       if (aBrandMatch && !bBrandMatch) return -1;
       if (!aBrandMatch && bBrandMatch) return 1;
+    }
+    // Prefer clusters with multiple stores
+    if (a.items.length !== b.items.length) {
+      return b.items.length - a.items.length;
     }
     return b.relevanceScore - a.relevanceScore;
   });
 
-  // 3. Transform clusters into Product objects with dynamic rate, link, and verified image allocation
+  // 6. Transform clusters into Product objects
   const products: Product[] = [];
   const selectedClusters = productClusters.slice(0, 12);
 
@@ -774,16 +1238,15 @@ export async function aggregateSearchResults(query: string): Promise<Product[]> 
     const primaryItem = cluster.items[0];
     const productId = cluster.asin
       ? `amazon_${cluster.asin.toLowerCase()}`
-      : cluster.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 60);
+      : `prod_${cluster.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 60)}`;
 
-    // 1. Resolve product image STRICTLY from items belonging to this specific cluster
+    // Image resolution strictly from this cluster's items
     let highResImage: string | null = null;
     const amazonItem = cluster.items.find(i => i.store === Store.AMAZON && isValidImageUrl(i.imageUrl));
     if (amazonItem?.imageUrl) {
       highResImage = optimizeProductImageUrl(amazonItem.imageUrl) || amazonItem.imageUrl;
     }
 
-    // Check all scraped cluster items if Amazon image not in cluster
     if (!highResImage) {
       const anyScrapedWithImage = cluster.items.find(i => isValidImageUrl(i.imageUrl));
       if (anyScrapedWithImage?.imageUrl) {
@@ -791,7 +1254,6 @@ export async function aggregateSearchResults(query: string): Promise<Product[]> 
       }
     }
 
-    // Fallback: If this cluster has no image, attempt image resolution ONLY for this cluster's exact title
     if (!highResImage) {
       try {
         const clusterTitleImg = await fetchWebImageFallback(cleanTitle(cluster.title));
@@ -801,27 +1263,10 @@ export async function aggregateSearchResults(query: string): Promise<Product[]> 
       } catch { }
     }
 
-    const ALL_MARKETPLACES: Store[] = [
-      Store.AMAZON,
-      Store.FLIPKART,
-      Store.MEESHO,
-      Store.MYNTRA,
-      Store.CROMA,
-      Store.RELIANCE_DIGITAL,
-      Store.JIOMART,
-      Store.TATACLIQ,
-      Store.AJIO,
-      Store.NYKAA,
-      Store.BLINKIT,
-      Store.EBAY,
-      Store.WALMART,
-      Store.TARGET,
-    ];
-
     const storeOffers: StoreOffer[] = [];
-    const category = detectCategory(cluster.title);
+    const category = cluster.category || detectCategory(cluster.title);
 
-    for (const store of ALL_MARKETPLACES) {
+    for (const store of ACTIVE_MARKETPLACES) {
       const isSupported = isCategorySupportedByStore(store, category, cleanQ);
       const searchUrl = buildMarketplaceSearchUrl(store, cleanQ);
 
@@ -848,8 +1293,71 @@ export async function aggregateSearchResults(query: string): Promise<Product[]> 
         continue;
       }
 
-      // Check if cluster has a verified scraped item for this store
-      const scrapedItem = cluster.items.find(i => i.store === store);
+      let scrapedItem = cluster.items.find(i => i.store === store);
+
+      // 1. Secondary pool lookup: check validStoreItems[store] for best brand & model match
+      if (!scrapedItem) {
+        const pool = validStoreItems[store] || [];
+        const clusterBrandLower = (cluster.brand || '').toLowerCase();
+
+        let bestCandidate: RawScrapedItem | null = null;
+        let bestScore = -1;
+
+        for (const item of pool) {
+          const itemBrand = (detectBrand(item.title) || '').toLowerCase();
+          if (clusterBrandLower && clusterBrandLower !== 'generic') {
+            if (itemBrand && itemBrand !== clusterBrandLower && !item.title.toLowerCase().includes(clusterBrandLower)) {
+              continue;
+            }
+          }
+
+          const specsCluster = extractProductSpecs(cluster.title);
+          const specsItem = extractProductSpecs(item.title);
+          if (areSpecsIncompatible(specsCluster, specsItem)) {
+            continue;
+          }
+
+          const score = calculateRelevanceScore(cluster.title, item.title, item.isSponsored);
+          if (score > bestScore && score >= 25) {
+            bestScore = score;
+            bestCandidate = item;
+          }
+        }
+
+        if (bestCandidate) {
+          scrapedItem = bestCandidate;
+          cluster.items.push(bestCandidate);
+        }
+      }
+
+      // 2. Targeted direct store resolution: for primary cluster, if still missing and category is supported
+      if (!scrapedItem && clusterIdx === 0 && isSupported) {
+        try {
+          const targetedQuery = `${cluster.brand && cluster.brand !== 'Generic' ? cluster.brand : ''} ${cluster.model || cleanTitle(cluster.title)}`.trim();
+          let targetedItems: RawScrapedItem[] = [];
+          if (store === Store.AMAZON) targetedItems = await scrapeAmazon(targetedQuery);
+          else if (store === Store.FLIPKART) targetedItems = await scrapeFlipkart(targetedQuery);
+          else if (store === Store.MEESHO) targetedItems = await scrapeMeesho(targetedQuery);
+          else if (store === Store.MYNTRA) targetedItems = await scrapeMyntra(targetedQuery);
+
+          if (targetedItems.length > 0) {
+            const topTargeted = targetedItems.find(it => {
+              if (!it.price || it.price <= 10 || !it.url) return false;
+              const itCat = detectCategory(it.title);
+              if (category !== 'General E-Commerce' && itCat !== 'General E-Commerce' && itCat !== category) {
+                return false;
+              }
+              const score = calculateRelevanceScore(cluster.title, it.title, it.isSponsored);
+              return score >= 25;
+            });
+            if (topTargeted) {
+              scrapedItem = topTargeted;
+              cluster.items.push(topTargeted);
+            }
+          }
+        } catch {}
+      }
+
       if (scrapedItem && scrapedItem.price && scrapedItem.price > 10) {
         const isDirect = isVerifiedProductUrl(store, scrapedItem.url);
         const offerImg = scrapedItem.imageUrl ? (optimizeProductImageUrl(scrapedItem.imageUrl) || scrapedItem.imageUrl) : highResImage;
@@ -874,8 +1382,11 @@ export async function aggregateSearchResults(query: string): Promise<Product[]> 
           lastVerifiedAt: Date.now(),
           lastUpdated: Date.now(),
         });
+        const activeS = store as ActiveStore;
+        if (storeAudits[activeS]) {
+          storeAudits[activeS].serializedOffersCount++;
+        }
       } else {
-        // Store supports category, but no verified matching item found
         storeOffers.push({
           id: `${productId}_${store.toLowerCase()}`,
           productId,
@@ -905,7 +1416,7 @@ export async function aggregateSearchResults(query: string): Promise<Product[]> 
     const validReviews = cluster.items.map(i => i.reviewCount).filter((r): r is number => r !== null && r > 0);
     const totalReviews = validReviews.length > 0 ? validReviews.reduce((a, b) => a + b, 0) : null;
 
-    // Detect variants (e.g., storage or color tokens)
+    // Detect variants (storage or color tokens)
     const variants: ProductVariant[] = [];
     const storageMatches = cluster.title.match(/(64GB|128GB|256GB|512GB|1TB|8GB|16GB|32GB)/ig);
     if (storageMatches) {
@@ -924,20 +1435,47 @@ export async function aggregateSearchResults(query: string): Promise<Product[]> 
     const primaryOffer = storeOffers.find((s) => s.price !== null && s.price > 0);
     const lowestOfferPrice = primaryOffer?.price ?? null;
     const primaryStore = primaryOffer?.store ?? null;
-    const productCategory = detectCategory(cluster.title);
+    const productCategory = category;
 
-    // Calculate real dynamic bank offers & No-Cost EMI plans
+    // Bank offers & EMI plans
     const paymentOffers = calculatePaymentOffers(lowestOfferPrice, primaryStore, productCategory);
     const emiPlans = calculateEmiPlans(lowestOfferPrice, primaryStore);
 
-    // AI Review Summary generation across all queried stores
-    const availableStores = storeOffers.map((s) => s.store);
-    const reviewSummary = await generateProductReviewSummaryWithGemini(
-      cluster.title,
-      availableStores,
-      avgRating,
-      totalReviews
-    );
+    // Bounded Review Summary: Cluster 0 gets Groq AI with 2.5s timeout race; others get deterministic summary
+    const availableStores = storeOffers.filter(s => s.status === MarketplaceStatus.AVAILABLE).map((s) => s.store);
+    let reviewSummary: any = null;
+
+    if (clusterIdx === 0) {
+      try {
+        const groqPromise = generateProductReviewSummaryWithGroq(
+          cluster.title,
+          availableStores.length > 0 ? availableStores : [Store.AMAZON],
+          avgRating,
+          totalReviews
+        );
+        const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 2500));
+        reviewSummary = await Promise.race([groqPromise, timeoutPromise]);
+      } catch {
+        reviewSummary = null;
+      }
+    }
+
+    if (!reviewSummary) {
+      reviewSummary = {
+        sentimentScore: avgRating ? Math.round(avgRating * 20) : null,
+        pros: [],
+        cons: [],
+        totalAnalyzed: totalReviews || 0,
+        isAvailable: false,
+        ratingDistribution: null,
+        featureScores: null,
+        confidenceScore: null,
+        evidenceCoverage: 'AI sentiment analysis available on demand.',
+        dataFreshness: Date.now(),
+        analysisStatus: 'UNAVAILABLE',
+        sourceMetadata: availableStores.join(', ') || 'N/A',
+      };
+    }
 
     products.push({
       id: productId,
@@ -947,7 +1485,7 @@ export async function aggregateSearchResults(query: string): Promise<Product[]> 
       description: `Live price comparison across online stores for ${cluster.title}.`,
       imageUrl: highResImage || null,
       category: productCategory,
-      brand: detectBrand(cluster.title),
+      brand: cluster.brand,
       rating: avgRating,
       reviewCount: totalReviews,
       variants,
@@ -958,6 +1496,26 @@ export async function aggregateSearchResults(query: string): Promise<Product[]> 
       lastUpdated: Date.now(),
     });
   }
+
+  // 7. Structured diagnostic audit report
+  for (const store of ACTIVE_MARKETPLACES) {
+    const s = store as ActiveStore;
+    if (storeAudits[s]) {
+      storeAudits[s].rejectedCount = storeAudits[s].rejections.length;
+    }
+  }
+
+  const auditReport = {
+    reqId: reqId || 'no_req_id',
+    query: cleanQ,
+    detectedCategory,
+    stores: storeAudits,
+    totalClusters: productClusters.length,
+    multiStoreClusters: productClusters.filter(c => c.items.length > 1).length,
+    productsReturned: products.length,
+  };
+
+  console.log(`[Marketplace Audit] [${reqId || 'no_req_id'}] ${JSON.stringify(auditReport)}`);
 
   return products;
 }

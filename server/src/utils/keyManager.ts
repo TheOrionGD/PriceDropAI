@@ -19,27 +19,16 @@ export const KEY_SET_2: KeyPair = {
   zenrows: process.env.ZENROWS_KEY2?.trim() || process.env.ZENROWS_KEY?.trim() || '',
 };
 
-// Store Segment 1 (6-7 stores assigned to Key Set 1)
+// Active store platform segment (Key Set 1)
 export const STORES_SET_1 = [
   'AMAZON',
   'FLIPKART',
   'MEESHO',
-  'MYNTRA',
-  'CROMA',
-  'RELIANCE_DIGITAL',
-  'JIOMART'
+  'MYNTRA'
 ] as const;
 
-// Store Segment 2 (6-7 stores assigned to Key Set 2)
-export const STORES_SET_2 = [
-  'TATACLIQ',
-  'AJIO',
-  'NYKAA',
-  'EBAY',
-  'WALMART',
-  'TARGET',
-  'BLINKIT'
-] as const;
+// Unused/obsolete segment
+export const STORES_SET_2 = [] as const;
 
 export type StoreKeySegment = 1 | 2;
 

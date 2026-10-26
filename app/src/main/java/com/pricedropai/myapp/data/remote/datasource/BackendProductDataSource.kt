@@ -173,6 +173,9 @@ class BackendProductDataSource(
                 } catch (_: Exception) {
                     continue
                 }
+                if (!storeEnum.isActive) {
+                    continue
+                }
 
                 val rawPrice = if (storeObj.has("price") && !storeObj.isNull("price")) storeObj.optDouble("price") else null
                 val origPrice = if (storeObj.has("originalPrice") && !storeObj.isNull("originalPrice")) storeObj.optDouble("originalPrice") else null
