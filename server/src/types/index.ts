@@ -29,11 +29,25 @@ export enum PaymentOfferType {
   REWARDS = 'REWARDS',
 }
 
+export enum MarketplaceStatus {
+  AVAILABLE = 'AVAILABLE',
+  OUT_OF_STOCK = 'OUT_OF_STOCK',
+  NO_RESULTS = 'NO_RESULTS',
+  UNSUPPORTED_CATEGORY = 'UNSUPPORTED_CATEGORY',
+  EXTRACTION_FAILED = 'EXTRACTION_FAILED',
+  RATE_LIMITED = 'RATE_LIMITED',
+  UNKNOWN = 'UNKNOWN',
+}
+
 export interface StoreOffer {
   id: string;
   productId: string;
   store: Store;
   productUrl: string;
+  searchUrl?: string;
+  isDirectProductUrl?: boolean;
+  status?: MarketplaceStatus;
+  matchScore?: number | null;
   price: number | null;
   originalPrice: number | null;
   discountPercentage: number | null;
@@ -41,6 +55,7 @@ export interface StoreOffer {
   availability: Availability;
   deliveryInfo: string | null;
   imageUrl?: string | null;
+  lastVerifiedAt?: number;
   lastUpdated: number;
 }
 
@@ -177,4 +192,6 @@ export interface RawScrapedItem {
   rating: number | null;
   reviewCount: number | null;
   availability: Availability;
+  isDirectProductUrl?: boolean;
+  searchUrl?: string;
 }

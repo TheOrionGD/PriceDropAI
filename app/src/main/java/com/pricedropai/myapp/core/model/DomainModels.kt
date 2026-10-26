@@ -47,6 +47,22 @@ enum class Availability {
     UNKNOWN
 }
 
+enum class MarketplaceStatus {
+    AVAILABLE,
+    OUT_OF_STOCK,
+    NO_RESULTS,
+    UNSUPPORTED_CATEGORY,
+    EXTRACTION_FAILED,
+    RATE_LIMITED,
+    UNKNOWN;
+
+    companion object {
+        fun fromString(status: String?): MarketplaceStatus {
+            return entries.firstOrNull { it.name.equals(status, ignoreCase = true) } ?: UNKNOWN
+        }
+    }
+}
+
 data class ProductVariant(
     val id: String,
     val productId: String,
@@ -68,6 +84,11 @@ data class StoreOffer(
     val availability: Availability = Availability.IN_STOCK,
     val deliveryInfo: String? = null,
     val imageUrl: String? = null,
+    val searchUrl: String? = null,
+    val isDirectProductUrl: Boolean = false,
+    val status: MarketplaceStatus = MarketplaceStatus.AVAILABLE,
+    val matchScore: Int = 100,
+    val lastVerifiedAt: Long? = null,
     val lastUpdated: Long = System.currentTimeMillis()
 )
 

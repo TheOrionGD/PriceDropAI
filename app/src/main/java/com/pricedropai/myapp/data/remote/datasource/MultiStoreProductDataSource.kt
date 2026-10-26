@@ -175,15 +175,21 @@ class MultiStoreProductDataSource(
                         existingScraped.offer.copy(
                             id = "${productId}_${store.name.lowercase()}",
                             productId = productId,
-                            imageUrl = existingScraped.imageUrl ?: dynamicImage
+                            imageUrl = existingScraped.imageUrl ?: dynamicImage,
+                            searchUrl = storeUrl,
+                            isDirectProductUrl = true,
+                            status = MarketplaceStatus.AVAILABLE
                         )
                     } else if (!isSupported) {
-                        // Store does NOT carry this product or category: Display price as 0 with tag (Product Unavailable..)
+                        // Store does NOT carry this product or category: Honest UNSUPPORTED_CATEGORY state
                         StoreOffer(
                             id = "${productId}_${store.name.lowercase()}",
                             productId = productId,
                             store = store,
                             productUrl = storeUrl,
+                            searchUrl = storeUrl,
+                            isDirectProductUrl = false,
+                            status = MarketplaceStatus.UNSUPPORTED_CATEGORY,
                             price = 0.0,
                             originalPrice = 0.0,
                             discountPercentage = 0.0,
@@ -194,12 +200,15 @@ class MultiStoreProductDataSource(
                             lastUpdated = System.currentTimeMillis()
                         )
                     } else {
-                        // Store not found or listing unavailable for this product: Do not manufacture synthetic prices
+                        // Store supports category but no relevant matching product found: Honest NO_RESULTS state
                         StoreOffer(
                             id = "${productId}_${store.name.lowercase()}",
                             productId = productId,
                             store = store,
                             productUrl = storeUrl,
+                            searchUrl = storeUrl,
+                            isDirectProductUrl = false,
+                            status = MarketplaceStatus.NO_RESULTS,
                             price = 0.0,
                             originalPrice = 0.0,
                             discountPercentage = 0.0,
@@ -760,6 +769,10 @@ class MultiStoreProductDataSource(
     private fun detectCategory(q: String): String {
         val lower = q.lowercase()
         return when {
+            // Sports & Fitness prioritized before Furniture so "adjustable" does not match "table"
+            lower.contains("gripper") || lower.contains("wrist") || lower.contains("forearm") || lower.contains("finger exerciser") ||
+                lower.contains("cycle") || lower.contains("bicycle") || lower.contains("gym") || lower.contains("dumbbell") ||
+                lower.contains("barbell") || lower.contains("kettlebell") || lower.contains("resistance band") || lower.contains("fitness") -> "Sports & Fitness"
             lower.contains("phone") || lower.contains("iphone") || lower.contains("samsung") || lower.contains("pixel") || lower.contains("redmi") || lower.contains("oneplus") -> "Mobiles"
             lower.contains("laptop") || lower.contains("macbook") || lower.contains("computer") || lower.contains("pc") || lower.contains("dell") || lower.contains("hp") -> "Computers"
             lower.contains("tablet") || lower.contains("ipad") -> "Tablets"
@@ -768,10 +781,9 @@ class MultiStoreProductDataSource(
             lower.contains("shirt") || lower.contains("t-shirt") || lower.contains("pant") || lower.contains("jeans") || lower.contains("saree") || lower.contains("kurti") || lower.contains("dress") || lower.contains("jacket") -> "Fashion"
             lower.contains("perfume") || lower.contains("fragrance") || lower.contains("shampoo") || lower.contains("skincare") || lower.contains("cream") || lower.contains("makeup") || lower.contains("serum") -> "Beauty & Personal Care"
             lower.contains("bottle") || lower.contains("flask") || lower.contains("cooker") || lower.contains("kettle") || lower.contains("pan") || lower.contains("induction") || lower.contains("blender") -> "Kitchen"
-            lower.contains("chair") || lower.contains("table") || lower.contains("desk") || lower.contains("sofa") || lower.contains("bed") || lower.contains("lamp") -> "Furniture & Home"
+            lower.contains("chair") || (lower.contains("table") && !lower.contains("adjustable")) || lower.contains("desk") || lower.contains("sofa") || lower.contains("bed") || lower.contains("lamp") -> "Furniture & Home"
             lower.contains("bag") || lower.contains("backpack") || lower.contains("luggage") || lower.contains("suitcase") || lower.contains("wallet") -> "Bags & Luggage"
             lower.contains("watch") || lower.contains("smartwatch") || lower.contains("fitbit") -> "Wearables"
-            lower.contains("cycle") || lower.contains("bicycle") || lower.contains("gym") || lower.contains("dumbbell") || lower.contains("fitness") -> "Sports & Fitness"
             lower.contains("book") || lower.contains("novel") -> "Books"
             lower.contains("toy") || lower.contains("game") || lower.contains("puzzle") -> "Toys & Games"
             else -> "General E-Commerce"
@@ -819,6 +831,11 @@ class MultiStoreProductDataSource(
         val q = query.lowercase()
         val cat = category.lowercase()
 
+        val isSportsOrFitness = cat.contains("sports") || cat.contains("fitness") ||
+                q.contains("gripper") || q.contains("hand gripper") || q.contains("wrist") || q.contains("forearm") ||
+                q.contains("gym") || q.contains("dumbbell") || q.contains("barbell") || q.contains("kettlebell") ||
+                q.contains("resistance band") || q.contains("treadmill") || q.contains("exercise bike")
+
         val isTechOrElectronics = cat.contains("mobile") || cat.contains("computer") || cat.contains("tablet") ||
                 cat.contains("tv") || cat.contains("audio") || cat.contains("video") ||
                 q.contains("iphone") || q.contains("macbook") || q.contains("laptop") || q.contains("phone") ||
@@ -851,32 +868,32 @@ class MultiStoreProductDataSource(
 
         return when (store) {
             Store.CROMA, Store.RELIANCE_DIGITAL -> {
-                // Electronics & Appliances specialist: Does NOT sell clothes, shoes, cosmetics, groceries or heavy furniture
-                !isFashionOrFootwear && !isBeautyOrCosmetics && !isGrocery && !isHeavyFurniture
+                // Electronics & Appliances specialist: Does NOT sell sports gear, clothes, shoes, cosmetics, groceries or heavy furniture
+                !isSportsOrFitness && !isFashionOrFootwear && !isBeautyOrCosmetics && !isGrocery && !isHeavyFurniture
             }
             Store.MYNTRA, Store.AJIO -> {
-                // Fashion, Footwear, Lifestyle & Personal Care: Does NOT sell laptops, mobiles, TVs, large appliances or groceries
-                !isTechOrElectronics && !isGrocery && !isHeavyFurniture
+                // Fashion, Footwear, Lifestyle & Personal Care: Does NOT sell gym equipment, laptops, mobiles, TVs, large appliances or groceries
+                !isSportsOrFitness && !isTechOrElectronics && !isGrocery && !isHeavyFurniture
             }
             Store.NYKAA -> {
-                // Cosmetics, Skincare, Fragrances & Personal Care: Does NOT sell laptops, mobiles, TVs, large appliances, groceries or furniture
-                !isTechOrElectronics && !isGrocery && !isHeavyFurniture && (isBeautyOrCosmetics || isFashionOrFootwear)
+                // Cosmetics, Skincare, Fragrances & Personal Care: Does NOT sell gym gear, electronics, groceries or furniture
+                !isSportsOrFitness && !isTechOrElectronics && !isGrocery && !isHeavyFurniture && (isBeautyOrCosmetics || isFashionOrFootwear)
             }
             Store.BLINKIT -> {
-                // Quick groceries, daily essentials & small emergency accessories: Does NOT sell laptops, large TVs, appliances or flagship phones
-                !isHighEndFlagship && !isHeavyFurniture && (isGrocery || isBeautyOrCosmetics || q.contains("cable") || q.contains("charger") || q.contains("bulb") || q.contains("earphone"))
+                // Quick groceries, daily essentials & small emergency accessories: Does NOT sell gym weights/grippers, laptops, large TVs, appliances or flagship phones
+                !isSportsOrFitness && !isHighEndFlagship && !isHeavyFurniture && (isGrocery || isBeautyOrCosmetics || q.contains("cable") || q.contains("charger") || q.contains("bulb") || q.contains("earphone"))
             }
             Store.MEESHO -> {
-                // Budget fashion & home goods: Does NOT sell high-end flagship tech, MacBooks, gaming consoles or high-end appliances
+                // Budget fashion, basic accessories & home goods
                 !isHighEndFlagship && !q.contains("macbook") && !q.contains("playstation") && !q.contains("oled")
             }
             Store.JIOMART -> {
-                // Groceries, household & select electronics: Does NOT sell luxury western fast fashion
-                !q.contains("zara") && !q.contains("h&m")
+                // Open horizontal marketplace with Groceries, Electronics, Fashion, Home & Sports department
+                !q.contains("zara") && !q.contains("h&m") && !q.contains("gucci")
             }
             Store.TATACLIQ -> {
-                // Electronics, Lifestyle & Fashion: Does NOT sell perishable groceries
-                !isGrocery
+                // Electronics, Lifestyle & Fashion: Does NOT carry gym fitness equipment or perishable groceries
+                !isSportsOrFitness && !isGrocery
             }
             Store.WALMART, Store.TARGET -> {
                 // US Retailers: Do NOT carry domestic Indian FMCG food brands or traditional Indian ethnic wear

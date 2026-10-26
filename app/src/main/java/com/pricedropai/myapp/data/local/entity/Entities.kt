@@ -11,6 +11,8 @@ data class ProductEntity(
     val title: String,
     val description: String? = null,
     val imageUrl: String? = null,
+    val asin: String? = null,
+    val searchQuery: String? = null,
     val category: String? = null,
     val brand: String? = null,
     val rating: Double? = null,
@@ -45,6 +47,12 @@ data class StoreOfferEntity(
     val currency: String = "INR",
     val availability: Availability = Availability.IN_STOCK,
     val deliveryInfo: String? = null,
+    val imageUrl: String? = null,
+    val searchUrl: String? = null,
+    val isDirectProductUrl: Boolean = false,
+    val status: String = "AVAILABLE",
+    val matchScore: Int = 100,
+    val lastVerifiedAt: Long? = null,
     val lastUpdated: Long = System.currentTimeMillis()
 )
 

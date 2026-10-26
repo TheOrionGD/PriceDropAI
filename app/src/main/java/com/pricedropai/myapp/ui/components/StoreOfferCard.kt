@@ -50,16 +50,27 @@ fun StoreOfferCard(
 
     val isUnavailable = offer.price == null || offer.price <= 0.0 ||
             offer.availability == Availability.OUT_OF_STOCK ||
+            offer.status == com.pricedropai.myapp.core.model.MarketplaceStatus.OUT_OF_STOCK ||
+            offer.status == com.pricedropai.myapp.core.model.MarketplaceStatus.UNSUPPORTED_CATEGORY ||
+            offer.status == com.pricedropai.myapp.core.model.MarketplaceStatus.NO_RESULTS ||
+            offer.status == com.pricedropai.myapp.core.model.MarketplaceStatus.EXTRACTION_FAILED ||
             offer.deliveryInfo?.contains("Unavailable", ignoreCase = true) == true
 
     val effectiveIsLowest = isLowest && !isUnavailable && (offer.price ?: 0.0) > 0
+
+    val destinationUrl = when {
+        offer.isDirectProductUrl && offer.productUrl.isNotBlank() -> offer.productUrl.trim()
+        !offer.searchUrl.isNullOrBlank() -> offer.searchUrl!!.trim()
+        offer.productUrl.isNotBlank() -> offer.productUrl.trim()
+        else -> ""
+    }
 
     Card(
         modifier = modifier
             .fillMaxWidth()
             .bounceClick(targetScale = 0.98f) {
                 try {
-                    val rawUrl = offer.productUrl.trim()
+                    val rawUrl = destinationUrl
                     val targetUrl = when {
                         rawUrl.startsWith("http://") || rawUrl.startsWith("https://") -> rawUrl
                         rawUrl.startsWith("//") -> "https:$rawUrl"
@@ -146,14 +157,29 @@ fun StoreOfferCard(
                             )
                         }
                     } else if (isUnavailable) {
+                        val badgeColor = when (offer.status) {
+                            com.pricedropai.myapp.core.model.MarketplaceStatus.UNSUPPORTED_CATEGORY -> Color(0xFFF59E0B)
+                            com.pricedropai.myapp.core.model.MarketplaceStatus.EXTRACTION_FAILED,
+                            com.pricedropai.myapp.core.model.MarketplaceStatus.RATE_LIMITED -> Color(0xFF38BDF8)
+                            com.pricedropai.myapp.core.model.MarketplaceStatus.NO_RESULTS -> Color(0xFF94A3B8)
+                            else -> Color(0xFFEF4444)
+                        }
+                        val badgeText = when (offer.status) {
+                            com.pricedropai.myapp.core.model.MarketplaceStatus.UNSUPPORTED_CATEGORY -> "Not Carried"
+                            com.pricedropai.myapp.core.model.MarketplaceStatus.EXTRACTION_FAILED -> "Live Check Unavailable"
+                            com.pricedropai.myapp.core.model.MarketplaceStatus.RATE_LIMITED -> "Check Store"
+                            com.pricedropai.myapp.core.model.MarketplaceStatus.NO_RESULTS -> "No Matches"
+                            com.pricedropai.myapp.core.model.MarketplaceStatus.OUT_OF_STOCK -> "Out of Stock"
+                            else -> "Unavailable"
+                        }
                         Surface(
-                            color = Color(0xFFEF4444).copy(alpha = 0.12f),
+                            color = badgeColor.copy(alpha = 0.12f),
                             shape = RoundedCornerShape(4.dp),
-                            border = BorderStroke(0.8.dp, Color(0xFFEF4444).copy(alpha = 0.35f))
+                            border = BorderStroke(0.8.dp, badgeColor.copy(alpha = 0.35f))
                         ) {
                             Text(
-                                text = "(Product Unavailable..)",
-                                color = Color(0xFFEF4444),
+                                text = "($badgeText)",
+                                color = badgeColor,
                                 fontSize = 9.sp,
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
@@ -165,11 +191,19 @@ fun StoreOfferCard(
                 Spacer(Modifier.height(4.dp))
 
                 if (isUnavailable) {
+                    val statusExplanation = when (offer.status) {
+                        com.pricedropai.myapp.core.model.MarketplaceStatus.UNSUPPORTED_CATEGORY -> "Category not sold on ${offer.store.displayName}"
+                        com.pricedropai.myapp.core.model.MarketplaceStatus.EXTRACTION_FAILED -> "Live verification unavailable (tap to view)"
+                        com.pricedropai.myapp.core.model.MarketplaceStatus.RATE_LIMITED -> "Store restricted requests (tap to view)"
+                        com.pricedropai.myapp.core.model.MarketplaceStatus.NO_RESULTS -> "No matching listings found"
+                        com.pricedropai.myapp.core.model.MarketplaceStatus.OUT_OF_STOCK -> "Currently out of stock"
+                        else -> "Currently unavailable"
+                    }
                     Text(
-                        text = "Not in store catalog / Out of stock",
+                        text = statusExplanation,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Normal,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
                     )
                 } else {
                     val delivery = offer.deliveryInfo
@@ -183,11 +217,21 @@ fun StoreOfferCard(
                         Spacer(Modifier.height(2.dp))
                     }
 
-                    val stockStatusText = when (offer.availability) {
-                        Availability.IN_STOCK -> "In Stock"
-                        Availability.OUT_OF_STOCK -> "Currently Unavailable"
-                        Availability.LIMITED_STOCK -> "Limited Stock Available"
-                        Availability.UNKNOWN -> "Availability not reported"
+                    val stockStatusText = when (offer.status) {
+                        com.pricedropai.myapp.core.model.MarketplaceStatus.UNSUPPORTED_CATEGORY -> "Category not sold here"
+                        com.pricedropai.myapp.core.model.MarketplaceStatus.NO_RESULTS -> "No matching products found"
+                        com.pricedropai.myapp.core.model.MarketplaceStatus.OUT_OF_STOCK -> "Currently unavailable"
+                        com.pricedropai.myapp.core.model.MarketplaceStatus.EXTRACTION_FAILED -> "Store temporarily unavailable"
+                        com.pricedropai.myapp.core.model.MarketplaceStatus.RATE_LIMITED -> "Store restricted requests"
+                        com.pricedropai.myapp.core.model.MarketplaceStatus.AVAILABLE -> when (offer.availability) {
+                            Availability.IN_STOCK -> "In Stock"
+                            Availability.OUT_OF_STOCK -> "Currently Unavailable"
+                            Availability.LIMITED_STOCK -> "Limited Stock Available"
+                            Availability.UNKNOWN -> "In Stock"
+                        }
+                        com.pricedropai.myapp.core.model.MarketplaceStatus.UNKNOWN -> {
+                            if (isUnavailable) "Currently Unavailable" else "In Stock"
+                        }
                     }
 
                     Text(
@@ -200,7 +244,7 @@ fun StoreOfferCard(
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(horizontalAlignment = Alignment.End) {
-                    if (!isUnavailable && offer.price != null) {
+                    if (!isUnavailable && offer.price > 0) {
                         Text(
                             text = "₹${"%,.0f".format(offer.price)}",
                             fontWeight = FontWeight.Black,
@@ -216,16 +260,43 @@ fun StoreOfferCard(
                         }
                     } else {
                         Text(
-                            text = "₹0",
+                            text = "—",
                             fontWeight = FontWeight.Black,
                             fontSize = 17.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f)
                         )
+                        val statusTag = when (offer.status) {
+                            com.pricedropai.myapp.core.model.MarketplaceStatus.UNSUPPORTED_CATEGORY -> "(Not Carried)"
+                            com.pricedropai.myapp.core.model.MarketplaceStatus.NO_RESULTS -> "(No Matches)"
+                            com.pricedropai.myapp.core.model.MarketplaceStatus.OUT_OF_STOCK -> "(Out of Stock)"
+                            com.pricedropai.myapp.core.model.MarketplaceStatus.EXTRACTION_FAILED -> "(Store Offline)"
+                            com.pricedropai.myapp.core.model.MarketplaceStatus.RATE_LIMITED -> "(Rate Limited)"
+                            else -> "(Unavailable)"
+                        }
                         Text(
-                            text = "(Product Unavailable..)",
+                            text = statusTag,
                             fontSize = 9.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFFEF4444)
+                            color = when (offer.status) {
+                                com.pricedropai.myapp.core.model.MarketplaceStatus.UNSUPPORTED_CATEGORY -> Color(0xFFF59E0B)
+                                com.pricedropai.myapp.core.model.MarketplaceStatus.EXTRACTION_FAILED,
+                                com.pricedropai.myapp.core.model.MarketplaceStatus.RATE_LIMITED -> Color(0xFF38BDF8)
+                                else -> Color(0xFFEF4444)
+                            }
+                        )
+                    }
+
+                    Spacer(Modifier.height(4.dp))
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = if (offer.isDirectProductUrl) storeColor.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    ) {
+                        Text(
+                            text = if (offer.isDirectProductUrl) "View Product" else "View Search Results",
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (offer.isDirectProductUrl) storeColor else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
                         )
                     }
                 }

@@ -22,6 +22,8 @@ object Mappers {
             title = product.title,
             description = product.description,
             imageUrl = product.imageUrl,
+            asin = product.asin,
+            searchQuery = product.searchQuery,
             category = product.category,
             brand = product.brand,
             rating = product.rating,
@@ -40,6 +42,8 @@ object Mappers {
             title = title,
             description = description,
             imageUrl = imageUrl,
+            asin = asin,
+            searchQuery = searchQuery,
             category = category,
             brand = brand,
             rating = rating,
@@ -63,6 +67,12 @@ object Mappers {
             currency = currency,
             availability = availability,
             deliveryInfo = deliveryInfo,
+            imageUrl = imageUrl,
+            searchUrl = searchUrl,
+            isDirectProductUrl = isDirectProductUrl,
+            status = MarketplaceStatus.fromString(status),
+            matchScore = matchScore,
+            lastVerifiedAt = lastVerifiedAt,
             lastUpdated = lastUpdated
         )
     }
@@ -79,6 +89,12 @@ object Mappers {
             currency = currency,
             availability = availability,
             deliveryInfo = deliveryInfo,
+            imageUrl = imageUrl,
+            searchUrl = searchUrl,
+            isDirectProductUrl = isDirectProductUrl,
+            status = status.name,
+            matchScore = matchScore,
+            lastVerifiedAt = lastVerifiedAt,
             lastUpdated = lastUpdated
         )
     }

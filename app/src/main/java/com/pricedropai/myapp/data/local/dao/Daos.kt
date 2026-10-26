@@ -29,6 +29,14 @@ interface ProductDao {
     suspend fun getProductWithOffers(productId: String): ProductWithOffers?
 
     @Transaction
+    @Query("SELECT * FROM products WHERE id = :productId OR (asin IS NOT NULL AND asin = :asin) OR title = :title LIMIT 1")
+    suspend fun findExistingProduct(productId: String, asin: String?, title: String): ProductWithOffers?
+
+    @Transaction
+    @Query("SELECT * FROM products WHERE searchQuery = :query OR title LIKE '%' || :query || '%' ORDER BY lastUpdated DESC LIMIT 1")
+    suspend fun findProductByQuery(query: String): ProductWithOffers?
+
+    @Transaction
     @Query("SELECT * FROM products ORDER BY lastUpdated DESC LIMIT :limit")
     fun observeRecentProducts(limit: Int = 20): Flow<List<ProductWithOffers>>
 
@@ -42,7 +50,14 @@ interface ProductDao {
     suspend fun deleteOffersForProduct(productId: String)
 
     @Transaction
-    suspend fun saveProductWithOffers(product: ProductEntity, offers: List<StoreOfferEntity>) {
+    suspend fun saveProductWithOffers(
+        product: ProductEntity,
+        offers: List<StoreOfferEntity>,
+        oldProductIdToDelete: String? = null
+    ) {
+        if (!oldProductIdToDelete.isNullOrBlank() && oldProductIdToDelete != product.id) {
+            deleteProduct(oldProductIdToDelete)
+        }
         insertProduct(product)
         deleteOffersForProduct(product.id)
         insertOffers(offers)

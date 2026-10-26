@@ -1,4 +1,4 @@
-import { Product, StoreOffer, Store, Availability, RawScrapedItem, ProductVariant, PaymentOffer, PaymentOfferType } from '../types/index.js';
+import { Product, StoreOffer, Store, Availability, RawScrapedItem, ProductVariant, PaymentOffer, PaymentOfferType, MarketplaceStatus } from '../types/index.js';
 import { calculatePaymentOffers, calculateEmiPlans } from './bankingService.js';
 import { scrapeAmazon } from '../scrapers/amazon.js';
 import { scrapeFlipkart } from '../scrapers/flipkart.js';
@@ -15,6 +15,14 @@ import { scrapeTarget } from '../scrapers/target.js';
 import { fetchZenRowsProductImage, fetchWebImageFallback, isValidImageUrl, optimizeProductImageUrl } from '../scrapers/webFallback.js';
 import { analyzeStorePricesWithGemini, GEMINI_STORES, generateProductReviewSummaryWithGemini } from './geminiService.js';
 import { analyzeStoresWithGroq, GROQ_STORES } from './groqService.js';
+import {
+  normalizeSearchQuery,
+  extractProductSpecs,
+  areSpecsIncompatible,
+  isVerifiedProductUrl,
+  buildMarketplaceSearchUrl,
+  isCategorySupportedByStore
+} from '../utils/storeUrlResolver.js';
 
 function cleanTitle(title: string): string {
   return title
@@ -23,20 +31,14 @@ function cleanTitle(title: string): string {
     .trim();
 }
 
-function detectCategory(q: string): string {
+export function detectCategory(q: string): string {
   const lower = q.toLowerCase();
 
+  // Audio, Headphones & Speakers (Prioritized before Mobiles so headphone doesn't match phone)
+  if (/\b(soundbars?|speakers?|headphones?|earphones?|earbuds?|airpods?|ear\s*fun|tws|neckbands?|bluetooth\s*speakers?|amplifiers?|microphones?|mics?)\b/i.test(lower)) return 'Audio & Headphones';
+
   // Mobiles & Accessories
-  if (/phone|iphone|galaxy\s*s|pixel|redmi|oneplus|realme|motorola|moto\s*g|iqoo|poco|infinix|tecno|smartphone|mobile|charger|powerbank|tempered\s*glass|phone\s*case/i.test(lower)) return 'Mobiles & Accessories';
-
-  // Laptops & Computers
-  if (/laptop|macbook|thinkpad|ideapad|vivobook|zenbook|rog|predator|tuf|alienware|pc|desktop|monitor|keyboard|mouse|ssd|hard\s*disk|ram|gpu|graphics\s*card|motherboard|processor|cpu|router/i.test(lower)) return 'Computers & Accessories';
-
-  // Tablets & E-Readers
-  if (/tablet|ipad|galaxy\s*tab|kindle|kobo|surface\s*pro|pad\s*6|pad\s*air/i.test(lower)) return 'Tablets & E-Readers';
-
-  // Audio, Headphones & Speakers
-  if (/soundbar|speaker|headphone|earphone|earbud|airpod|ear\s*fun|tws|neckband|bluetooth\s*speaker|amplifier|microphone|mic/i.test(lower)) return 'Audio & Headphones';
+  if (/\b(phone|phones|smartphone|mobile|charger|powerbank|tempered\s*glass|phone\s*case)\b|iphone|galaxy\s*s|pixel|redmi|oneplus|realme|motorola|moto\s*g|iqoo|poco|infinix|tecno/i.test(lower)) return 'Mobiles & Accessories';
 
   // Smartwatches & Wearables
   if (/smartwatch|apple\s*watch|galaxy\s*watch|fitbit|band|fitness\s*tracker|smart\s*ring/i.test(lower)) return 'Wearables & Smartwatches';
@@ -50,35 +52,35 @@ function detectCategory(q: string): string {
   // Gaming & Consoles
   if (/playstation|ps5|ps4|xbox|nintendo|switch|gaming\s*controller|joystick|gamepad|gaming\s*chair|steam\s*deck/i.test(lower)) return 'Gaming & Consoles';
 
+  // Sports, Fitness & Outdoor (Prioritized before furniture to prevent words like 'adjustable' from matching 'table')
+  if (/\b(gripper|hand\s*gripper|wrist|forearm|finger\s*exerciser|cricket|bat|ball|badminton|racket|shuttlecock|football|basketball|volleyball|gym|dumbbell|barbell|weight\s*plate|kettlebell|pull\s*up|push\s*up|resistance\s*band|exercise\s*band|yoga\s*mat|skipping\s*rope|jump\s*rope|ab\s*roller|treadmill|exercise\s*bike|cycle|bicycle|tent|sleeping\s*bag|workout)\b/i.test(lower)) return 'Sports & Fitness';
+
   // Home & Kitchen Appliances
-  if (/refrigerator|fridge|washing\s*machine|air\s*conditioner|ac|microwave|oven|air\s*fryer|induction|chimney|water\s*purifier|ro|vacuum|iron|geyser|heater|mixer|grinder|blender|toaster|kettle|cooker|pan|pot|cookware|bottle|flask|lunch\s*box/i.test(lower)) return 'Home & Kitchen';
+  if (/\b(refrigerator|fridge|washing\s*machine|air\s*conditioner|ac|microwave|oven|air\s*fryer|induction|chimney|water\s*purifier|vacuum|iron|geyser|heater|mixer|grinder|blender|toaster|kettle|cooker|cookware|bottle|flask|lunch\s*box)\b|\bro\b|\bpan\b|\bpot\b/i.test(lower)) return 'Home & Kitchen';
 
   // Furniture & Home Decor
-  if (/chair|table|desk|sofa|couch|bed|mattress|wardrobe|bookshelf|curtain|bedsheet|pillow|carpet|rug|lamp|light|chandelier|wall\s*clock|mirror|vase/i.test(lower)) return 'Furniture & Home Decor';
+  if (/\b(chair|desk|sofa|couch|mattress|wardrobe|bookshelf|curtain|bedsheet|pillow|carpet|chandelier|wall\s*clock|mirror|vase)\b|\btable\b|\bbed\b|\brug\b|\blamp\b/i.test(lower)) return 'Furniture & Home Decor';
 
   // Footwear
-  if (/shoe|sneaker|boot|sandal|heel|slipper|clog|flip\s*flop|loafer|oxford|running\s*shoe|formal\s*shoe|sports\s*shoe/i.test(lower)) return 'Footwear';
+  if (/\b(shoe|sneaker|boot|sandal|heel|slipper|clog|flip\s*flop|loafer|oxford|running\s*shoe|formal\s*shoe|sports\s*shoe)\b/i.test(lower)) return 'Footwear';
 
   // Fashion & Apparel
-  if (/shirt|t-shirt|pant|trousers|jeans|saree|kurti|kurta|dress|lehenga|jacket|coat|hoodie|sweatshirt|blazer|suit|shorts|trackpant|innerwear|bra|brief|ethnic/i.test(lower)) return 'Fashion & Apparel';
+  if (/\b(shirt|t-shirt|pant|trousers|jeans|saree|kurti|kurta|dress|lehenga|jacket|coat|hoodie|sweatshirt|blazer|suit|shorts|trackpant|innerwear|bra|brief|ethnic)\b/i.test(lower)) return 'Fashion & Apparel';
 
   // Beauty, Skincare & Grooming
-  if (/perfume|deodorant|fragrance|cologne|shampoo|conditioner|hair\s*oil|serum|sunscreen|moisturizer|face\s*wash|cleanser|cream|lotion|makeup|lipstick|foundation|eyeliner|mascara|trimmer|shaver|hair\s*dryer|straightener/i.test(lower)) return 'Beauty & Grooming';
+  if (/\b(perfume|deodorant|fragrance|cologne|shampoo|conditioner|hair\s*oil|serum|sunscreen|moisturizer|face\s*wash|cleanser|cream|lotion|makeup|lipstick|foundation|eyeliner|mascara|trimmer|shaver|hair\s*dryer|straightener)\b/i.test(lower)) return 'Beauty & Grooming';
 
   // Bags, Luggage & Travel
-  if (/bag|backpack|rucksack|duffle|luggage|trolley|suitcase|handbag|clutch|tote|sling\s*bag|wallet|purse|card\s*holder/i.test(lower)) return 'Bags, Luggage & Travel';
+  if (/\b(bag|backpack|rucksack|duffle|luggage|trolley|suitcase|handbag|clutch|tote|sling\s*bag|wallet|purse|card\s*holder)\b/i.test(lower)) return 'Bags, Luggage & Travel';
 
   // Watches & Eyewear
-  if (/analog\s*watch|chronograph|automatic\s*watch|sunglasses|eyeglass|spectacles|shades|aviator|wayfarer/i.test(lower)) return 'Watches & Eyewear';
-
-  // Sports, Fitness & Outdoor
-  if (/cricket|bat|ball|badminton|racket|shuttlecock|football|basketball|volleyball|gym|dumbbell|barbell|resistance\s*band|yoga\s*mat|treadmill|exercise\s*bike|cycle|bicycle|tent|sleeping\s*bag/i.test(lower)) return 'Sports & Fitness';
+  if (/\b(analog\s*watch|chronograph|automatic\s*watch|sunglasses|eyeglass|spectacles|shades|aviator|wayfarer)\b/i.test(lower)) return 'Watches & Eyewear';
 
   // Health, Wellness & Nutrition
-  if (/whey|protein|creatine|bcaa|mass\s*gainer|vitamin|supplement|collagen|fish\s*oil|multivitamin|bp\s*monitor|glucometer|thermometer|nebulizer/i.test(lower)) return 'Health & Nutrition';
+  if (/\b(whey|protein|creatine|bcaa|mass\s*gainer|vitamin|supplement|collagen|fish\s*oil|multivitamin|bp\s*monitor|glucometer|thermometer|nebulizer)\b/i.test(lower)) return 'Health & Nutrition';
 
   // Baby & Toys
-  if (/diaper|baby\s*wipes|stroller|pram|crib|baby\s*food|baby\s*lotion|toy|lego|barbie|hot\s*wheels|board\s*game|puzzle|action\s*figure|doll|nerf/i.test(lower)) return 'Baby & Toys';
+  if (/\b(diaper|baby\s*wipes|stroller|pram|crib|baby\s*food|baby\s*lotion|toy|lego|barbie|hot\s*wheels|board\s*game|puzzle|action\s*figure|doll|nerf)\b/i.test(lower)) return 'Baby & Toys';
 
   // Books & Stationery
   if (/book|novel|fiction|biography|textbook|comic|manga|notebook|diary|pen|pencil|fountain\s*pen|marker|calculator|art\s*supplies/i.test(lower)) return 'Books & Stationery';
@@ -491,6 +493,20 @@ function similarityScore(strA: string, strB: string): number {
     return 0;
   }
 
+  // CRITICAL: Different specific categories must NEVER be merged! (e.g. camera grip vs fitness hand gripper)
+  const catA = detectCategory(strA);
+  const catB = detectCategory(strB);
+  if (catA !== 'General E-Commerce' && catB !== 'General E-Commerce' && catA !== catB) {
+    return 0;
+  }
+
+  // CRITICAL: Incompatible specs (e.g. 5kg fixed vs 5-60kg adjustable, 128gb vs 256gb) must NOT be merged!
+  const specsA = extractProductSpecs(strA);
+  const specsB = extractProductSpecs(strB);
+  if (areSpecsIncompatible(specsA, specsB)) {
+    return 0;
+  }
+
   const wordsA = new Set(strA.toLowerCase().replace(/[^a-z0-9 ]/g, '').split(/\s+/).filter(w => w.length > 2));
   const wordsB = new Set(strB.toLowerCase().replace(/[^a-z0-9 ]/g, '').split(/\s+/).filter(w => w.length > 2));
   if (wordsA.size === 0 || wordsB.size === 0) return 0;
@@ -510,11 +526,35 @@ function similarityScore(strA: string, strB: string): number {
 }
 
 export function calculateRelevanceScore(query: string, title: string, isSponsored?: boolean): number {
-  const cleanQ = query.trim().toLowerCase();
+  const cleanQ = normalizeSearchQuery(query);
   const titleLower = title.trim().toLowerCase();
   if (!cleanQ || !titleLower) return 0;
 
   let score = 0;
+
+  // Category mismatch check: e.g. "hand gripper" vs GoPro mount/camera grip or phone case
+  const queryCat = detectCategory(cleanQ);
+  const titleCat = detectCategory(titleLower);
+  if (queryCat !== 'General E-Commerce' && titleCat !== 'General E-Commerce' && queryCat !== titleCat) {
+    return 0;
+  }
+
+  // Specifications evaluation (adjustability, resistance range, storage)
+  const qSpecs = extractProductSpecs(cleanQ);
+  const tSpecs = extractProductSpecs(titleLower);
+  if (areSpecsIncompatible(qSpecs, tSpecs)) {
+    score -= 80;
+  } else {
+    if (qSpecs.resistanceRange && tSpecs.resistanceRange === qSpecs.resistanceRange) {
+      score += 50;
+    }
+    if (qSpecs.isAdjustable && tSpecs.isAdjustable) {
+      score += 35;
+    }
+    if (qSpecs.storage && tSpecs.storage === qSpecs.storage) {
+      score += 40;
+    }
+  }
 
   // 1. Exact phrase match bonus
   if (titleLower.includes(cleanQ)) {
@@ -574,82 +614,14 @@ export function calculateRelevanceScore(query: string, title: string, isSponsore
 }
 
 function isProductCategorySupportedByStore(store: Store, query: string, category: string): boolean {
-  const q = query.toLowerCase();
-  const cat = category.toLowerCase();
-
-  const isTechOrElectronics = cat.includes('mobile') || cat.includes('computer') || cat.includes('tablet') ||
-    cat.includes('tv') || cat.includes('audio') || cat.includes('video') ||
-    q.includes('iphone') || q.includes('macbook') || q.includes('laptop') || q.includes('phone') ||
-    q.includes('television') || q.includes('samsung galaxy') || q.includes('refrigerator') ||
-    q.includes('washing machine') || q.includes('air conditioner') || q.includes('ac') ||
-    q.includes('microwave') || q.includes('desktop') || q.includes('monitor') || q.includes('ipad');
-
-  const isFashionOrFootwear = cat.includes('fashion') || cat.includes('footwear') ||
-    q.includes('shirt') || q.includes('t-shirt') || q.includes('pant') || q.includes('jeans') ||
-    q.includes('saree') || q.includes('kurti') || q.includes('dress') || q.includes('jacket') ||
-    q.includes('shoe') || q.includes('sneaker') || q.includes('boot') || q.includes('sandal') ||
-    q.includes('heel') || q.includes('slipper') || q.includes('lehenga') || q.includes('kurta');
-
-  const isBeautyOrCosmetics = cat.includes('beauty') || cat.includes('personal care') || cat.includes('grooming') ||
-    q.includes('lipstick') || q.includes('makeup') || q.includes('skincare') || q.includes('serum') ||
-    q.includes('sunscreen') || q.includes('moisturizer') || q.includes('shampoo') || q.includes('perfume') ||
-    q.includes('fragrance') || q.includes('foundation') || q.includes('eyeliner') || q.includes('cream');
-
-  const isGrocery = cat.includes('grocer') || q.includes('atta') || q.includes('rice') || q.includes('milk') ||
-    q.includes('dal') || q.includes('oil') || q.includes('ghee') || q.includes('sugar') || q.includes('tea') ||
-    q.includes('coffee') || q.includes('biscuit') || q.includes('snack') || q.includes('chips') ||
-    q.includes('vegetable') || q.includes('fruit');
-
-  const isHeavyFurniture = cat.includes('furniture') || q.includes('sofa') || q.includes('bed') ||
-    q.includes('wardrobe') || q.includes('mattress') || q.includes('dining table');
-
-  const isHighEndFlagship = q.includes('macbook') || q.includes('iphone 15') || q.includes('iphone 16') ||
-    q.includes('iphone 14') || q.includes('s24') || q.includes('s23') || q.includes('fold') ||
-    q.includes('playstation 5') || q.includes('ps5') || q.includes('xbox series') || q.includes('rtx');
-
-  switch (store) {
-    case Store.CROMA:
-    case Store.RELIANCE_DIGITAL:
-      return !isFashionOrFootwear && !isBeautyOrCosmetics && !isGrocery && !isHeavyFurniture;
-
-    case Store.MYNTRA:
-    case Store.AJIO:
-      return !isTechOrElectronics && !isGrocery && !isHeavyFurniture;
-
-    case Store.NYKAA:
-      return !isTechOrElectronics && !isGrocery && !isHeavyFurniture && (isBeautyOrCosmetics || isFashionOrFootwear);
-
-    case Store.BLINKIT:
-      return !isHighEndFlagship && !isHeavyFurniture && (isGrocery || isBeautyOrCosmetics || q.includes('cable') || q.includes('charger') || q.includes('bulb') || q.includes('earphone'));
-
-    case Store.MEESHO:
-      return !isHighEndFlagship && !q.includes('macbook') && !q.includes('playstation') && !q.includes('oled');
-
-    case Store.JIOMART:
-      return !q.includes('zara') && !q.includes('h&m');
-
-    case Store.TATACLIQ:
-      return !isGrocery;
-
-    case Store.WALMART:
-    case Store.TARGET:
-      return !q.includes('amul') && !q.includes('patanjali') && !q.includes('haldiram') && !q.includes('saree') && !q.includes('kurti');
-
-    case Store.EBAY:
-      return !isGrocery;
-
-    case Store.AMAZON:
-    case Store.FLIPKART:
-      return true;
-
-    default:
-      return true;
-  }
+  return isCategorySupportedByStore(store, category, query);
 }
 
 export async function aggregateSearchResults(query: string): Promise<Product[]> {
-  const cleanQ = query.trim();
+  const cleanQ = normalizeSearchQuery(query);
   if (!cleanQ) return [];
+
+  const detectedCategory = detectCategory(cleanQ);
 
   // 1. Scrape Amazon as primary source of items, prices, and high-res images
   let amazonItems: RawScrapedItem[] = [];
@@ -660,13 +632,35 @@ export async function aggregateSearchResults(query: string): Promise<Product[]> 
     console.warn(`[Amazon Scraper Notice] ${err.message}`);
   }
 
-  // 2. Fetch other fast stores in parallel without overloading ZenRows concurrency
-  const otherTasks: Array<() => Promise<RawScrapedItem[]>> = [
-    () => scrapeFlipkart(cleanQ),
-    () => scrapeMeesho(cleanQ),
-    () => scrapeMyntra(cleanQ),
-    () => scrapeCroma(cleanQ),
-  ];
+  // 2. Fetch other stores in parallel, but ONLY if they support the detected category
+  const otherTasks: Array<() => Promise<RawScrapedItem[]>> = [];
+  if (isCategorySupportedByStore(Store.FLIPKART, detectedCategory, cleanQ)) {
+    otherTasks.push(() => scrapeFlipkart(cleanQ).catch(() => []));
+  }
+  if (isCategorySupportedByStore(Store.MEESHO, detectedCategory, cleanQ)) {
+    otherTasks.push(() => scrapeMeesho(cleanQ).catch(() => []));
+  }
+  if (isCategorySupportedByStore(Store.MYNTRA, detectedCategory, cleanQ)) {
+    otherTasks.push(() => scrapeMyntra(cleanQ).catch(() => []));
+  }
+  if (isCategorySupportedByStore(Store.CROMA, detectedCategory, cleanQ)) {
+    otherTasks.push(() => scrapeCroma(cleanQ).catch(() => []));
+  }
+  if (isCategorySupportedByStore(Store.RELIANCE_DIGITAL, detectedCategory, cleanQ)) {
+    otherTasks.push(() => scrapeRelianceDigital(cleanQ).catch(() => []));
+  }
+  if (isCategorySupportedByStore(Store.TATACLIQ, detectedCategory, cleanQ)) {
+    otherTasks.push(() => scrapeTataCliq(cleanQ).catch(() => []));
+  }
+  if (isCategorySupportedByStore(Store.AJIO, detectedCategory, cleanQ)) {
+    otherTasks.push(() => scrapeAjio(cleanQ).catch(() => []));
+  }
+  if (isCategorySupportedByStore(Store.EBAY, detectedCategory, cleanQ)) {
+    otherTasks.push(() => scrapeEbay(cleanQ).catch(() => []));
+  }
+  if (isCategorySupportedByStore(Store.NYKAA, detectedCategory, cleanQ)) {
+    otherTasks.push(() => scrapeNykaa(cleanQ).catch(() => []));
+  }
 
   const allItems: RawScrapedItem[] = [...amazonItems];
   const otherResults = await Promise.allSettled(otherTasks.map(fn => fn()));
@@ -778,7 +772,9 @@ export async function aggregateSearchResults(query: string): Promise<Product[]> 
   for (let clusterIdx = 0; clusterIdx < selectedClusters.length; clusterIdx++) {
     const cluster = selectedClusters[clusterIdx];
     const primaryItem = cluster.items[0];
-    const productId = cluster.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 60);
+    const productId = cluster.asin
+      ? `amazon_${cluster.asin.toLowerCase()}`
+      : cluster.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 60);
 
     // 1. Resolve product image STRICTLY from items belonging to this specific cluster
     let highResImage: string | null = null;
@@ -805,180 +801,101 @@ export async function aggregateSearchResults(query: string): Promise<Product[]> 
       } catch { }
     }
 
+    const ALL_MARKETPLACES: Store[] = [
+      Store.AMAZON,
+      Store.FLIPKART,
+      Store.MEESHO,
+      Store.MYNTRA,
+      Store.CROMA,
+      Store.RELIANCE_DIGITAL,
+      Store.JIOMART,
+      Store.TATACLIQ,
+      Store.AJIO,
+      Store.NYKAA,
+      Store.BLINKIT,
+      Store.EBAY,
+      Store.WALMART,
+      Store.TARGET,
+    ];
+
     const storeOffers: StoreOffer[] = [];
-    let primaryKnownPrice: number | null = null;
-
-    // Check every cluster item first (genuine live scraping)
-    for (const item of cluster.items) {
-      if (item.price && item.price > 10 && !storeOffers.some(o => o.store === item.store)) {
-        if (!primaryKnownPrice) primaryKnownPrice = item.price;
-        const offerImg = item.imageUrl ? (optimizeProductImageUrl(item.imageUrl) || item.imageUrl) : highResImage;
-        storeOffers.push({
-          id: `${productId}_${item.store.toLowerCase()}`,
-          productId,
-          store: item.store,
-          productUrl: item.url,
-          price: item.price,
-          originalPrice: item.originalPrice,
-          discountPercentage: item.discountPercentage,
-          currency: 'INR',
-          availability: item.availability,
-          deliveryInfo: item.title,
-          imageUrl: offerImg,
-          lastUpdated: Date.now(),
-        });
-      }
-    }
-
     const category = detectCategory(cluster.title);
-    const refPrice = primaryKnownPrice || 1500;
 
-    // 6 stores analyzed by Gemini + 6 stores analyzed by Groq
-    const geminiMissing = GEMINI_STORES.filter(s => !storeOffers.some(o => o.store === s));
-    const groqMissing = GROQ_STORES.filter(s => !storeOffers.some(o => o.store === s));
+    for (const store of ALL_MARKETPLACES) {
+      const isSupported = isCategorySupportedByStore(store, category, cleanQ);
+      const searchUrl = buildMarketplaceSearchUrl(store, cleanQ);
 
-    // Only run remote LLM calls for top 2 clusters to maintain sub-3-second responses
-    let geminiAnalysis: Record<string, any> = {};
-    let groqAnalysis: Record<string, any> = {};
-
-    if (clusterIdx < 2) {
-      const [gRes, grRes] = await Promise.all([
-        geminiMissing.length > 0
-          ? analyzeStorePricesWithGemini(cleanQ, category, refPrice, cluster.title)
-          : Promise.resolve({}),
-        groqMissing.length > 0
-          ? analyzeStoresWithGroq(cleanQ, category, refPrice, cluster.title)
-          : Promise.resolve({})
-      ]);
-      geminiAnalysis = gRes;
-      groqAnalysis = grRes;
-    }
-
-    // Build helper function for clean search URLs for each store
-    const buildStoreUrl = (store: Store, title: string) => {
-      const cleanSearchTerm = cleanTitle(title).replace(/[^a-zA-Z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60);
-      const encodedTitle = encodeURIComponent(cleanSearchTerm);
-      switch (store) {
-        case Store.AMAZON: return `https://www.amazon.in/s?k=${encodedTitle}`;
-        case Store.FLIPKART: return `https://www.flipkart.com/search?q=${encodedTitle}`;
-        case Store.MEESHO: return `https://www.meesho.com/search?q=${encodedTitle}&searchType=manual&searchIdentifier=text_search`;
-        case Store.MYNTRA: return `https://www.myntra.com/${encodedTitle.replace(/%20|\+/g, '-')}`;
-        case Store.JIOMART: return `https://www.jiomart.com/products?q=${cleanSearchTerm.replace(/\s+/g, '+')}`;
-        case Store.BLINKIT: return `https://blinkit.com/s/?q=${encodedTitle}`;
-        case Store.CROMA: return `https://www.croma.com/searchB?q=${encodedTitle}%3Arelevance`;
-        case Store.RELIANCE_DIGITAL: return `https://www.reliancedigital.in/products?q=${encodedTitle}`;
-        case Store.TATACLIQ: return `https://www.tatacliq.com/search/page-1?q=${encodedTitle}%3Arelevance`;
-        case Store.AJIO: return `https://www.ajio.com/search/?text=${encodedTitle}`;
-        case Store.NYKAA: return `https://www.nykaa.com/search/result/?q=${encodedTitle}&root=search`;
-        case Store.EBAY: return `https://www.ebay.com/sch/i.html?_nkw=${encodedTitle}`;
-        case Store.WALMART: return `https://www.walmart.com/search?q=${encodedTitle}`;
-        case Store.TARGET: return `https://www.target.com/s?searchTerm=${encodedTitle}`;
-        default: return `https://www.google.com/search?q=${encodedTitle}+shopping`;
-      }
-    };
-
-    // Store multiplier lookup for fast and realistic dynamic rate allocation
-    const storeMultiplier: Record<string, number> = {
-      [Store.AMAZON]: 1.0,
-      [Store.FLIPKART]: 0.99,
-      [Store.MEESHO]: 0.96,
-      [Store.MYNTRA]: 1.02,
-      [Store.CROMA]: 1.0,
-      [Store.RELIANCE_DIGITAL]: 1.01,
-      [Store.JIOMART]: 0.98,
-      [Store.TATACLIQ]: 1.01,
-      [Store.AJIO]: 0.98,
-      [Store.NYKAA]: 1.0,
-      [Store.BLINKIT]: 1.03,
-      [Store.EBAY]: 1.02,
-      [Store.WALMART]: 1.0,
-      [Store.TARGET]: 1.0,
-    };
-
-    // Add Gemini 6-store offers with dynamically allocated rate, link, and image
-    for (const store of geminiMissing) {
-      const isSupported = isProductCategorySupportedByStore(store, cleanQ, category);
       if (!isSupported) {
         storeOffers.push({
           id: `${productId}_${store.toLowerCase()}`,
           productId,
           store,
-          productUrl: buildStoreUrl(store, cluster.title),
+          productUrl: searchUrl,
+          searchUrl,
+          isDirectProductUrl: false,
+          status: MarketplaceStatus.UNSUPPORTED_CATEGORY,
+          matchScore: null,
           price: 0,
           originalPrice: 0,
           discountPercentage: 0,
           currency: 'INR',
           availability: Availability.OUT_OF_STOCK,
-          deliveryInfo: '(Product Unavailable..)',
+          deliveryInfo: `(Store does not carry ${category})`,
           imageUrl: highResImage,
+          lastVerifiedAt: Date.now(),
           lastUpdated: Date.now(),
         });
         continue;
       }
 
-      const aiData = geminiAnalysis[store.toUpperCase()];
-      const mult = storeMultiplier[store] || 1.0;
-      const price = aiData?.price || Math.round(refPrice * mult);
-      const originalPrice = aiData?.originalPrice || Math.round(price * 1.25);
-      const discountPercentage = aiData?.discountPercentage || Math.round(((originalPrice - price) / originalPrice) * 100);
+      // Check if cluster has a verified scraped item for this store
+      const scrapedItem = cluster.items.find(i => i.store === store);
+      if (scrapedItem && scrapedItem.price && scrapedItem.price > 10) {
+        const isDirect = isVerifiedProductUrl(store, scrapedItem.url);
+        const offerImg = scrapedItem.imageUrl ? (optimizeProductImageUrl(scrapedItem.imageUrl) || scrapedItem.imageUrl) : highResImage;
+        const matchScore = calculateRelevanceScore(cleanQ, scrapedItem.title, scrapedItem.isSponsored);
 
-      storeOffers.push({
-        id: `${productId}_${store.toLowerCase()}`,
-        productId,
-        store,
-        productUrl: buildStoreUrl(store, cluster.title),
-        price,
-        originalPrice,
-        discountPercentage,
-        currency: 'INR',
-        availability: aiData?.availability || Availability.IN_STOCK,
-        deliveryInfo: aiData?.deliveryInfo || `${store} Verified Deal`,
-        imageUrl: highResImage,
-        lastUpdated: Date.now(),
-      });
-    }
-
-    // Add Groq 6-store offers with dynamically allocated rate, link, and image
-    for (const store of groqMissing) {
-      const isSupported = isProductCategorySupportedByStore(store, cleanQ, category);
-      if (!isSupported) {
         storeOffers.push({
           id: `${productId}_${store.toLowerCase()}`,
           productId,
           store,
-          productUrl: buildStoreUrl(store, cluster.title),
+          productUrl: scrapedItem.url,
+          searchUrl,
+          isDirectProductUrl: isDirect,
+          status: scrapedItem.availability === Availability.OUT_OF_STOCK ? MarketplaceStatus.OUT_OF_STOCK : MarketplaceStatus.AVAILABLE,
+          matchScore,
+          price: scrapedItem.price,
+          originalPrice: scrapedItem.originalPrice,
+          discountPercentage: scrapedItem.discountPercentage,
+          currency: 'INR',
+          availability: scrapedItem.availability,
+          deliveryInfo: scrapedItem.title,
+          imageUrl: offerImg,
+          lastVerifiedAt: Date.now(),
+          lastUpdated: Date.now(),
+        });
+      } else {
+        // Store supports category, but no verified matching item found
+        storeOffers.push({
+          id: `${productId}_${store.toLowerCase()}`,
+          productId,
+          store,
+          productUrl: searchUrl,
+          searchUrl,
+          isDirectProductUrl: false,
+          status: MarketplaceStatus.NO_RESULTS,
+          matchScore: null,
           price: 0,
           originalPrice: 0,
           discountPercentage: 0,
           currency: 'INR',
           availability: Availability.OUT_OF_STOCK,
-          deliveryInfo: '(Product Unavailable..)',
+          deliveryInfo: 'No matching products found',
           imageUrl: highResImage,
+          lastVerifiedAt: Date.now(),
           lastUpdated: Date.now(),
         });
-        continue;
       }
-
-      const aiData = groqAnalysis[store.toUpperCase()];
-      const mult = storeMultiplier[store] || 1.0;
-      const price = aiData?.price || Math.round(refPrice * mult);
-      const originalPrice = aiData?.originalPrice || Math.round(price * 1.25);
-      const discountPercentage = aiData?.discountPercentage || Math.round(((originalPrice - price) / originalPrice) * 100);
-
-      storeOffers.push({
-        id: `${productId}_${store.toLowerCase()}`,
-        productId,
-        store,
-        productUrl: buildStoreUrl(store, cluster.title),
-        price,
-        originalPrice,
-        discountPercentage,
-        currency: 'INR',
-        availability: aiData?.availability || Availability.IN_STOCK,
-        deliveryInfo: aiData?.deliveryInfo || `${store} Verified Deal`,
-        imageUrl: highResImage,
-        lastUpdated: Date.now(),
-      });
     }
 
     // Ratings & Reviews

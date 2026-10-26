@@ -1,9 +1,17 @@
+import dns from 'node:dns';
 import express, { Express, Request, Response } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
 import path from 'path';
 import apiRouter from './routes/api.js';
+
+// Resolve IPv4 first to prevent Windows/ISP IPv6 socket resets (WSAECONNRESET to Google 2001:4860::)
+try {
+  dns.setDefaultResultOrder('ipv4first');
+} catch {
+  // Ignore on older runtimes
+}
 
 dotenv.config();
 

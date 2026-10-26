@@ -1,8 +1,15 @@
+import dns from 'node:dns';
 import axios from 'axios';
 import dotenv from 'dotenv';
 import { Store, Availability } from '../types/index.js';
 import { AiStoreAnalysis, CopilotResponse } from './geminiService.js';
 import { getGroqKey } from '../utils/keyManager.js';
+
+try {
+  dns.setDefaultResultOrder('ipv4first');
+} catch {
+  // Ignore
+}
 
 dotenv.config();
 
@@ -36,6 +43,61 @@ function isGroqInCooldown(apiKey: string, model: string): boolean {
 function setGroqCooldown(apiKey: string, model: string, durationMs: number = 30000) {
   const key = `${apiKey.slice(0, 10)}_${model}`;
   groqModelCooldowns.set(key, Date.now() + durationMs);
+}
+
+/**
+ * Executes a fast, resilient JSON completion using Groq LPU models.
+ * Automatically tries active models across available API keys.
+ */
+export async function callGroqJsonApi(
+  systemPrompt: string,
+  userPrompt: string,
+  timeoutMs: number = 6000
+): Promise<string | null> {
+  const apiKeys = getGroqApiKeys();
+  if (apiKeys.length === 0) return null;
+
+  for (const model of GROQ_CHAT_MODELS) {
+    for (const apiKey of apiKeys) {
+      if (isGroqInCooldown(apiKey, model)) continue;
+
+      try {
+        const response = await axios.post(
+          'https://api.groq.com/openai/v1/chat/completions',
+          {
+            model,
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: userPrompt }
+            ],
+            temperature: 0.2,
+            response_format: { type: 'json_object' }
+          },
+          {
+            headers: {
+              'Authorization': `Bearer ${apiKey}`,
+              'Content-Type': 'application/json'
+            },
+            timeout: timeoutMs
+          }
+        );
+
+        const content = response.data?.choices?.[0]?.message?.content;
+        if (content && typeof content === 'string' && content.trim().length > 0) {
+          return content.trim();
+        }
+      } catch (err: any) {
+        const status = err.response?.status;
+        if (status === 429) {
+          console.warn(`[Groq AI Notice] Rate limit (HTTP 429) on model ${model} with key ${apiKey.slice(0, 8)}... Cooling down for 30s.`);
+          setGroqCooldown(apiKey, model, 30000);
+        } else {
+          console.warn(`[Groq AI Notice] Model ${model} error: ${err.message}`);
+        }
+      }
+    }
+  }
+  return null;
 }
 
 export async function analyzeStoresWithGroq(

@@ -51,7 +51,7 @@ class BackendProductDataSource(
             val request = Request.Builder()
                 .url(targetUrl)
                 .header("Accept", "application/json")
-                .header("User-Agent", "PriceDropAI-Android/1.3")
+                .header("User-Agent", "PriceDropAI-Android/2.2.3")
                 .header("X-Request-Id", requestId)
                 .build()
 
@@ -185,16 +185,36 @@ class BackendProductDataSource(
                     Availability.IN_STOCK
                 }
                 val rawDelivery = storeObj.optString("deliveryInfo").takeIf { it.isNotBlank() }
+                val statusStr = storeObj.optString("status", "AVAILABLE")
+                val statusEnum = MarketplaceStatus.fromString(statusStr)
 
                 val isUnavailable = rawPrice == null || rawPrice <= 0.0 ||
                         availEnum == Availability.OUT_OF_STOCK ||
-                        rawDelivery?.contains("Unavailable", ignoreCase = true) == true
+                        statusEnum == MarketplaceStatus.OUT_OF_STOCK ||
+                        statusEnum == MarketplaceStatus.UNSUPPORTED_CATEGORY ||
+                        statusEnum == MarketplaceStatus.NO_RESULTS ||
+                        statusEnum == MarketplaceStatus.EXTRACTION_FAILED ||
+                        statusEnum == MarketplaceStatus.RATE_LIMITED
 
-                val finalPrice = if (isUnavailable) 0.0 else rawPrice
-                val finalOrigPrice = if (isUnavailable) 0.0 else origPrice
-                val finalDiscount = if (isUnavailable) 0.0 else discountPct
-                val finalAvail = if (isUnavailable) Availability.OUT_OF_STOCK else availEnum
-                val finalDelivery = if (isUnavailable) "(Product Unavailable..)" else rawDelivery
+                val finalPrice = if (isUnavailable) 0.0 else (rawPrice ?: 0.0)
+                val finalOrigPrice = if (isUnavailable) 0.0 else (origPrice ?: 0.0)
+                val finalDiscount = if (isUnavailable) 0.0 else (discountPct ?: 0.0)
+
+                val finalAvail = when (statusEnum) {
+                    MarketplaceStatus.EXTRACTION_FAILED, MarketplaceStatus.RATE_LIMITED, MarketplaceStatus.UNKNOWN -> Availability.UNKNOWN
+                    MarketplaceStatus.UNSUPPORTED_CATEGORY, MarketplaceStatus.NO_RESULTS, MarketplaceStatus.OUT_OF_STOCK -> Availability.OUT_OF_STOCK
+                    MarketplaceStatus.AVAILABLE -> if (rawPrice != null && rawPrice > 0) availEnum else Availability.OUT_OF_STOCK
+                }
+
+                val finalDelivery = when {
+                    rawDelivery != null && rawDelivery.isNotBlank() -> rawDelivery
+                    statusEnum == MarketplaceStatus.UNSUPPORTED_CATEGORY -> "Category not carried by ${storeEnum.displayName}"
+                    statusEnum == MarketplaceStatus.NO_RESULTS -> "No matching listings found"
+                    statusEnum == MarketplaceStatus.RATE_LIMITED -> "Search rate-limited (tap to view)"
+                    statusEnum == MarketplaceStatus.EXTRACTION_FAILED -> "Live verification unavailable (tap to view)"
+                    isUnavailable -> "(Product Unavailable..)"
+                    else -> null
+                }
 
                 val offerRawImg = (
                     storeObj.optString("imageUrl").takeIf { it.isNotBlank() && it != "null" && it != "undefined" }
@@ -207,6 +227,11 @@ class BackendProductDataSource(
                     offerRawImg.startsWith("https://") -> offerRawImg
                     else -> null
                 }
+
+                val isDirect = storeObj.optBoolean("isDirectProductUrl", false)
+                val searchUrl = storeObj.optString("searchUrl").takeIf { it.isNotBlank() && it != "null" }
+                val matchScore = storeObj.optInt("matchScore", 100)
+                val lastVerifiedAt = if (storeObj.has("lastVerifiedAt") && !storeObj.isNull("lastVerifiedAt")) storeObj.optLong("lastVerifiedAt") else null
 
                 storesList.add(
                     StoreOffer(
@@ -221,6 +246,11 @@ class BackendProductDataSource(
                         availability = finalAvail,
                         deliveryInfo = finalDelivery,
                         imageUrl = offerImg,
+                        searchUrl = searchUrl,
+                        isDirectProductUrl = isDirect,
+                        status = statusEnum,
+                        matchScore = matchScore,
+                        lastVerifiedAt = lastVerifiedAt,
                         lastUpdated = storeObj.optLong("lastUpdated", System.currentTimeMillis())
                     )
                 )

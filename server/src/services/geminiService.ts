@@ -1,6 +1,13 @@
+import dns from 'node:dns';
 import axios from 'axios';
 import { z } from 'zod';
 import { Store, Availability, ReviewSummary, RatingDistribution, FeatureSentimentScores } from '../types/index.js';
+
+try {
+  dns.setDefaultResultOrder('ipv4first');
+} catch {
+  // Ignore
+}
 
 export interface AiStoreAnalysis {
   price: number;
@@ -17,17 +24,13 @@ export interface CopilotResponse {
 }
 
 export const GEMINI_ANALYSIS_MODELS = [
-  'gemini-2.0-flash',
-  'gemini-1.5-flash',
-  'gemini-1.5-flash-8b',
-  'gemini-2.5-flash',
+  'gemini-3.1-flash-lite',
+  'gemini-3.5-flash-lite',
 ];
 
 export const GEMINI_CHAT_MODELS = [
-  'gemini-2.0-flash',
-  'gemini-1.5-flash',
-  'gemini-1.5-flash-8b',
-  'gemini-2.5-flash',
+  'gemini-3.1-flash-lite',
+  'gemini-3.5-flash-lite',
 ];
 
 import { getGeminiKey } from '../utils/keyManager.js';
@@ -146,8 +149,8 @@ async function callGeminiApi(prompt: string, modelsList: string[], expectJson: b
   const keys = [getApiKey(1), getApiKey(2)].filter(Boolean);
   if (keys.length === 0) return null;
 
-  for (const apiKey of keys) {
-    for (const model of modelsList) {
+  for (const model of modelsList) {
+    for (const apiKey of keys) {
       if (isModelInCooldown(apiKey, model)) {
         continue;
       }
@@ -181,7 +184,7 @@ async function callGeminiApi(prompt: string, modelsList: string[], expectJson: b
             headers: {
               'Content-Type': 'application/json'
             },
-            timeout: 25000
+            timeout: 4000
           }
         );
 
@@ -192,16 +195,26 @@ async function callGeminiApi(prompt: string, modelsList: string[], expectJson: b
         }
       } catch (err: any) {
         const status = err.response?.status;
+        const isTimeout = err.code === 'ECONNABORTED' || /timeout/i.test(err.message);
+        const isConnReset = err.code === 'ECONNRESET' || /forcibly closed|connection reset|socket hang up|stream reading error|wsarecv/i.test(err.message);
         if (status === 429) {
-          console.warn(`[Gemini API Notice] Rate limit (HTTP 429) on model ${model} with key ${apiKey.slice(0, 8)}... Cooling down model for 30s.`);
-          setModelCooldown(apiKey, model, 30000);
+          console.warn(`[Gemini API Notice] Rate limit (HTTP 429) on model ${model} with key ${apiKey.slice(0, 8)}... Cooling down model for 60s.`);
+          setModelCooldown(apiKey, model, 60000);
           continue;
         } else if (status === 404 || status === 400) {
-          setModelCooldown(apiKey, model, 300000); // 5 min cooldown for unsupported/non-existent model
+          setModelCooldown(apiKey, model, 600000); // 10 min cooldown for unsupported/non-existent model
           continue;
         } else if (status === 503) {
-          console.warn(`[Gemini API Notice] Model ${model} returned 503 (temporary overload). Cooling down for 15s.`);
-          setModelCooldown(apiKey, model, 15000);
+          console.warn(`[Gemini API Notice] Model ${model} returned 503 (temporary overload). Cooling down for 30s.`);
+          setModelCooldown(apiKey, model, 30000);
+          continue;
+        } else if (isTimeout) {
+          console.warn(`[Gemini API Notice] Model ${model} timed out (>4s). Cooling down for 60s.`);
+          setModelCooldown(apiKey, model, 60000);
+          continue;
+        } else if (isConnReset) {
+          console.warn(`[Gemini API Notice] Connection reset by host on model ${model} (wsarecv/ECONNRESET). Cooling down for 60s.`);
+          setModelCooldown(apiKey, model, 60000);
           continue;
         } else {
           console.warn(`[Gemini API Notice] Model ${model} returned error: ${err.message}`);
@@ -247,7 +260,22 @@ Expected JSON Schema:
   "MYNTRA": { "price": ${Math.round(referencePrice * 1.02)}, "originalPrice": ${Math.round(referencePrice * 1.25)}, "discountPercentage": 18, "availability": "IN_STOCK", "deliveryInfo": "Standard Express Shipping" }
 }`;
 
-  const rawResult = await callGeminiApi(prompt, GEMINI_ANALYSIS_MODELS, true);
+  let rawResult = await callGeminiApi(prompt, GEMINI_ANALYSIS_MODELS, true);
+
+  // Cross-engine failover: If Gemini is overloaded or in cooldown, failover seamlessly to Groq LPU
+  if (!rawResult) {
+    try {
+      const { callGroqJsonApi } = await import('./groqService.js');
+      rawResult = await callGroqJsonApi(
+        'You are an expert e-commerce price comparison engine for Indian retail platforms (Amazon, Flipkart, Meesho, Myntra). Return strictly raw JSON.',
+        prompt,
+        5000
+      );
+    } catch {
+      // Groq failover optional, will fall back to robust heuristic multipliers
+    }
+  }
+
   const parsed = safeParseJson<Record<string, any>>(rawResult);
 
   // Fallback heuristic calculations guaranteeing 100% data coverage for all 4 platforms
@@ -345,7 +373,21 @@ Return strictly a RAW JSON object:
   "suggestedSearchQuery": "optional product search query or null"
 }`;
 
-  const rawResult = await callGeminiApi(prompt, GEMINI_CHAT_MODELS, true);
+  let rawResult = await callGeminiApi(prompt, GEMINI_CHAT_MODELS, true);
+
+  // Cross-engine failover: Try Groq if Gemini is rate-limited or experiencing high demand
+  if (!rawResult) {
+    try {
+      const { callGroqJsonApi } = await import('./groqService.js');
+      rawResult = await callGroqJsonApi(
+        'You are PriceDrop AI Copilot, a fast shopping assistant for Indian e-commerce. Output strictly RAW JSON.',
+        prompt,
+        5000
+      );
+    } catch {
+      // ignore
+    }
+  }
   if (rawResult && rawResult.trim().length > 0) {
     const parsed = safeParseJson<{ replyText?: string; suggestedSearchQuery?: string }>(rawResult);
     if (parsed?.replyText) {
@@ -438,7 +480,21 @@ Output strictly a RAW JSON object adhering to this schema:
 
 Do not invent fabricated data. If there is no evidence for a specific feature, set it to null.`;
 
-  const rawResult = await callGeminiApi(prompt, GEMINI_ANALYSIS_MODELS, true);
+  let rawResult = await callGeminiApi(prompt, GEMINI_ANALYSIS_MODELS, true);
+
+  // Cross-engine failover: If Gemini is unavailable, synthesize reviews via Groq LPU
+  if (!rawResult) {
+    try {
+      const { callGroqJsonApi } = await import('./groqService.js');
+      rawResult = await callGroqJsonApi(
+        'You are an expert e-commerce product analyst. Synthesize verified customer reviews and buyer feedback. Return strictly RAW JSON adhering to schema.',
+        prompt,
+        5000
+      );
+    } catch {
+      // ignore
+    }
+  }
   if (rawResult) {
     const rawParsed = safeParseJson(rawResult);
     const parseResult = ReviewOutputSchema.safeParse(rawParsed);

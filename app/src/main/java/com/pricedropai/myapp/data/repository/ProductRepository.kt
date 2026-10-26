@@ -31,7 +31,23 @@ class ProductRepository(
     }
 
     fun observeRecentProducts(limit: Int = 20): Flow<List<Product>> {
-        return productDao.observeRecentProducts(limit).map { list -> list.map { it.toDomain() } }
+        return productDao.observeRecentProducts(limit * 3).map { list ->
+            val seenIdentities = mutableSetOf<String>()
+            val deduplicated = mutableListOf<Product>()
+            for (item in list) {
+                val domain = item.toDomain()
+                val asinKey = domain.asin?.lowercase()?.takeIf { it.isNotBlank() }
+                val canonicalKey = asinKey
+                    ?: domain.lowestOffer?.productUrl?.let { cleanCanonicalUrl(it) }
+                    ?: "${domain.brand?.lowercase()?.trim() ?: ""}_${normalizeProductTitle(domain.title)}"
+
+                if (seenIdentities.add(canonicalKey)) {
+                    deduplicated.add(domain)
+                    if (deduplicated.size >= limit) break
+                }
+            }
+            deduplicated
+        }
     }
 
     fun observeRecentSearches(limit: Int = 10): Flow<List<String>> {
@@ -60,7 +76,7 @@ class ProductRepository(
      * Offline-first product search and fetch.
      * 1. Emits cached result from Room if present.
      * 2. Fetches live data from remote stores.
-     * 3. Persists live result + price snapshots to Room.
+     * 3. Persists live result + price snapshots to Room using a single canonical product identity.
      * 4. Emits updated data.
      * 5. If remote fails and cache exists, maintains cache. If no cache, emits error. Never fakes data.
      */
@@ -69,9 +85,9 @@ class ProductRepository(
         val estimatedId = cleanQuery.lowercase().replace("[^a-z0-9]+".toRegex(), "-").take(60)
 
         // 1. Emit cached data if available in Room and relevant to the query
-        val cachedWithOffers = productDao.getProductWithOffers(estimatedId)
-            ?: productDao.observeRecentProducts(10).let { null }
-        var emittedCache = false
+        val cachedWithOffers = productDao.findExistingProduct(estimatedId, null, cleanQuery)
+            ?: productDao.findProductByQuery(cleanQuery)
+            ?: productDao.getProductWithOffers(estimatedId)
 
         if (cachedWithOffers != null) {
             val cachedDomain = cachedWithOffers.toDomain()
@@ -81,7 +97,6 @@ class ProductRepository(
             val matchRatio = if (queryWords.isEmpty()) 1.0 else matches.toDouble() / queryWords.size
 
             if (matchRatio >= 0.5) {
-                emittedCache = true
                 emit(Result.success(cachedDomain))
             }
         }
@@ -94,25 +109,59 @@ class ProductRepository(
                 if (products.isNotEmpty()) {
                     val liveProduct = products.first()
 
-                    // Save to Room DB under its native ID
-                    val productEntity = liveProduct.toEntity()
-                    val offerEntities = liveProduct.stores.map { it.toEntity() }
-                    productDao.saveProductWithOffers(productEntity, offerEntities)
-
-                    // Also save under estimated query ID as alias so future offline/cache lookups find this exact product
-                    if (liveProduct.id != estimatedId) {
-                        val aliasEntity = productEntity.copy(id = estimatedId)
-                        val aliasOffers = offerEntities.map { 
-                            it.copy(id = "${estimatedId}_${it.store.name.lowercase()}", productId = estimatedId) 
-                        }
-                        productDao.saveProductWithOffers(aliasEntity, aliasOffers)
+                    // Canonical identity resolution:
+                    // If ASIN is present, canonical ID is amazon_{asin}.
+                    // Otherwise, find existing product by title or ID to preserve stable history identity.
+                    val canonicalAsin = liveProduct.asin?.trim()?.uppercase()?.takeIf { it.isNotBlank() }
+                    val targetId = if (!canonicalAsin.isNullOrBlank()) {
+                        "amazon_${canonicalAsin.lowercase()}"
+                    } else {
+                        liveProduct.id
                     }
 
+                    // Look up any existing record by target ID, ASIN, or exact title
+                    val existing = productDao.findExistingProduct(
+                        productId = targetId,
+                        asin = canonicalAsin,
+                        title = liveProduct.title
+                    ) ?: productDao.findExistingProduct(
+                        productId = liveProduct.id,
+                        asin = null,
+                        title = liveProduct.title
+                    )
+
+                    // Prefer canonical ASIN ID if available; otherwise reuse existing ID if already tracked
+                    val resolvedId = if (!canonicalAsin.isNullOrBlank()) {
+                        targetId
+                    } else {
+                        existing?.product?.id ?: liveProduct.id
+                    }
+
+                    // If a previous record existed under an older non-canonical ID, mark it for atomic cleanup
+                    val oldIdToDelete = existing?.product?.id?.takeIf { it != resolvedId }
+
+                    val finalProduct = liveProduct.copy(
+                        id = resolvedId,
+                        asin = canonicalAsin ?: liveProduct.asin,
+                        searchQuery = cleanQuery,
+                        stores = liveProduct.stores.map { offer ->
+                            offer.copy(
+                                id = "${resolvedId}_${offer.store.name.lowercase()}",
+                                productId = resolvedId
+                            )
+                        }
+                    )
+
+                    // Save to Room DB strictly under its single canonical ID (idempotent upsert + atomic alias cleanup)
+                    val productEntity = finalProduct.toEntity()
+                    val offerEntities = finalProduct.stores.map { it.toEntity() }
+                    productDao.saveProductWithOffers(productEntity, offerEntities, oldIdToDelete)
+
                     // Record live price snapshots for each store with a verified price
-                    liveProduct.stores.forEach { offer ->
+                    finalProduct.stores.forEach { offer ->
                         if (offer.price != null && offer.price > 0) {
                             recordPriceSnapshot(
-                                productId = liveProduct.id,
+                                productId = finalProduct.id,
                                 store = offer.store,
                                 price = offer.price,
                                 availability = offer.availability
@@ -120,14 +169,11 @@ class ProductRepository(
                         }
                     }
 
-                    // Production integrity: Do not manufacture synthetic baseline history points.
-                    // Price history snapshots reflect only genuine verified observations.
-
                     // Save to search history
                     recordSearchQuery(cleanQuery)
 
                     // Emit live updated domain product
-                    emit(Result.success(liveProduct))
+                    emit(Result.success(finalProduct))
                 } else {
                     if (cachedWithOffers == null) {
                         emit(Result.failure(NoSuchElementException("No live offers found for '$cleanQuery'. Please verify the search terms.")))
@@ -166,5 +212,24 @@ class ProductRepository(
                 availability = availability
             )
         )
+    }
+
+    companion object {
+        fun cleanCanonicalUrl(url: String): String {
+            val lower = url.lowercase()
+            val asinRegex = "/(?:dp|gp/product)/([a-z0-9]{10})".toRegex()
+            val asinMatch = asinRegex.find(lower)
+            if (asinMatch != null) {
+                return "amazon_${asinMatch.groupValues[1]}"
+            }
+            return url.split("?").first().trim().lowercase()
+        }
+
+        fun normalizeProductTitle(title: String): String {
+            return title.lowercase()
+                .replace("[^a-z0-9\\s]".toRegex(), " ")
+                .replace("\\s+".toRegex(), " ")
+                .trim()
+        }
     }
 }
